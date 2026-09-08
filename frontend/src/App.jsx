@@ -15,10 +15,44 @@ import { useAdminAuth } from './context/AdminAuthContext';
 export default function App() {
   const { isAuthenticated } = useAdminAuth();
 
+  const getViewFromPath = () => {
+    const path = window.location.pathname.toLowerCase();
+    if (path.startsWith('/admin')) {
+      return 'admin-login';
+    }
+    if (path === '/tracking') return 'tracking';
+    if (path === '/shop') return 'shop';
+    if (path === '/checkout') return 'checkout';
+    return 'home';
+  };
+
   // Navigation router state
-  const [currentView, setCurrentView] = useState('home');
+  const [currentView, setCurrentViewState] = useState(getViewFromPath);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState('all');
+
+  const setCurrentView = (view) => {
+    setCurrentViewState(view);
+    let targetPath = '/';
+    if (view === 'admin-portal' || view === 'admin-login') targetPath = '/admin';
+    else if (view === 'shop') targetPath = '/shop';
+    else if (view === 'checkout') targetPath = '/checkout';
+    else if (view === 'tracking') targetPath = '/tracking';
+    else if (view === 'home') targetPath = '/';
+
+    if (window.location.pathname !== targetPath) {
+      window.history.pushState(null, '', targetPath);
+    }
+  };
+
+  // Listen for browser forward/back buttons
+  React.useEffect(() => {
+    const handlePopState = () => {
+      setCurrentViewState(getViewFromPath());
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // Completed order data for confirmation & tracking
   const [confirmedOrder, setConfirmedOrder] = useState(null);
@@ -45,15 +79,12 @@ export default function App() {
   };
 
   // If viewing admin portal and authenticated
-  if (currentView === 'admin-portal' && isAuthenticated) {
+  if ((currentView === 'admin-portal' || currentView === 'admin-login') && isAuthenticated) {
     return <AdminLayout onExitAdmin={() => setCurrentView('home')} />;
   }
 
   // If on admin login page
-  if (currentView === 'admin-login') {
-    if (isAuthenticated) {
-      return <AdminLayout onExitAdmin={() => setCurrentView('home')} />;
-    }
+  if (currentView === 'admin-login' || currentView === 'admin-portal') {
     return (
       <AdminLogin
         onLoginSuccess={() => setCurrentView('admin-portal')}
