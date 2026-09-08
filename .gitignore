@@ -1,0 +1,58 @@
+# ===========================
+# MERYA DZ — .gitignore
+# ===========================
+
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Environment variables (NEVER commit these)
+.env
+.env.local
+.env.production
+backend/.env
+
+# Build outputs
+dist/
+build/
+frontend/dist/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs/
+*.log.*
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor directories
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Uploads (user-generated content — managed at runtime, not in repo)
+backend/uploads/*
+frontend/public/uploads/*
+!backend/uploads/.gitkeep
+!frontend/public/uploads/.gitkeep
+
+# Temporary / scratch
+*.tmp
+*.temp
+data.js
+copy_new_uploads.js
+update_categories.js
+update_cats.js
+
+# Test coverage
+coverage/
+
+# Vite cache
+.vite/
+frontend/.vite/
