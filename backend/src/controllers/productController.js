@@ -246,7 +246,7 @@ export const updateProduct = async (req, res, next) => {
   }
 };
 
-// Admin: Archive product (soft delete)
+// Admin: Delete product from database
 export const archiveProduct = async (req, res, next) => {
   try {
     const product = await Product.findById(req.params.id);
@@ -254,11 +254,9 @@ export const archiveProduct = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
 
-    product.isArchived = true;
-    product.isActive = false;
-    await product.save();
+    await Product.findByIdAndDelete(req.params.id);
 
-    res.json({ success: true, message: 'Product archived successfully' });
+    res.json({ success: true, message: 'Product deleted successfully' });
   } catch (error) {
     next(error);
   }

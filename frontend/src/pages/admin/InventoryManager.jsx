@@ -51,6 +51,24 @@ export default function InventoryManager() {
     }
   };
 
+  // Local edit values for stock inputs
+  const [stockInputs, setStockInputs] = useState({});
+
+  const handleInputChange = (key, val) => {
+    setStockInputs(prev => ({ ...prev, [key]: val }));
+  };
+
+  const handleDirectSave = (productId, colorName, size) => {
+    const key = `${productId}-${colorName}-${size}`;
+    const rawVal = stockInputs[key];
+    const num = parseInt(rawVal, 10);
+    if (isNaN(num) || num < 0) {
+      alert('Please enter a valid non-negative number');
+      return;
+    }
+    handleStockUpdate(productId, colorName, size, num);
+  };
+
   // Flatten all variants for the table
   const flattenedVariants = [];
   products.forEach(p => {
@@ -79,7 +97,7 @@ export default function InventoryManager() {
             INVENTORY STOCK MANAGEMENT
           </h1>
           <p style={{ fontSize: '0.85rem', color: '#666', marginTop: '0.2rem' }}>
-            Direct atomic inventory tracking by Product → Color Variant → Size.
+            Direct atomic inventory tracking by Product → Color Variant → Size. Type exact quantities directly.
           </p>
         </div>
       </div>
@@ -103,7 +121,7 @@ export default function InventoryManager() {
                 <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Color</th>
                 <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Size</th>
                 <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Stock Status</th>
-                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Available Units</th>
+                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Available Units (Type to Edit)</th>
                 <th style={{ padding: '1rem', textAlign: 'right' }}>Quick Adjust</th>
               </tr>
             </thead>
@@ -112,6 +130,8 @@ export default function InventoryManager() {
                 const key = `${v.productId}-${v.colorName}-${v.size}`;
                 const isSaving = savingKey === key;
                 const isSuccess = successKey === key;
+                const inputValue = stockInputs[key] !== undefined ? stockInputs[key] : v.stock;
+                const hasChanged = Number(inputValue) !== v.stock;
 
                 return (
                   <tr key={key} style={{ borderBottom: '1px solid var(--color-border)' }}>
@@ -142,38 +162,80 @@ export default function InventoryManager() {
                       ) : v.stock <= 3 ? (
                         <span className="badge badge-pending">Low Stock ({v.stock})</span>
                       ) : (
-                        <span className="badge badge-delivered">Healthy</span>
+                        <span className="badge badge-delivered">Healthy ({v.stock})</span>
                       )}
                     </td>
 
                     <td style={{ padding: '1rem' }}>
-                      <span style={{ fontSize: '1.1rem', fontWeight: '800' }}>
-                        {v.stock}
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <input
+                          type="number"
+                          min="0"
+                          value={inputValue}
+                          onChange={(e) => handleInputChange(key, e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleDirectSave(v.productId, v.colorName, v.size);
+                          }}
+                          disabled={isSaving}
+                          style={{
+                            width: '80px',
+                            padding: '0.4rem 0.6rem',
+                            borderRadius: '6px',
+                            border: hasChanged ? '2px solid var(--color-espresso)' : '1px solid var(--color-border)',
+                            backgroundColor: hasChanged ? '#FFFDF9' : 'var(--color-surface)',
+                            fontWeight: '800',
+                            fontSize: '1rem',
+                            textAlign: 'center'
+                          }}
+                        />
+
+                        <button
+                          onClick={() => handleDirectSave(v.productId, v.colorName, v.size)}
+                          disabled={isSaving || (!hasChanged && !isSuccess)}
+                          className="btn btn-primary btn-sm"
+                          style={{
+                            padding: '0.4rem 0.75rem',
+                            fontSize: '0.75rem',
+                            backgroundColor: hasChanged ? 'var(--color-espresso)' : '#888',
+                            opacity: (hasChanged || isSaving) ? 1 : 0.6
+                          }}
+                          title="Save typed number directly to stock"
+                        >
+                          {isSaving ? <Loader2 size={13} className="animate-spin" /> : isSuccess ? <Check size={13} /> : <Save size={13} />}
+                          <span style={{ marginLeft: '0.25rem' }}>{isSaving ? 'Saving' : isSuccess ? 'Saved' : 'Save'}</span>
+                        </button>
+                      </div>
                     </td>
 
                     <td style={{ padding: '1rem', textAlign: 'right' }}>
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
                         <button
-                          onClick={() => handleStockUpdate(v.productId, v.colorName, v.size, Math.max(0, v.stock - 1))}
+                          onClick={() => {
+                            const next = Math.max(0, v.stock - 1);
+                            handleInputChange(key, next);
+                            handleStockUpdate(v.productId, v.colorName, v.size, next);
+                          }}
                           disabled={v.stock <= 0 || isSaving}
                           className="btn btn-secondary btn-sm"
-                          style={{ padding: '0.25rem 0.5rem' }}
+                          style={{ padding: '0.3rem 0.6rem' }}
+                          title="Decrement stock by 1"
                         >
-                          <Minus size={12} />
+                          <Minus size={13} />
                         </button>
 
                         <button
-                          onClick={() => handleStockUpdate(v.productId, v.colorName, v.size, v.stock + 1)}
+                          onClick={() => {
+                            const next = v.stock + 1;
+                            handleInputChange(key, next);
+                            handleStockUpdate(v.productId, v.colorName, v.size, next);
+                          }}
                           disabled={isSaving}
                           className="btn btn-secondary btn-sm"
-                          style={{ padding: '0.25rem 0.5rem' }}
+                          style={{ padding: '0.3rem 0.6rem' }}
+                          title="Increment stock by 1"
                         >
-                          <Plus size={12} />
+                          <Plus size={13} />
                         </button>
-
-                        {isSaving && <Loader2 size={14} className="animate-spin" style={{ color: 'var(--color-espresso)' }} />}
-                        {isSuccess && <Check size={14} color="var(--color-success)" />}
                       </div>
                     </td>
                   </tr>

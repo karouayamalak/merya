@@ -145,27 +145,50 @@ export async function placeOrder({ customer, items, idempotencyKey }) {
 }
 
 /**
- * Transition Order Status safely with validation and inventory restoration on cancellation.
+ * Transition Order Status safely with validation and inventory management.
+ * Admin/Owner has authoritative control to transition any order to any valid status.
  */
-export async function updateOrderStatus(orderId, newStatus, adminUsername = 'Admin', note = '') {
+export async function updateOrderStatus(orderId, newStatus, adminUsername = 'Admin', note = '', isOverride = false) {
   const order = await Order.findById(orderId);
   if (!order) {
     throw new Error('Order not found');
   }
 
-  const currentStatus = order.status;
-
-  // Validate state machine transition
-  const allowedTransitions = VALID_STATUS_TRANSITIONS[currentStatus] || [];
-  if (!allowedTransitions.includes(newStatus)) {
-    throw new Error(`Cannot transition order from status "${currentStatus}" to "${newStatus}"`);
+  const validStatuses = Object.values(ORDER_STATUS);
+  if (!validStatuses.includes(newStatus)) {
+    throw new Error(`Invalid order status "${newStatus}". Must be one of: ${validStatuses.join(', ')}`);
   }
 
-  // If cancelling order: restore stock safely (only once)
+  const currentStatus = order.status;
+  if (currentStatus === newStatus) {
+    return order;
+  }
+
+  // Validate state machine unless owner/admin override is enabled
+  if (!isOverride) {
+    const allowedTransitions = VALID_STATUS_TRANSITIONS[currentStatus] || [];
+    if (!allowedTransitions.includes(newStatus)) {
+      throw new Error(`Cannot transition order from status "${currentStatus}" to "${newStatus}"`);
+    }
+  }
+
+  // Stock inventory management on status changes:
+  // 1. Moving to CANCELLED: restore reserved stock (only if not already restored)
   if (newStatus === ORDER_STATUS.CANCELLED && !order.stockRestored) {
     console.log(`[OrderService] Restoring stock for cancelled order ${order.orderCode}`);
     await restoreStockAtomic(order.items);
     order.stockRestored = true;
+  } 
+  // 2. Moving from CANCELLED to active status: re-deduct stock if previously restored
+  else if (currentStatus === ORDER_STATUS.CANCELLED && newStatus !== ORDER_STATUS.CANCELLED && order.stockRestored) {
+    console.log(`[OrderService] Re-deducting stock for reactivated order ${order.orderCode}`);
+    try {
+      await deductStockAtomic(order.items);
+      order.stockRestored = false;
+    } catch (err) {
+      console.warn(`[OrderService] Re-deducting stock note: ${err.message}`);
+      order.stockRestored = false;
+    }
   }
 
   order.status = newStatus;
@@ -173,7 +196,7 @@ export async function updateOrderStatus(orderId, newStatus, adminUsername = 'Adm
     action: 'STATUS_CHANGED',
     timestamp: new Date(),
     performedBy: adminUsername,
-    note: note || `Status updated from ${currentStatus} to ${newStatus}`,
+    note: note || `Owner/Admin updated status from ${currentStatus} to ${newStatus}`,
     details: { previousStatus: currentStatus, newStatus }
   });
 

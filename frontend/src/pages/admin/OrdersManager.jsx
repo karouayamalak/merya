@@ -16,15 +16,39 @@ import {
   History,
   Edit2,
   X,
-  Loader2
+  Loader2,
+  ShoppingBag,
+  Save,
+  Check,
+  RefreshCw
 } from 'lucide-react';
-import { adminGetOrders, adminGetOrderById, adminUpdateOrderStatus, adminUpdateCustomerDetails } from '../../services/api';
+import {
+  adminGetOrders,
+  adminGetOrderById,
+  adminUpdateOrderStatus,
+  adminUpdateCustomerDetails,
+  fetchDeliverySettings
+} from '../../services/api';
+
+const ORDER_STATUSES = [
+  'Pending',
+  'Confirmed',
+  'On the way',
+  'At agency',
+  'Delivered',
+  'Cancelled'
+];
 
 export default function OrdersManager() {
   const [orders, setOrders] = useState([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [loading, setLoading] = useState(true);
+  const [updatingOrderId, setUpdatingOrderId] = useState(null);
+
+  // Delivery settings & all 58 Wilayas for editing
+  const [wilayasList, setWilayasList] = useState([]);
+  const [deliverySettings, setDeliverySettings] = useState(null);
 
   // Active modal order
   const [activeOrder, setActiveOrder] = useState(null);
@@ -34,11 +58,17 @@ export default function OrdersManager() {
   const [actionLoading, setActionLoading] = useState(false);
   const [feedback, setFeedback] = useState('');
 
-  // Editable customer state
+  // Editable customer & delivery state
   const [editFullName, setEditFullName] = useState('');
   const [editPhone, setEditPhone] = useState('');
+  const [editWilayaCode, setEditWilayaCode] = useState(16);
+  const [editDeliveryMethod, setEditDeliveryMethod] = useState('home'); // 'home' | 'agency'
   const [editAddress, setEditAddress] = useState('');
+  const [editAgencyName, setEditAgencyName] = useState('');
+  const [editDeliveryFee, setEditDeliveryFee] = useState(0);
+  const [editNotes, setEditNotes] = useState('');
 
+  // Load orders
   const loadOrders = async () => {
     setLoading(true);
     try {
@@ -57,21 +87,50 @@ export default function OrdersManager() {
     }
   };
 
+  // Load wilayas and delivery settings on mount
+  useEffect(() => {
+    async function loadWilayas() {
+      try {
+        const res = await fetchDeliverySettings();
+        if (res.success) {
+          setWilayasList(res.wilayas || []);
+          setDeliverySettings(res.settings);
+        }
+      } catch (err) {
+        console.error('Failed to load delivery settings:', err);
+      }
+    }
+    loadWilayas();
+  }, []);
+
   useEffect(() => {
     const timer = setTimeout(loadOrders, 250);
     return () => clearTimeout(timer);
   }, [search, statusFilter]);
 
+  const populateEditForm = (order) => {
+    const wCode = order.customer.wilaya?.code || 16;
+    const method = String(order.customer.deliveryMethod || 'home').toLowerCase();
+
+    setEditFullName(order.customer.fullName || '');
+    setEditPhone(order.customer.phone || '');
+    setEditWilayaCode(Number(wCode));
+    setEditDeliveryMethod(method);
+    setEditAddress(order.customer.address || '');
+    setEditAgencyName(order.customer.agencyName || '');
+    setEditDeliveryFee(order.deliveryFee !== undefined ? order.deliveryFee : 800);
+    setEditNotes(order.customer.notes || '');
+  };
+
   const openOrderDetails = async (orderId) => {
     setLoadingDetails(true);
     setFeedback('');
+    setEditCustomerOpen(false);
     try {
       const res = await adminGetOrderById(orderId);
       if (res.success) {
         setActiveOrder(res.order);
-        setEditFullName(res.order.customer.fullName);
-        setEditPhone(res.order.customer.phone);
-        setEditAddress(res.order.customer.address || res.order.customer.agencyName || '');
+        populateEditForm(res.order);
       }
     } catch (err) {
       alert(err.message);
@@ -80,10 +139,34 @@ export default function OrdersManager() {
     }
   };
 
-  const handleStatusChange = async (newStatus) => {
+  // Quick status change directly from table
+  const handleQuickStatusChange = async (orderId, newStatus) => {
+    if (newStatus === 'Cancelled') {
+      const ok = window.confirm('Are you sure you want to cancel this order? Reserved stock will be restored automatically.');
+      if (!ok) return;
+    }
+
+    setUpdatingOrderId(orderId);
+    try {
+      const res = await adminUpdateOrderStatus(orderId, newStatus, `Quick status update to ${newStatus}`);
+      if (res.success) {
+        setOrders(prev => prev.map(o => o._id === orderId ? { ...o, status: newStatus } : o));
+        if (activeOrder && activeOrder._id === orderId) {
+          setActiveOrder(res.order);
+        }
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to update order status');
+    } finally {
+      setUpdatingOrderId(null);
+    }
+  };
+
+  // Status change inside modal
+  const handleModalStatusChange = async (newStatus) => {
     if (!activeOrder) return;
     if (newStatus === 'Cancelled') {
-      const ok = window.confirm('Are you sure you want to cancel this order? Reserved inventory stock will be restored automatically.');
+      const ok = window.confirm('Are you sure you want to cancel this order? Reserved stock will be restored automatically.');
       if (!ok) return;
     }
 
@@ -95,7 +178,7 @@ export default function OrdersManager() {
         setActiveOrder(res.order);
         setStatusNote('');
         setFeedback(`Order status updated to "${newStatus}"!`);
-        loadOrders();
+        setOrders(prev => prev.map(o => o._id === activeOrder._id ? { ...o, status: newStatus } : o));
       }
     } catch (err) {
       alert(err.message || 'Status transition failed');
@@ -104,29 +187,74 @@ export default function OrdersManager() {
     }
   };
 
+  // Recalculate delivery fee helper when editing wilaya or delivery method
+  const handleWilayaOrMethodChange = (newWilayaCode, newMethod) => {
+    setEditWilayaCode(newWilayaCode);
+    setEditDeliveryMethod(newMethod);
+
+    if (deliverySettings && wilayasList.length > 0) {
+      const wObj = wilayasList.find(w => (w.code === Number(newWilayaCode) || w.wilayaCode === Number(newWilayaCode)));
+      if (wObj) {
+        const fee = newMethod === 'agency'
+          ? (wObj.agencyFee !== undefined ? wObj.agencyFee : deliverySettings.agencyDeliveryFee)
+          : (wObj.homeFee !== undefined ? wObj.homeFee : deliverySettings.homeDeliveryFee);
+        setEditDeliveryFee(fee);
+      }
+    }
+  };
+
+  // Save all edited order & customer details
   const handleSaveCustomer = async (e) => {
     e.preventDefault();
     if (!activeOrder) return;
 
     setActionLoading(true);
+    setFeedback('');
     try {
+      const selectedW = wilayasList.find(w => (w.code === Number(editWilayaCode) || w.wilayaCode === Number(editWilayaCode)));
+      const wilayaPayload = selectedW ? { code: selectedW.code || selectedW.wilayaCode, name: selectedW.name || selectedW.wilayaName } : { code: editWilayaCode, name: `Wilaya ${editWilayaCode}` };
+
       const res = await adminUpdateCustomerDetails(activeOrder._id, {
-        fullName: editFullName,
-        phone: editPhone,
-        address: activeOrder.customer.deliveryMethod === 'home' ? editAddress : undefined,
-        agencyName: activeOrder.customer.deliveryMethod === 'agency' ? editAddress : undefined
+        fullName: editFullName.trim(),
+        phone: editPhone.trim(),
+        wilaya: wilayaPayload,
+        deliveryMethod: editDeliveryMethod,
+        address: editDeliveryMethod === 'home' ? editAddress.trim() : '',
+        agencyName: editDeliveryMethod === 'agency' ? editAgencyName.trim() : '',
+        deliveryFee: Number(editDeliveryFee),
+        notes: editNotes.trim()
       });
 
       if (res.success) {
         setActiveOrder(res.order);
+        populateEditForm(res.order);
         setEditCustomerOpen(false);
-        setFeedback('Customer details updated and logged in audit history!');
+        setFeedback('All order details and delivery info updated successfully!');
         loadOrders();
       }
     } catch (err) {
-      alert(err.message || 'Failed to update customer details');
+      alert(err.message || 'Failed to update order details');
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const getStatusBadgeStyle = (status) => {
+    switch (status) {
+      case 'Pending':
+        return { backgroundColor: '#FFF8E1', color: '#B78103', border: '1px solid #FFE082' };
+      case 'Confirmed':
+        return { backgroundColor: '#E3F2FD', color: '#1565C0', border: '1px solid #90CAF9' };
+      case 'On the way':
+        return { backgroundColor: '#EDE7F6', color: '#5E35B1', border: '1px solid #D1C4E9' };
+      case 'At agency':
+        return { backgroundColor: '#FBE9E7', color: '#D84315', border: '1px solid #FFCCBC' };
+      case 'Delivered':
+        return { backgroundColor: '#E8F5E9', color: '#2E7D32', border: '1px solid #A5D6A7' };
+      case 'Cancelled':
+        return { backgroundColor: '#FFEBEE', color: '#C62828', border: '1px solid #FFCDD2' };
+      default:
+        return { backgroundColor: '#F5F5F5', color: '#666', border: '1px solid #DDD' };
     }
   };
 
@@ -139,7 +267,7 @@ export default function OrdersManager() {
             ORDERS MANAGEMENT
           </h1>
           <p style={{ fontSize: '0.85rem', color: '#666', marginTop: '0.2rem' }}>
-            Authoritative order processing, customer contact, and delivery lifecycle.
+            Authoritative order processing, real-time status updates, and editable customer delivery information.
           </p>
         </div>
       </div>
@@ -184,12 +312,9 @@ export default function OrdersManager() {
           }}
         >
           <option value="">All Statuses</option>
-          <option value="Pending">Pending (En attente)</option>
-          <option value="Confirmed">Confirmed (Confirmée)</option>
-          <option value="On the way">On the way (En livraison)</option>
-          <option value="At agency">At agency (Au bureau)</option>
-          <option value="Delivered">Delivered (Livrée)</option>
-          <option value="Cancelled">Cancelled (Annulée)</option>
+          {ORDER_STATUSES.map(st => (
+            <option key={st} value={st}>{st}</option>
+          ))}
         </select>
       </div>
 
@@ -218,56 +343,80 @@ export default function OrdersManager() {
                 <th style={{ padding: '1rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.75rem' }}>Customer</th>
                 <th style={{ padding: '1rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.75rem' }}>Destination</th>
                 <th style={{ padding: '1rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.75rem' }}>Total (COD)</th>
-                <th style={{ padding: '1rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.75rem' }}>Status</th>
+                <th style={{ padding: '1rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.75rem' }}>Order Status (Click to Update)</th>
                 <th style={{ padding: '1rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.75rem' }}>Date</th>
                 <th style={{ padding: '1rem', textAlign: 'right' }}>Action</th>
               </tr>
             </thead>
             <tbody>
-              {orders.map((o) => (
-                <tr key={o._id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                  <td style={{ padding: '1rem', fontWeight: '800', fontFamily: 'monospace', color: 'var(--color-espresso)' }}>
-                    {o.orderCode}
-                  </td>
-                  <td style={{ padding: '1rem' }}>
-                    <div style={{ fontWeight: '700' }}>{o.customer.fullName}</div>
-                    <div style={{ fontSize: '0.78rem', color: '#666' }}>{o.customer.phone}</div>
-                  </td>
-                  <td style={{ padding: '1rem' }}>
-                    <div>Wilaya {o.customer.wilaya?.code} - {o.customer.wilaya?.name}</div>
-                    <div style={{ fontSize: '0.75rem', color: '#777', textTransform: 'uppercase' }}>
-                      {o.customer.deliveryMethod === 'agency' ? 'Agency Pickup' : 'Home Delivery'}
-                    </div>
-                  </td>
-                  <td style={{ padding: '1rem', fontWeight: '800' }}>
-                    {o.totalPrice.toLocaleString()} DZD
-                  </td>
-                  <td style={{ padding: '1rem' }}>
-                    <span className={`badge badge-${o.status.toLowerCase().replace(/\s+/g, '')}`}>
-                      {o.status}
-                    </span>
-                  </td>
-                  <td style={{ padding: '1rem', color: '#666', fontSize: '0.8rem' }}>
-                    {new Date(o.createdAt).toLocaleDateString()} {new Date(o.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </td>
-                  <td style={{ padding: '1rem', textAlign: 'right' }}>
-                    <button
-                      onClick={() => openOrderDetails(o._id)}
-                      className="btn btn-secondary btn-sm"
-                      style={{ padding: '0.4rem 0.8rem' }}
-                    >
-                      <Eye size={14} />
-                      <span>Details</span>
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {orders.map((o) => {
+                const isUpdating = updatingOrderId === o._id;
+                const badgeStyle = getStatusBadgeStyle(o.status);
+
+                return (
+                  <tr key={o._id} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                    <td style={{ padding: '1rem', fontWeight: '800', fontFamily: 'monospace', color: 'var(--color-espresso)' }}>
+                      {o.orderCode}
+                    </td>
+                    <td style={{ padding: '1rem' }}>
+                      <div style={{ fontWeight: '700' }}>{o.customer.fullName}</div>
+                      <div style={{ fontSize: '0.78rem', color: '#666' }}>{o.customer.phone}</div>
+                    </td>
+                    <td style={{ padding: '1rem' }}>
+                      <div>Wilaya {o.customer.wilaya?.code} - {o.customer.wilaya?.name}</div>
+                      <div style={{ fontSize: '0.75rem', color: '#777', textTransform: 'uppercase' }}>
+                        {String(o.customer.deliveryMethod).toLowerCase() === 'agency' ? 'Agency Pickup' : 'Home Delivery'}
+                      </div>
+                    </td>
+                    <td style={{ padding: '1rem', fontWeight: '800' }}>
+                      {o.totalPrice.toLocaleString()} DZD
+                    </td>
+                    <td style={{ padding: '1rem' }}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <select
+                          value={o.status}
+                          onChange={(e) => handleQuickStatusChange(o._id, e.target.value)}
+                          disabled={isUpdating}
+                          style={{
+                            padding: '0.35rem 0.7rem',
+                            borderRadius: '6px',
+                            fontWeight: '700',
+                            fontSize: '0.8rem',
+                            cursor: 'pointer',
+                            outline: 'none',
+                            ...badgeStyle
+                          }}
+                          title="Directly update status of this order"
+                        >
+                          {ORDER_STATUSES.map(st => (
+                            <option key={st} value={st}>{st}</option>
+                          ))}
+                        </select>
+                        {isUpdating && <Loader2 size={13} className="animate-spin" color="var(--color-espresso)" />}
+                      </div>
+                    </td>
+                    <td style={{ padding: '1rem', color: '#666', fontSize: '0.8rem' }}>
+                      {new Date(o.createdAt).toLocaleDateString()} {new Date(o.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </td>
+                    <td style={{ padding: '1rem', textAlign: 'right' }}>
+                      <button
+                        onClick={() => openOrderDetails(o._id)}
+                        className="btn btn-secondary btn-sm"
+                        style={{ padding: '0.4rem 0.8rem' }}
+                      >
+                        <Eye size={14} />
+                        <span>Edit & View</span>
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
       </div>
 
-      {/* Order Details & Transition Modal */}
+      {/* Order Details & Full Edit Modal */}
       {activeOrder && (
         <div style={{
           position: 'fixed',
@@ -283,36 +432,41 @@ export default function OrdersManager() {
           <div style={{
             backgroundColor: 'var(--color-surface)',
             borderRadius: 'var(--radius-xl)',
-            maxWidth: '750px',
+            maxWidth: '820px',
             width: '100%',
-            maxHeight: '90vh',
+            maxHeight: '92vh',
             overflowY: 'auto',
             padding: '2rem',
-            boxShadow: 'var(--shadow-lg)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '1.5rem',
-            position: 'relative'
+            boxShadow: 'var(--shadow-lg)'
           }}>
             {/* Modal Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid var(--color-border)', paddingBottom: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid var(--color-border)', paddingBottom: '1rem' }}>
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <h2 style={{ fontSize: '1.4rem', fontWeight: '800' }}>Order #{activeOrder.orderCode}</h2>
-                  <span className={`badge badge-${activeOrder.status.toLowerCase().replace(/\s+/g, '')}`}>
-                    {activeOrder.status}
-                  </span>
-                </div>
-                <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '0.2rem' }}>
-                  Placed on {new Date(activeOrder.createdAt).toLocaleString()}
-                </div>
+                <span style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#777' }}>
+                  Order Details & Edit
+                </span>
+                <h2 style={{ fontSize: '1.4rem', fontWeight: '800', fontFamily: 'monospace', color: 'var(--color-espresso)' }}>
+                  #{activeOrder.orderCode}
+                </h2>
               </div>
-              <button
-                onClick={() => setActiveOrder(null)}
-                style={{ padding: '0.4rem', color: '#666' }}
-              >
-                <X size={22} />
-              </button>
+
+              <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                <span style={{
+                  padding: '0.35rem 0.75rem',
+                  borderRadius: '6px',
+                  fontWeight: '700',
+                  fontSize: '0.82rem',
+                  ...getStatusBadgeStyle(activeOrder.status)
+                }}>
+                  {activeOrder.status}
+                </span>
+                <button
+                  onClick={() => setActiveOrder(null)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem' }}
+                >
+                  <X size={22} />
+                </button>
+              </div>
             </div>
 
             {feedback && (
@@ -321,71 +475,260 @@ export default function OrdersManager() {
                 color: 'var(--color-success)',
                 padding: '0.75rem 1rem',
                 borderRadius: 'var(--radius-md)',
-                fontSize: '0.85rem'
+                marginBottom: '1.5rem',
+                fontSize: '0.88rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
               }}>
-                {feedback}
+                <Check size={16} />
+                <span>{feedback}</span>
               </div>
             )}
 
-            {/* Customer Details Box */}
+            {/* STATUS PIPELINE - Update to ANY status */}
             <div style={{
               backgroundColor: 'var(--color-bg-base)',
               padding: '1.25rem',
               borderRadius: 'var(--radius-lg)',
+              marginBottom: '1.5rem',
               border: '1px solid var(--color-border)'
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                <h4 style={{ fontSize: '0.85rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  Customer & Delivery Information
+              <h4 style={{ fontSize: '0.85rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.75rem', color: 'var(--color-espresso)' }}>
+                Update Order Status
+              </h4>
+
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+                {ORDER_STATUSES.map(st => {
+                  const isActive = activeOrder.status === st;
+                  const isDelivered = st === 'Delivered';
+                  const isCancel = st === 'Cancelled';
+
+                  return (
+                    <button
+                      key={st}
+                      onClick={() => handleModalStatusChange(st)}
+                      disabled={actionLoading}
+                      className="btn btn-sm"
+                      style={{
+                        padding: '0.45rem 0.85rem',
+                        fontWeight: isActive ? '800' : '600',
+                        fontSize: '0.8rem',
+                        backgroundColor: isActive
+                          ? 'var(--color-espresso)'
+                          : isDelivered
+                            ? '#E8F5E9'
+                            : isCancel
+                              ? '#FFEBEE'
+                              : 'var(--color-surface)',
+                        color: isActive
+                          ? '#FFF'
+                          : isDelivered
+                            ? '#2E7D32'
+                            : isCancel
+                              ? '#C62828'
+                              : 'var(--color-text-main)',
+                        border: isActive ? '1px solid var(--color-espresso)' : '1px solid var(--color-border)'
+                      }}
+                    >
+                      {isActive && <Check size={13} style={{ marginRight: '0.25rem' }} />}
+                      <span>{st}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <input
+                  type="text"
+                  placeholder="Add note for this status update (optional)..."
+                  value={statusNote}
+                  onChange={(e) => setStatusNote(e.target.value)}
+                  style={{
+                    flex: 1,
+                    padding: '0.45rem 0.75rem',
+                    borderRadius: '6px',
+                    border: '1px solid var(--color-border)',
+                    fontSize: '0.82rem',
+                    backgroundColor: 'var(--color-surface)'
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* CUSTOMER & DELIVERY INFORMATION (EDITABLE) */}
+            <div style={{
+              backgroundColor: 'var(--color-bg-base)',
+              padding: '1.25rem',
+              borderRadius: 'var(--radius-lg)',
+              marginBottom: '1.5rem',
+              border: '1px solid var(--color-border)'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                <h4 style={{ fontSize: '0.85rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--color-espresso)' }}>
+                  Customer & Delivery Details
                 </h4>
+
                 <button
                   onClick={() => setEditCustomerOpen(!editCustomerOpen)}
-                  style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.78rem', color: 'var(--color-primary-dark)', fontWeight: '700' }}
+                  className="btn btn-secondary btn-sm"
+                  style={{ padding: '0.3rem 0.7rem', fontSize: '0.78rem' }}
                 >
-                  <Edit2 size={13} />
-                  <span>{editCustomerOpen ? 'Cancel Edit' : 'Edit Customer'}</span>
+                  <Edit2 size={12} />
+                  <span>{editCustomerOpen ? 'Cancel Edit' : 'Edit Order Details'}</span>
                 </button>
               </div>
 
               {editCustomerOpen ? (
-                <form onSubmit={handleSaveCustomer} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  <input
-                    type="text"
-                    value={editFullName}
-                    onChange={(e) => setEditFullName(e.target.value)}
-                    placeholder="Full Name"
-                    style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #CCC' }}
-                  />
-                  <input
-                    type="tel"
-                    value={editPhone}
-                    onChange={(e) => setEditPhone(e.target.value)}
-                    placeholder="Phone"
-                    style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #CCC' }}
-                  />
-                  <input
-                    type="text"
-                    value={editAddress}
-                    onChange={(e) => setEditAddress(e.target.value)}
-                    placeholder="Address / Agency Hub"
-                    style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #CCC' }}
-                  />
-                  <button type="submit" disabled={actionLoading} className="btn btn-primary btn-sm">
-                    Save Changes
-                  </button>
+                <form onSubmit={handleSaveCustomer} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.3rem' }}>Customer Full Name *</label>
+                      <input
+                        type="text"
+                        required
+                        value={editFullName}
+                        onChange={(e) => setEditFullName(e.target.value)}
+                        style={{ width: '100%', padding: '0.55rem', borderRadius: '6px', border: '1px solid var(--color-border)' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.3rem' }}>Phone Number *</label>
+                      <input
+                        type="tel"
+                        required
+                        value={editPhone}
+                        onChange={(e) => setEditPhone(e.target.value)}
+                        style={{ width: '100%', padding: '0.55rem', borderRadius: '6px', border: '1px solid var(--color-border)' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.3rem' }}>Wilaya (58 Wilayas) *</label>
+                      <select
+                        value={editWilayaCode}
+                        onChange={(e) => handleWilayaOrMethodChange(e.target.value, editDeliveryMethod)}
+                        style={{ width: '100%', padding: '0.55rem', borderRadius: '6px', border: '1px solid var(--color-border)', backgroundColor: '#FFF' }}
+                      >
+                        {wilayasList.length > 0 ? (
+                          wilayasList.map(w => (
+                            <option key={w.code || w.wilayaCode} value={w.code || w.wilayaCode}>
+                              {w.code || w.wilayaCode} - {w.name || w.wilayaName} ({w.nameAr || w.wilayaNameAr || ''})
+                            </option>
+                          ))
+                        ) : (
+                          <option value={activeOrder.customer.wilaya?.code || 16}>
+                            {activeOrder.customer.wilaya?.code} - {activeOrder.customer.wilaya?.name}
+                          </option>
+                        )}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.3rem' }}>Delivery Method *</label>
+                      <select
+                        value={editDeliveryMethod}
+                        onChange={(e) => handleWilayaOrMethodChange(editWilayaCode, e.target.value)}
+                        style={{ width: '100%', padding: '0.55rem', borderRadius: '6px', border: '1px solid var(--color-border)', backgroundColor: '#FFF' }}
+                      >
+                        <option value="home">Home Delivery (À domicile)</option>
+                        <option value="agency">Stop Desk / Agency Pickup (Au bureau)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {editDeliveryMethod === 'home' ? (
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.3rem' }}>Home Delivery Address *</label>
+                      <input
+                        type="text"
+                        required
+                        value={editAddress}
+                        onChange={(e) => setEditAddress(e.target.value)}
+                        placeholder="Street, Building, Apartment, Commune..."
+                        style={{ width: '100%', padding: '0.55rem', borderRadius: '6px', border: '1px solid var(--color-border)' }}
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.3rem' }}>Agency / Bureau Stop Desk Name *</label>
+                      <input
+                        type="text"
+                        required
+                        value={editAgencyName}
+                        onChange={(e) => setEditAgencyName(e.target.value)}
+                        placeholder="e.g. Yalidine Bureau Bab Ezzouar..."
+                        style={{ width: '100%', padding: '0.55rem', borderRadius: '6px', border: '1px solid var(--color-border)' }}
+                      />
+                    </div>
+                  )}
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.3rem' }}>Delivery Fee (DZD)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={editDeliveryFee}
+                        onChange={(e) => setEditDeliveryFee(e.target.value)}
+                        style={{ width: '100%', padding: '0.55rem', borderRadius: '6px', border: '1px solid var(--color-border)' }}
+                      />
+                      <span style={{ fontSize: '0.72rem', color: '#666' }}>Auto-calculated by wilaya or manually override.</span>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.3rem' }}>New Total Preview</label>
+                      <div style={{ padding: '0.55rem', backgroundColor: '#FFF', borderRadius: '6px', border: '1px solid var(--color-border)', fontWeight: '800' }}>
+                        {(activeOrder.subtotal + Number(editDeliveryFee || 0)).toLocaleString()} DZD
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.3rem' }}>Customer Notes / Instructions</label>
+                    <textarea
+                      rows={2}
+                      value={editNotes}
+                      onChange={(e) => setEditNotes(e.target.value)}
+                      placeholder="Special delivery notes or client requests..."
+                      style={{ width: '100%', padding: '0.55rem', borderRadius: '6px', border: '1px solid var(--color-border)' }}
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => setEditCustomerOpen(false)}
+                      className="btn btn-secondary btn-sm"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={actionLoading}
+                      className="btn btn-primary btn-sm"
+                      style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+                    >
+                      {actionLoading ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                      <span>Save Order Changes</span>
+                    </button>
+                  </div>
                 </form>
               ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', fontSize: '0.85rem' }}>
-                  <div><strong>Name:</strong> {activeOrder.customer.fullName}</div>
-                  <div><strong>Phone:</strong> <a href={`tel:${activeOrder.customer.phone}`} style={{ textDecoration: 'underline' }}>{activeOrder.customer.phone}</a></div>
-                  <div><strong>Method:</strong> {activeOrder.customer.deliveryMethod === 'agency' ? 'Agency Pickup' : 'Home Delivery'}</div>
-                  <div><strong>Wilaya:</strong> {activeOrder.customer.wilaya?.name}</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', fontSize: '0.88rem' }}>
+                  <div><strong>Full Name:</strong> {activeOrder.customer.fullName}</div>
+                  <div><strong>Phone:</strong> <a href={`tel:${activeOrder.customer.phone}`} style={{ textDecoration: 'underline', color: 'var(--color-espresso)', fontWeight: '700' }}>{activeOrder.customer.phone}</a></div>
+                  <div><strong>Delivery Mode:</strong> {String(activeOrder.customer.deliveryMethod).toLowerCase() === 'agency' ? 'Agency Stop Desk' : 'Home Delivery'}</div>
+                  <div><strong>Wilaya:</strong> {activeOrder.customer.wilaya?.code} - {activeOrder.customer.wilaya?.name}</div>
                   <div style={{ gridColumn: 'span 2' }}>
-                    <strong>Address / Bureau:</strong> {activeOrder.customer.address || activeOrder.customer.agencyName || 'Not specified'}
+                    <strong>Destination Address:</strong> {activeOrder.customer.address || activeOrder.customer.agencyName || 'Not specified'}
                   </div>
                   {activeOrder.customer.notes && (
-                    <div style={{ gridColumn: 'span 2', color: '#666' }}>
-                      <strong>Notes:</strong> {activeOrder.customer.notes}
+                    <div style={{ gridColumn: 'span 2', color: '#666', backgroundColor: '#FFF', padding: '0.5rem', borderRadius: '4px', border: '1px solid #EEE' }}>
+                      <strong>Client Notes:</strong> {activeOrder.customer.notes}
                     </div>
                   )}
                 </div>
@@ -393,8 +736,8 @@ export default function OrdersManager() {
             </div>
 
             {/* Items Snapshot */}
-            <div>
-              <h4 style={{ fontSize: '0.85rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.75rem' }}>
+            <div style={{ marginBottom: '1.5rem' }}>
+              <h4 style={{ fontSize: '0.85rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.75rem', color: 'var(--color-espresso)' }}>
                 Order Items Snapshot
               </h4>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -413,77 +756,28 @@ export default function OrdersManager() {
                 ))}
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--color-border)', marginTop: '1rem', paddingTop: '0.75rem', fontWeight: '800' }}>
-                <span>Total COD Amount:</span>
-                <span>{activeOrder.totalPrice.toLocaleString()} DZD</span>
-              </div>
-            </div>
-
-            {/* Order Status Action Buttons */}
-            {activeOrder.status !== 'Delivered' && activeOrder.status !== 'Cancelled' && (
-              <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '1.25rem' }}>
-                <h4 style={{ fontSize: '0.85rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.75rem' }}>
-                  Update Order Pipeline Status
-                </h4>
-
-                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                  {activeOrder.status === 'Pending' && (
-                    <button
-                      onClick={() => handleStatusChange('Confirmed')}
-                      disabled={actionLoading}
-                      className="btn btn-primary btn-sm"
-                    >
-                      <CheckCircle size={14} />
-                      <span>Confirm Order</span>
-                    </button>
-                  )}
-
-                  {activeOrder.status === 'Confirmed' && (
-                    <button
-                      onClick={() => handleStatusChange('On the way')}
-                      disabled={actionLoading}
-                      className="btn btn-primary btn-sm"
-                    >
-                      <Truck size={14} />
-                      <span>Mark On The Way</span>
-                    </button>
-                  )}
-
-                  {activeOrder.status === 'On the way' && activeOrder.customer.deliveryMethod === 'agency' && (
-                    <button
-                      onClick={() => handleStatusChange('At agency')}
-                      disabled={actionLoading}
-                      className="btn btn-taupe btn-sm"
-                    >
-                      <Building2 size={14} />
-                      <span>Arrived at Agency</span>
-                    </button>
-                  )}
-
-                  {(activeOrder.status === 'On the way' || activeOrder.status === 'At agency') && (
-                    <button
-                      onClick={() => handleStatusChange('Delivered')}
-                      disabled={actionLoading}
-                      className="btn btn-primary btn-sm"
-                      style={{ backgroundColor: 'var(--color-success)' }}
-                    >
-                      <PackageCheck size={14} />
-                      <span>Mark Delivered (Realizes Profit)</span>
-                    </button>
-                  )}
-
-                  <button
-                    onClick={() => handleStatusChange('Cancelled')}
-                    disabled={actionLoading}
-                    className="btn btn-secondary btn-sm"
-                    style={{ borderColor: 'var(--color-danger)', color: 'var(--color-danger)' }}
-                  >
-                    <XCircle size={14} />
-                    <span>Cancel Order (Restores Stock)</span>
-                  </button>
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.3rem',
+                borderTop: '1px solid var(--color-border)',
+                marginTop: '1rem',
+                paddingTop: '0.75rem'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: '#666' }}>
+                  <span>Items Subtotal:</span>
+                  <span>{activeOrder.subtotal.toLocaleString()} DZD</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: '#666' }}>
+                  <span>Delivery Fee:</span>
+                  <span>{activeOrder.deliveryFee.toLocaleString()} DZD</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: '800', fontSize: '1.1rem', color: 'var(--color-espresso)', borderTop: '1px dashed #CCC', paddingTop: '0.4rem', marginTop: '0.2rem' }}>
+                  <span>Total Payable (COD):</span>
+                  <span>{activeOrder.totalPrice.toLocaleString()} DZD</span>
                 </div>
               </div>
-            )}
+            </div>
 
             {/* Audit History Timeline */}
             <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '1.25rem' }}>

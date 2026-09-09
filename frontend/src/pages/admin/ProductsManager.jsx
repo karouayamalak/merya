@@ -192,13 +192,13 @@ export default function ProductsManager() {
     }
   };
 
-  const handleArchive = async (id) => {
-    if (!window.confirm('Are you sure you want to archive this product?')) return;
+  const handleDeleteProduct = async (product) => {
+    if (!window.confirm(`Are you sure you want to permanently delete "${product.name}"? This action cannot be undone.`)) return;
     try {
-      await adminArchiveProduct(id);
+      await adminArchiveProduct(product._id);
       loadData();
     } catch (err) {
-      alert(err.message);
+      alert(err.message || 'Failed to delete product');
     }
   };
 
@@ -311,8 +311,19 @@ export default function ProductsManager() {
                         <Edit2 size={13} />
                         <span>Edit</span>
                       </button>
-                      <button onClick={() => handleArchive(p._id)} className="btn btn-secondary btn-sm" style={{ padding: '0.35rem 0.7rem', color: 'var(--color-danger)' }}>
-                        <Archive size={13} />
+                      <button
+                        onClick={() => handleDeleteProduct(p)}
+                        className="btn btn-secondary btn-sm"
+                        style={{
+                          padding: '0.35rem 0.7rem',
+                          color: '#C62828',
+                          borderColor: '#FFCDD2',
+                          backgroundColor: '#FFF5F5'
+                        }}
+                        title="Delete product permanently"
+                      >
+                        <Trash2 size={13} />
+                        <span>Delete</span>
                       </button>
                     </div>
                   </td>

@@ -2,6 +2,7 @@ import { Order } from '../models/Order.js';
 import { DeliverySetting } from '../models/DeliverySetting.js';
 import { placeOrder, updateOrderStatus } from '../services/orderService.js';
 import { setStockAtomic } from '../services/inventoryService.js';
+import { ALGERIA_WILAYAS, DELIVERY_METHODS } from '../config/constants.js';
 
 // Public: Checkout order
 export const checkout = async (req, res, next) => {
@@ -121,18 +122,19 @@ export const changeOrderStatus = async (req, res, next) => {
     const { status, note } = req.body;
     const adminUsername = req.admin?.username || 'Admin';
 
-    const updatedOrder = await updateOrderStatus(id, status, adminUsername, note);
+    // Allow authenticated Admin / Owner to update order status flexibly
+    const updatedOrder = await updateOrderStatus(id, status, adminUsername, note, true);
     res.json({ success: true, order: updatedOrder });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });
   }
 };
 
-// Admin: Edit customer details on order
+// Admin: Edit customer details and delivery on order
 export const updateOrderCustomerDetails = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { fullName, phone, wilaya, address, agencyName, deliveryMethod, notes } = req.body;
+    const { fullName, phone, wilaya, address, agencyName, deliveryMethod, notes, deliveryFee } = req.body;
 
     const order = await Order.findById(id);
     if (!order) {
@@ -143,24 +145,50 @@ export const updateOrderCustomerDetails = async (req, res, next) => {
     const previousDeliveryFee = order.deliveryFee;
     const previousTotalPrice = order.totalPrice;
 
-    if (fullName) order.customer.fullName = fullName;
-    if (phone) order.customer.phone = phone;
-    if (address !== undefined) order.customer.address = address;
-    if (agencyName !== undefined) order.customer.agencyName = agencyName;
-    if (notes !== undefined) order.customer.notes = notes;
+    if (fullName) order.customer.fullName = fullName.trim();
+    if (phone) order.customer.phone = phone.trim();
+    if (address !== undefined) order.customer.address = address.trim();
+    if (agencyName !== undefined) order.customer.agencyName = agencyName.trim();
+    if (notes !== undefined) order.customer.notes = notes.trim();
 
     let wilayaOrMethodChanged = false;
-    if (wilaya && JSON.stringify(wilaya) !== JSON.stringify(order.customer.wilaya)) {
-      order.customer.wilaya = wilaya;
-      wilayaOrMethodChanged = true;
-    }
-    if (deliveryMethod && deliveryMethod !== order.customer.deliveryMethod) {
-      order.customer.deliveryMethod = deliveryMethod;
-      wilayaOrMethodChanged = true;
+
+    // Resolve wilaya if provided
+    if (wilaya) {
+      let resolvedWilaya = null;
+      if (typeof wilaya === 'object' && wilaya.code && wilaya.name) {
+        resolvedWilaya = { code: Number(wilaya.code), name: wilaya.name };
+      } else {
+        const found = ALGERIA_WILAYAS.find(w => 
+          w.code === Number(wilaya) || 
+          w.name.toLowerCase() === String(wilaya).toLowerCase()
+        );
+        if (found) {
+          resolvedWilaya = { code: found.code, name: found.name };
+        }
+      }
+
+      if (resolvedWilaya && (order.customer.wilaya?.code !== resolvedWilaya.code)) {
+        order.customer.wilaya = resolvedWilaya;
+        wilayaOrMethodChanged = true;
+      }
     }
 
-    // Recalculate shipping fee if wilaya or delivery method was changed by admin
-    if (wilayaOrMethodChanged) {
+    // Resolve delivery method
+    if (deliveryMethod) {
+      const normalizedMethod = String(deliveryMethod).toLowerCase() === 'agency' ? DELIVERY_METHODS.AGENCY : DELIVERY_METHODS.HOME;
+      if (order.customer.deliveryMethod !== normalizedMethod) {
+        order.customer.deliveryMethod = normalizedMethod;
+        wilayaOrMethodChanged = true;
+      }
+    }
+
+    // If manual delivery fee provided, apply directly
+    if (deliveryFee !== undefined && !isNaN(Number(deliveryFee))) {
+      order.deliveryFee = Math.max(0, Number(deliveryFee));
+      order.totalPrice = order.subtotal + order.deliveryFee;
+    } else if (wilayaOrMethodChanged) {
+      // Recalculate shipping fee from delivery settings for changed wilaya/method
       const deliverySetting = await DeliverySetting.findOne();
       if (deliverySetting) {
         let wilayaRate = null;
@@ -173,14 +201,12 @@ export const updateOrderCustomerDetails = async (req, res, next) => {
           wilayaRate = deliverySetting.wilayaRates?.find(r => r.wilayaName.toLowerCase() === targetName);
         }
 
-        let newFee = order.deliveryFee;
-        if (order.customer.deliveryMethod === 'AGENCY') {
-          newFee = wilayaRate ? wilayaRate.agencyFee : deliverySetting.agencyDeliveryFee;
-        } else {
-          newFee = wilayaRate ? wilayaRate.homeFee : deliverySetting.homeDeliveryFee;
-        }
+        const isAgency = String(order.customer.deliveryMethod).toLowerCase() === 'agency';
+        let newFee = isAgency
+          ? (wilayaRate ? wilayaRate.agencyFee : deliverySetting.agencyDeliveryFee)
+          : (wilayaRate ? wilayaRate.homeFee : deliverySetting.homeDeliveryFee);
 
-        // Apply free delivery threshold if configured
+        // Apply free delivery threshold if active
         if (deliverySetting.freeDeliveryThreshold && deliverySetting.freeDeliveryThreshold > 0 && order.subtotal >= deliverySetting.freeDeliveryThreshold) {
           newFee = 0;
         }
@@ -194,9 +220,7 @@ export const updateOrderCustomerDetails = async (req, res, next) => {
       action: 'CUSTOMER_INFO_UPDATED',
       timestamp: new Date(),
       performedBy: req.admin?.username || 'Admin',
-      note: wilayaOrMethodChanged 
-        ? `Admin updated customer delivery info. Shipping fee recalculated from ${previousDeliveryFee} to ${order.deliveryFee} DZD.` 
-        : 'Admin updated customer delivery information',
+      note: `Owner/Admin updated order info (Delivery: ${order.customer.deliveryMethod}, Wilaya: ${order.customer.wilaya?.name || 'N/A'}, Fee: ${order.deliveryFee} DZD).`,
       details: {
         previousCustomer,
         updatedCustomer: order.customer,
