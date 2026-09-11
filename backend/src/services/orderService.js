@@ -141,41 +141,43 @@ export async function placeOrder({ customer, items, idempotencyKey }) {
 
   let deliverySetting = await DeliverySetting.findOne();
   if (!deliverySetting) {
-    const getInitialFee = (c) => {
-      if (c === 16) return { homeFee: 500, agencyFee: 350 };
-      if ([9, 35, 42].includes(c)) return { homeFee: 600, agencyFee: 400 };
-      if ([31, 25, 19, 15, 6, 23, 13, 27, 2, 5, 18, 21, 22, 24, 26, 29, 34, 43, 44, 46, 48].includes(c)) return { homeFee: 750, agencyFee: 450 };
-      if ([3, 4, 7, 10, 12, 14, 17, 20, 28, 38, 40, 41, 45, 51].includes(c)) return { homeFee: 850, agencyFee: 500 };
-      if ([8, 30, 32, 39, 47, 55, 57, 58].includes(c)) return { homeFee: 1000, agencyFee: 700 };
-      return { homeFee: 1400, agencyFee: 900 };
-    };
-
-    const defaultRates = ALGERIA_WILAYAS.map(w => {
-      const fees = getInitialFee(w.code);
-      return {
-        wilayaCode: w.code,
-        wilayaName: w.name,
-        wilayaNameAr: w.nameAr,
-        homeFee: fees.homeFee,
-        agencyFee: fees.agencyFee,
-        isAvailable: true
-      };
-    });
-
-    deliverySetting = await DeliverySetting.create({
-      agencyDeliveryFee: 500,
-      homeDeliveryFee: 800,
-      wilayaRates: defaultRates
-    });
+    const err = new Error('Delivery configuration is not initialized. Please configure delivery settings before placing orders.');
+    err.statusCode = 400;
+    err.code = 'DELIVERY_CONFIGURATION_MISSING';
+    throw err;
   }
 
   const wilayaRate = deliverySetting.wilayaRates?.find(r => r.wilayaCode === codeNum);
   if (!wilayaRate) {
-    throw new Error(`Delivery configuration missing for Wilaya ${codeNum} (${canonicalWilaya.name})`);
+    const err = new Error(`Delivery configuration missing for Wilaya ${codeNum} (${canonicalWilaya.name})`);
+    err.statusCode = 400;
+    err.code = 'DELIVERY_CONFIGURATION_MISSING';
+    throw err;
   }
 
   if (wilayaRate.isAvailable === false) {
-    throw new Error(`Wilaya ${codeNum} (${canonicalWilaya.name}) is currently unavailable for delivery.`);
+    const err = new Error(`Wilaya ${codeNum} (${canonicalWilaya.name}) is currently unavailable for delivery.`);
+    err.statusCode = 400;
+    err.code = 'WILAYA_UNAVAILABLE';
+    throw err;
+  }
+
+  let authoritativeFee;
+  if (customer.deliveryMethod === DELIVERY_METHODS.AGENCY) {
+    authoritativeFee = wilayaRate.agencyFee;
+  } else if (customer.deliveryMethod === DELIVERY_METHODS.HOME) {
+    authoritativeFee = wilayaRate.homeFee;
+  } else {
+    const err = new Error(`Invalid delivery method "${customer.deliveryMethod}". Must be "agency" or "home".`);
+    err.statusCode = 400;
+    throw err;
+  }
+
+  if (typeof authoritativeFee !== 'number' || !Number.isInteger(authoritativeFee) || authoritativeFee < 0) {
+    const err = new Error(`Authoritative delivery fee is not configured for Wilaya ${codeNum} (${canonicalWilaya.name}) with method "${customer.deliveryMethod}".`);
+    err.statusCode = 400;
+    err.code = 'DELIVERY_FEE_NOT_CONFIGURED';
+    throw err;
   }
 
   // ─── CHECKOUT TRANSACTION (WITH BOUNDED RETRY SAFETY) ───────────────────────
@@ -243,14 +245,7 @@ export async function placeOrder({ customer, items, idempotencyKey }) {
       }
 
       // 4. Dynamic Delivery Fee calculation from database
-      let deliveryFee = 0;
-      if (customer.deliveryMethod === DELIVERY_METHODS.AGENCY) {
-        deliveryFee = wilayaRate ? wilayaRate.agencyFee : deliverySetting.agencyDeliveryFee;
-      } else if (customer.deliveryMethod === DELIVERY_METHODS.HOME) {
-        deliveryFee = wilayaRate ? wilayaRate.homeFee : deliverySetting.homeDeliveryFee;
-      } else {
-        throw new Error('Invalid delivery method');
-      }
+      let deliveryFee = authoritativeFee;
 
       // Free delivery threshold check if active
       if (deliverySetting.freeDeliveryThreshold && deliverySetting.freeDeliveryThreshold > 0 && subtotal >= deliverySetting.freeDeliveryThreshold) {
@@ -907,12 +902,23 @@ export async function updateOrderItemsService({
         newDeliveryFee = 0;
       } else if (order.deliveryFee === 0 && previousSubtotal >= deliverySetting.freeDeliveryThreshold) {
         // Subtotal dropped below free threshold: recalculate authoritative fee
-        const targetCode = order.customer.wilaya?.code;
-        const wilayaRate = deliverySetting.wilayaRates?.find(r => r.wilayaCode === Number(targetCode));
+        const targetCode = Number(order.customer.wilaya?.code);
+        const wilayaRate = deliverySetting.wilayaRates?.find(r => r.wilayaCode === targetCode);
+        if (!wilayaRate || wilayaRate.isAvailable === false) {
+          const err = new Error(`Delivery configuration missing or unavailable for Wilaya ${targetCode}`);
+          err.statusCode = 400;
+          err.code = 'DELIVERY_CONFIGURATION_MISSING';
+          throw err;
+        }
         const isAgency = order.customer.deliveryMethod === DELIVERY_METHODS.AGENCY;
-        newDeliveryFee = isAgency
-          ? (wilayaRate ? wilayaRate.agencyFee : deliverySetting.agencyDeliveryFee)
-          : (wilayaRate ? wilayaRate.homeFee : deliverySetting.homeDeliveryFee);
+        const configuredFee = isAgency ? wilayaRate.agencyFee : wilayaRate.homeFee;
+        if (typeof configuredFee !== 'number' || !Number.isInteger(configuredFee) || configuredFee < 0) {
+          const err = new Error(`Authoritative delivery fee is not configured for Wilaya ${targetCode} with method "${order.customer.deliveryMethod}".`);
+          err.statusCode = 400;
+          err.code = 'DELIVERY_FEE_NOT_CONFIGURED';
+          throw err;
+        }
+        newDeliveryFee = configuredFee;
       }
     }
 

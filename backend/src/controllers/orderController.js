@@ -42,11 +42,15 @@ export const checkout = async (req, res, next) => {
       createdAt: result.order.createdAt
     });
   } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ success: false, message: error.message });
+    }
+
     if (error.message && error.message.startsWith('IDEMPOTENCY_CONFLICT')) {
       return res.status(409).json({ success: false, message: error.message });
     }
 
-    // Business logic errors (insufficient stock, invalid product, bad delivery method, wilaya unavailable)
+    // Business logic errors (insufficient stock, invalid product, bad delivery method, wilaya unavailable, delivery config)
     const businessErrors = [
       'insufficient stock',
       'product not found',
@@ -57,7 +61,9 @@ export const checkout = async (req, res, next) => {
       'at least one item',
       'unavailable for delivery',
       'wilaya mismatch',
-      'invalid wilaya'
+      'invalid wilaya',
+      'delivery configuration',
+      'delivery fee is not configured'
     ];
     const isBusinessError = businessErrors.some(phrase =>
       error.message?.toLowerCase().includes(phrase)
@@ -313,47 +319,51 @@ export const updateOrderCustomerDetails = async (req, res, next) => {
     if (address !== undefined) order.customer.address = address ? address.trim() : '';
     if (agencyName !== undefined) order.customer.agencyName = agencyName ? agencyName.trim() : '';
 
-    // Handle delivery fee calculation vs manual override
-    let feeOverridden = false;
-    if (deliveryFee !== undefined) {
-      if (typeof deliveryFee !== 'number' || !Number.isFinite(deliveryFee) || deliveryFee < 0) {
-        return res.status(400).json({ success: false, message: 'Delivery fee must be a finite non-negative number.' });
-      }
-      // Require a non-empty override reason — silent fallback is not allowed
-      if (!overrideReason || typeof overrideReason !== 'string' || overrideReason.trim().length === 0) {
-        return res.status(400).json({ success: false, message: 'A non-empty overrideReason is required when manually setting the delivery fee.' });
-      }
-      if (overrideReason.trim().length > 500) {
-        return res.status(400).json({ success: false, message: 'overrideReason cannot exceed 500 characters.' });
-      }
-      order.deliveryFee = deliveryFee;
-      order.totalPrice = order.subtotal + order.deliveryFee;
-      feeOverridden = true;
-    } else if (wilayaOrMethodChanged) {
+    // Server-authoritative delivery fee calculation:
+    // Client-supplied deliveryFee is strictly ignored and cannot tamper with the order.
+    // Fee is only recalculated if Wilaya or delivery method changed.
+    if (wilayaOrMethodChanged) {
       const deliverySetting = await DeliverySetting.findOne();
-      if (deliverySetting) {
-        const targetCode = order.customer.wilaya?.code;
-        const wilayaRate = deliverySetting.wilayaRates?.find(r => r.wilayaCode === Number(targetCode));
-
-        if (wilayaRate && wilayaRate.isAvailable === false) {
-          return res.status(400).json({
-            success: false,
-            message: `Selected Wilaya ${targetCode} is currently marked unavailable for delivery.`
-          });
-        }
-
-        const isAgency = order.customer.deliveryMethod === DELIVERY_METHODS.AGENCY;
-        let newFee = isAgency
-          ? (wilayaRate ? wilayaRate.agencyFee : deliverySetting.agencyDeliveryFee)
-          : (wilayaRate ? wilayaRate.homeFee : deliverySetting.homeDeliveryFee);
-
-        if (deliverySetting.freeDeliveryThreshold && deliverySetting.freeDeliveryThreshold > 0 && order.subtotal >= deliverySetting.freeDeliveryThreshold) {
-          newFee = 0;
-        }
-
-        order.deliveryFee = newFee;
-        order.totalPrice = order.subtotal + newFee;
+      if (!deliverySetting) {
+        return res.status(400).json({
+          success: false,
+          message: 'Delivery configuration not initialized. Cannot calculate delivery fee.'
+        });
       }
+
+      const targetCode = Number(order.customer.wilaya?.code);
+      const wilayaRate = deliverySetting.wilayaRates?.find(r => r.wilayaCode === targetCode);
+      if (!wilayaRate) {
+        return res.status(400).json({
+          success: false,
+          message: `Delivery configuration missing for Wilaya ${targetCode} (${order.customer.wilaya?.name}).`
+        });
+      }
+
+      if (wilayaRate.isAvailable === false) {
+        return res.status(400).json({
+          success: false,
+          message: `Selected Wilaya ${targetCode} is currently marked unavailable for delivery.`
+        });
+      }
+
+      const isAgency = order.customer.deliveryMethod === DELIVERY_METHODS.AGENCY;
+      const authoritativeFee = isAgency ? wilayaRate.agencyFee : wilayaRate.homeFee;
+
+      if (typeof authoritativeFee !== 'number' || !Number.isInteger(authoritativeFee) || authoritativeFee < 0) {
+        return res.status(400).json({
+          success: false,
+          message: `Authoritative delivery fee is not configured for Wilaya ${targetCode} with method "${order.customer.deliveryMethod}".`
+        });
+      }
+
+      let newFee = authoritativeFee;
+      if (deliverySetting.freeDeliveryThreshold && deliverySetting.freeDeliveryThreshold > 0 && order.subtotal >= deliverySetting.freeDeliveryThreshold) {
+        newFee = 0;
+      }
+
+      order.deliveryFee = newFee;
+      order.totalPrice = order.subtotal + newFee;
     }
 
     // Agency delivery name validation
@@ -366,20 +376,20 @@ export const updateOrderCustomerDetails = async (req, res, next) => {
       }
     }
 
+    const feeChanged = previousDeliveryFee !== order.deliveryFee;
     const auditEntry = {
       action: 'CUSTOMER_INFO_UPDATED',
       timestamp: new Date(),
       performedBy: req.admin?.username || 'Admin',
-      note: feeOverridden
-        ? `Owner/Admin manually adjusted delivery fee from ${previousDeliveryFee} to ${order.deliveryFee} DZD (Reason: ${overrideReason.trim()}).`
+      note: feeChanged
+        ? `Owner/Admin updated delivery destination/method. Authoritative fee updated from ${previousDeliveryFee} to ${order.deliveryFee} DZD (Delivery: ${order.customer.deliveryMethod}, Wilaya: ${order.customer.wilaya?.name}).`
         : `Owner/Admin updated order customer info (Delivery: ${order.customer.deliveryMethod}, Wilaya: ${order.customer.wilaya?.name}, Fee: ${order.deliveryFee} DZD).`,
       details: {
         previousCustomer,
         updatedCustomer: order.customer,
         previousDeliveryFee,
         updatedDeliveryFee: order.deliveryFee,
-        feeOverridden,
-        overrideReason: feeOverridden ? overrideReason.trim() : null,
+        feeChanged,
         previousTotalPrice,
         updatedTotalPrice: order.totalPrice
       }

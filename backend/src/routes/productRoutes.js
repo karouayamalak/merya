@@ -11,7 +11,7 @@ import {
 import { authenticateAdmin, requireRoles } from '../middleware/auth.js';
 import { verifyCsrf } from '../middleware/csrf.js';
 import { ROLES } from '../config/constants.js';
-import { validate, productSchema } from '../middleware/validation.js';
+import { validate, productSchema, updateProductSchema } from '../middleware/validation.js';
 
 const router = express.Router();
 
@@ -23,7 +23,7 @@ router.get('/slug/:slug', getProductBySlug);
 router.get('/admin/all', authenticateAdmin, getAllProductsAdmin);
 router.get('/admin/:id', authenticateAdmin, getProductByIdAdmin);
 router.post('/', authenticateAdmin, verifyCsrf, requireRoles(ROLES.OWNER, ROLES.ADMIN), validate(productSchema), createProduct);
-router.put('/:id', authenticateAdmin, verifyCsrf, requireRoles(ROLES.OWNER, ROLES.ADMIN), updateProduct);
+router.put('/:id', authenticateAdmin, verifyCsrf, requireRoles(ROLES.OWNER, ROLES.ADMIN), validate(updateProductSchema), updateProduct);
 router.delete('/:id', authenticateAdmin, verifyCsrf, requireRoles(ROLES.OWNER, ROLES.ADMIN), archiveProduct);
 
 export default router;

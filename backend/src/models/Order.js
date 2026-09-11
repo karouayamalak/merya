@@ -25,17 +25,29 @@ const orderItemSnapshotSchema = new mongoose.Schema({
   quantity: {
     type: Number,
     required: true,
-    min: 1
+    min: 1,
+    validate: {
+      validator: (v) => typeof v === 'number' && Number.isInteger(v) && v >= 1,
+      message: '{VALUE} is not a valid integer quantity'
+    }
   },
   unitPrice: {
     type: Number,
     required: true,
-    min: 0
+    min: 0,
+    validate: {
+      validator: (v) => typeof v === 'number' && Number.isInteger(v) && v >= 0,
+      message: '{VALUE} is not a valid integer DZD unitPrice'
+    }
   },
   unitCost: {
     type: Number,
     required: true,
-    min: 0
+    min: 0,
+    validate: {
+      validator: (v) => typeof v === 'number' && Number.isInteger(v) && v >= 0,
+      message: '{VALUE} is not a valid integer DZD unitCost'
+    }
   },
   image: {
     type: String
@@ -119,17 +131,29 @@ const orderSchema = new mongoose.Schema({
   subtotal: {
     type: Number,
     required: true,
-    min: 0
+    min: 0,
+    validate: {
+      validator: (v) => typeof v === 'number' && Number.isInteger(v) && v >= 0,
+      message: '{VALUE} is not a valid integer DZD subtotal'
+    }
   },
   deliveryFee: {
     type: Number,
     required: true,
-    min: 0
+    min: 0,
+    validate: {
+      validator: (v) => typeof v === 'number' && Number.isInteger(v) && v >= 0,
+      message: '{VALUE} is not a valid integer DZD deliveryFee'
+    }
   },
   totalPrice: {
     type: Number,
     required: true,
-    min: 0
+    min: 0,
+    validate: {
+      validator: (v) => typeof v === 'number' && Number.isInteger(v) && v >= 0,
+      message: '{VALUE} is not a valid integer DZD totalPrice'
+    }
   },
   status: {
     type: String,

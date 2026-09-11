@@ -122,19 +122,19 @@ export const updateDeliverySettings = async (req, res, next) => {
           }
         }
 
-        // homeFee: strict finite non-negative number (reject strings, null, NaN)
-        if (typeof r.homeFee !== 'number' || !Number.isFinite(r.homeFee) || r.homeFee < 0) {
+        // homeFee: strict finite non-negative integer (reject strings, null, NaN, decimals)
+        if (typeof r.homeFee !== 'number' || !Number.isFinite(r.homeFee) || !Number.isInteger(r.homeFee) || r.homeFee < 0) {
           return res.status(400).json({
             success: false,
-            message: `wilayaRates[${i}] (Wilaya ${code}): homeFee must be a finite non-negative number. Received: ${JSON.stringify(r.homeFee)}`
+            message: `wilayaRates[${i}] (Wilaya ${code}): homeFee must be a finite non-negative integer in DZD. Received: ${JSON.stringify(r.homeFee)}`
           });
         }
 
-        // agencyFee: strict finite non-negative number (reject strings, null, NaN)
-        if (typeof r.agencyFee !== 'number' || !Number.isFinite(r.agencyFee) || r.agencyFee < 0) {
+        // agencyFee: strict finite non-negative integer (reject strings, null, NaN, decimals)
+        if (typeof r.agencyFee !== 'number' || !Number.isFinite(r.agencyFee) || !Number.isInteger(r.agencyFee) || r.agencyFee < 0) {
           return res.status(400).json({
             success: false,
-            message: `wilayaRates[${i}] (Wilaya ${code}): agencyFee must be a finite non-negative number. Received: ${JSON.stringify(r.agencyFee)}`
+            message: `wilayaRates[${i}] (Wilaya ${code}): agencyFee must be a finite non-negative integer in DZD. Received: ${JSON.stringify(r.agencyFee)}`
           });
         }
 
@@ -167,20 +167,20 @@ export const updateDeliverySettings = async (req, res, next) => {
     }
 
     if (agencyDeliveryFee !== undefined) {
-      if (typeof agencyDeliveryFee !== 'number' || !Number.isFinite(agencyDeliveryFee) || agencyDeliveryFee < 0) {
-        return res.status(400).json({ success: false, message: 'agencyDeliveryFee must be a finite non-negative number.' });
+      if (typeof agencyDeliveryFee !== 'number' || !Number.isFinite(agencyDeliveryFee) || !Number.isInteger(agencyDeliveryFee) || agencyDeliveryFee < 0) {
+        return res.status(400).json({ success: false, message: 'agencyDeliveryFee must be a finite non-negative integer in DZD.' });
       }
       settings.agencyDeliveryFee = agencyDeliveryFee;
     }
     if (homeDeliveryFee !== undefined) {
-      if (typeof homeDeliveryFee !== 'number' || !Number.isFinite(homeDeliveryFee) || homeDeliveryFee < 0) {
-        return res.status(400).json({ success: false, message: 'homeDeliveryFee must be a finite non-negative number.' });
+      if (typeof homeDeliveryFee !== 'number' || !Number.isFinite(homeDeliveryFee) || !Number.isInteger(homeDeliveryFee) || homeDeliveryFee < 0) {
+        return res.status(400).json({ success: false, message: 'homeDeliveryFee must be a finite non-negative integer in DZD.' });
       }
       settings.homeDeliveryFee = homeDeliveryFee;
     }
     if (freeDeliveryThreshold !== undefined) {
-      if (typeof freeDeliveryThreshold !== 'number' || !Number.isFinite(freeDeliveryThreshold) || freeDeliveryThreshold < 0) {
-        return res.status(400).json({ success: false, message: 'freeDeliveryThreshold must be a finite non-negative number.' });
+      if (typeof freeDeliveryThreshold !== 'number' || !Number.isFinite(freeDeliveryThreshold) || !Number.isInteger(freeDeliveryThreshold) || freeDeliveryThreshold < 0) {
+        return res.status(400).json({ success: false, message: 'freeDeliveryThreshold must be a finite non-negative integer in DZD.' });
       }
       settings.freeDeliveryThreshold = freeDeliveryThreshold;
     }

@@ -16,13 +16,21 @@ const wilayaRateSchema = new mongoose.Schema({
     type: Number,
     required: true,
     min: 0,
-    default: 800
+    default: 800,
+    validate: {
+      validator: (v) => typeof v === 'number' && Number.isInteger(v) && v >= 0,
+      message: '{VALUE} is not a valid integer DZD homeFee'
+    }
   },
   agencyFee: {
     type: Number,
     required: true,
     min: 0,
-    default: 500
+    default: 500,
+    validate: {
+      validator: (v) => typeof v === 'number' && Number.isInteger(v) && v >= 0,
+      message: '{VALUE} is not a valid integer DZD agencyFee'
+    }
   },
   isAvailable: {
     type: Boolean,
@@ -35,18 +43,30 @@ const deliverySettingSchema = new mongoose.Schema({
     type: Number,
     required: true,
     min: 0,
-    default: 500 // Global fallback
+    default: 500,
+    validate: {
+      validator: (v) => typeof v === 'number' && Number.isInteger(v) && v >= 0,
+      message: '{VALUE} is not a valid integer DZD agencyDeliveryFee'
+    }
   },
   homeDeliveryFee: {
     type: Number,
     required: true,
     min: 0,
-    default: 800 // Global fallback
+    default: 800,
+    validate: {
+      validator: (v) => typeof v === 'number' && Number.isInteger(v) && v >= 0,
+      message: '{VALUE} is not a valid integer DZD homeDeliveryFee'
+    }
   },
   freeDeliveryThreshold: {
     type: Number,
     min: 0,
-    default: 0 // 0 means disabled
+    default: 0, // 0 means disabled
+    validate: {
+      validator: (v) => typeof v === 'number' && Number.isInteger(v) && v >= 0,
+      message: '{VALUE} is not a valid integer DZD freeDeliveryThreshold'
+    }
   },
   wilayaRates: [wilayaRateSchema],
   updatedBy: {

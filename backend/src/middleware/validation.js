@@ -101,8 +101,8 @@ export const productSchema = z.object({
   name: z.string().min(3).max(150),
   description: z.string().min(5),
   category: z.string().min(1),
-  sellingPrice: z.number().positive(),
-  costPrice: z.number().nonnegative(),
+  sellingPrice: z.number().int({ message: 'Selling price must be an integer in DZD' }).positive({ message: 'Selling price must be positive' }),
+  costPrice: z.number().int({ message: 'Cost price must be an integer in DZD' }).nonnegative({ message: 'Cost price cannot be negative' }),
   isActive: z.boolean().optional(),
   isBestSeller: z.boolean().optional(),
   colors: z.array(z.object({
@@ -115,6 +115,27 @@ export const productSchema = z.object({
       // Use the inventory adjustment endpoint (POST /admin/inventory/adjust) to set stock.
     })).min(1, 'At least one size is required')
   })).min(1, 'At least one color variant is required')
+});
+
+// Update product validation schema
+export const updateProductSchema = z.object({
+  name: z.string().min(3).max(150).optional(),
+  description: z.string().min(5).optional(),
+  category: z.string().min(1).optional(),
+  sellingPrice: z.number().int({ message: 'Selling price must be an integer in DZD' }).positive({ message: 'Selling price must be positive' }).optional(),
+  costPrice: z.number().int({ message: 'Cost price must be an integer in DZD' }).nonnegative({ message: 'Cost price cannot be negative' }).optional(),
+  isActive: z.boolean().optional(),
+  isBestSeller: z.boolean().optional(),
+  isArchived: z.boolean().optional(),
+  colors: z.array(z.object({
+    colorName: z.string().min(1),
+    colorCode: z.string().min(1),
+    images: z.array(z.string()).optional(),
+    sizes: z.array(z.object({
+      size: z.enum(['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Standard', 'One Size']),
+      stock: z.number().int().nonnegative().optional()
+    })).optional()
+  })).optional()
 });
 
 // Status change schema

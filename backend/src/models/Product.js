@@ -62,12 +62,20 @@ const productSchema = new mongoose.Schema({
   sellingPrice: {
     type: Number,
     required: true,
-    min: 0
+    min: 0,
+    validate: {
+      validator: (v) => typeof v === 'number' && Number.isInteger(v) && v >= 0,
+      message: '{VALUE} is not a valid integer DZD amount for sellingPrice'
+    }
   },
   costPrice: {
     type: Number,
     required: true,
-    min: 0
+    min: 0,
+    validate: {
+      validator: (v) => typeof v === 'number' && Number.isInteger(v) && v >= 0,
+      message: '{VALUE} is not a valid integer DZD amount for costPrice'
+    }
   },
   isActive: {
     type: Boolean,

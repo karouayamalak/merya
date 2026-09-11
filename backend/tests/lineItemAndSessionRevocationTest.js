@@ -164,17 +164,26 @@ async function runAllTests() {
     );
   }
 
-  // Setup DeliverySettings with freeDeliveryThreshold: 10000
+  // Setup DeliverySettings with freeDeliveryThreshold: 10000 and Wilaya 16 rates (500 / 300)
   let delSetting = await DeliverySetting.findOne();
+  const w16 = { wilayaCode: 16, wilayaName: 'Alger', homeFee: 500, agencyFee: 300, isAvailable: true };
   if (!delSetting) {
     delSetting = await DeliverySetting.create({
       homeDeliveryFee: 800,
       agencyDeliveryFee: 450,
       freeDeliveryThreshold: 10000,
-      wilayaRates: [{ wilayaCode: 16, wilayaName: 'Alger', homeFee: 500, agencyFee: 300, isAvailable: true }]
+      wilayaRates: [w16]
     });
   } else {
     delSetting.freeDeliveryThreshold = 10000;
+    const w16Idx = delSetting.wilayaRates.findIndex(r => r.wilayaCode === 16);
+    if (w16Idx >= 0) {
+      delSetting.wilayaRates[w16Idx].homeFee = 500;
+      delSetting.wilayaRates[w16Idx].agencyFee = 300;
+      delSetting.wilayaRates[w16Idx].isAvailable = true;
+    } else {
+      delSetting.wilayaRates.push(w16);
+    }
     await delSetting.save();
   }
 

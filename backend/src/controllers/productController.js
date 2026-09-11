@@ -196,6 +196,13 @@ export const createProduct = async (req, res, next) => {
       }))
     }));
 
+    if (typeof sellingPrice !== 'number' || !Number.isInteger(sellingPrice) || sellingPrice <= 0) {
+      return res.status(400).json({ success: false, message: 'sellingPrice must be a positive integer in DZD.' });
+    }
+    if (typeof costPrice !== 'number' || !Number.isInteger(costPrice) || costPrice < 0) {
+      return res.status(400).json({ success: false, message: 'costPrice must be a non-negative integer in DZD.' });
+    }
+
     const product = new Product({
       name,
       slug,
@@ -254,8 +261,18 @@ export const updateProduct = async (req, res, next) => {
 
     if (description !== undefined) product.description = description;
     if (category !== undefined) product.category = category;
-    if (sellingPrice !== undefined) product.sellingPrice = sellingPrice;
-    if (costPrice !== undefined) product.costPrice = costPrice;
+    if (sellingPrice !== undefined) {
+      if (typeof sellingPrice !== 'number' || !Number.isInteger(sellingPrice) || sellingPrice <= 0) {
+        return res.status(400).json({ success: false, message: 'sellingPrice must be a positive integer in DZD.' });
+      }
+      product.sellingPrice = sellingPrice;
+    }
+    if (costPrice !== undefined) {
+      if (typeof costPrice !== 'number' || !Number.isInteger(costPrice) || costPrice < 0) {
+        return res.status(400).json({ success: false, message: 'costPrice must be a non-negative integer in DZD.' });
+      }
+      product.costPrice = costPrice;
+    }
     if (isActive !== undefined) product.isActive = isActive;
     if (isBestSeller !== undefined) product.isBestSeller = isBestSeller;
     if (isArchived === true && !product.isArchived) {

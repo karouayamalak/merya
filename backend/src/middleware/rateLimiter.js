@@ -3,7 +3,7 @@ import rateLimit from 'express-rate-limit';
 // Strict limiter for admin login to block brute-force attacks
 export const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 6, // 6 attempts per window
+  max: process.env.NODE_ENV === 'production' ? 6 : 100, // 6 attempts in prod, 100 in dev/test
   standardHeaders: true,
   legacyHeaders: false,
   message: {
