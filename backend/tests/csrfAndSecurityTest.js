@@ -36,6 +36,8 @@ import { authenticateAdmin } from '../src/middleware/auth.js';
 import { wsService } from '../src/services/websocketService.js';
 import { Admin } from '../src/models/Admin.js';
 import { adjustVariantStock } from '../src/controllers/orderController.js';
+import { logout } from '../src/controllers/authController.js';
+import authRoutes from '../src/routes/authRoutes.js';
 
 dotenv.config();
 
@@ -183,6 +185,122 @@ async function runTests() {
     fail('POST with valid matching CSRF token and cookie proceeds successfully', err);
   }
 
+  // ─── 2.1 Admin Logout CSRF Enforcement ──────────────────────────────────
+  console.log('\n[Suite 2.1: Admin Logout CSRF Route Protection]');
+  try {
+    // 1. Verify route definition has verifyCsrf
+    const logoutRoute = authRoutes.stack.find(s => s.route && s.route.path === '/logout');
+    assert(logoutRoute, 'POST /logout route must be registered on authRoutes');
+    assert(logoutRoute.route.methods.post, 'Route must handle POST');
+    const middlewareStack = logoutRoute.route.stack.map(l => l.handle);
+    assert.strictEqual(middlewareStack[0], verifyCsrf, 'First handler on /logout must be verifyCsrf');
+    assert.strictEqual(middlewareStack[1], logout, 'Second handler on /logout must be logout');
+    pass('authRoutes explicitly binds verifyCsrf before logout on POST /logout');
+  } catch (err) {
+    fail('authRoutes explicitly binds verifyCsrf before logout on POST /logout', err);
+  }
+
+  try {
+    // 2. Unit test: POST /logout without CSRF token is rejected with 403
+    let logoutInvoked = false;
+    const req = { method: 'POST', headers: {}, cookies: {} };
+    const res = createMockRes();
+    verifyCsrf(req, res, () => {
+      logoutInvoked = true;
+    });
+    assert.strictEqual(logoutInvoked, false, 'Logout handler must not be reached when CSRF is missing');
+    assert.strictEqual(res.statusCode, 403, 'Must respond with 403');
+    assert.strictEqual(res.jsonData?.code, 'CSRF_INVALID');
+    pass('Admin logout without CSRF token is rejected with 403 CSRF_INVALID');
+  } catch (err) {
+    fail('Admin logout without CSRF token is rejected with 403 CSRF_INVALID', err);
+  }
+
+  try {
+    // 3. Unit test: POST /logout with valid CSRF token succeeds and executes logout
+    let logoutAdmin = await Admin.findOne({ email: 'logout_csrf_admin@merya.dz' });
+    if (!logoutAdmin) {
+      logoutAdmin = await Admin.create({
+        username: 'logout_csrf_admin',
+        email: 'logout_csrf_admin@merya.dz',
+        passwordHash: '$2a$10$abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqr',
+        role: 'admin',
+        isActive: true
+      });
+    }
+    const adminToken = jwt.sign({ id: logoutAdmin._id, role: logoutAdmin.role, sessionVersion: logoutAdmin.sessionVersion || 1 }, JWT_SECRET);
+    const validCsrf = generateCsrfToken();
+
+    let csrfPassed = false;
+    const req = {
+      method: 'POST',
+      headers: { 'x-csrf-token': validCsrf },
+      cookies: { csrf_token: validCsrf, token: adminToken }
+    };
+    const res = {
+      ...createMockRes(),
+      cleared: false,
+      clearCookie(name) {
+        if (name === 'token') this.cleared = true;
+        return this;
+      }
+    };
+
+    await new Promise((resolve) => {
+      verifyCsrf(req, res, async () => {
+        csrfPassed = true;
+        await logout(req, res, () => {});
+        resolve();
+      });
+    });
+
+    assert.strictEqual(csrfPassed, true, 'verifyCsrf allowed request through');
+    assert.strictEqual(res.statusCode, 200, 'Logout succeeded with 200');
+    assert.strictEqual(res.jsonData?.success, true);
+    assert.strictEqual(res.jsonData?.message, 'Logged out successfully');
+    assert.strictEqual(res.cleared, true, 'HttpOnly token cookie cleared');
+    pass('Admin logout with valid CSRF token succeeds with 200 and clears session');
+  } catch (err) {
+    fail('Admin logout with valid CSRF token succeeds with 200 and clears session', err);
+  }
+
+  // 4. HTTP network test against live backend server
+  try {
+    const healthCheck = await fetch('http://localhost:5000/health').then(r => r.json()).catch(() => null);
+    if (healthCheck && healthCheck.status === 'healthy') {
+      // Live HTTP test without CSRF -> 403
+      const liveRes403 = await fetch('http://localhost:5000/api/v1/auth/logout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      assert.strictEqual(liveRes403.status, 403, 'Live HTTP POST /auth/logout without CSRF must return 403');
+      const live403Data = await liveRes403.json();
+      assert.strictEqual(live403Data.code, 'CSRF_INVALID');
+      pass('Live HTTP POST /auth/logout without CSRF is rejected with 403 CSRF_INVALID');
+
+      // Live HTTP test with CSRF -> 200
+      const csrfFetch = await fetch('http://localhost:5000/api/v1/auth/csrf-token');
+      const csrfData = await csrfFetch.json();
+      const setCookie = csrfFetch.headers.get('set-cookie') || '';
+      const csrfCookieVal = setCookie.split(';')[0];
+
+      const liveRes200 = await fetch('http://localhost:5000/api/v1/auth/logout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': csrfData.csrfToken,
+          'Cookie': csrfCookieVal
+        }
+      });
+      assert.strictEqual(liveRes200.status, 200, 'Live HTTP POST /auth/logout with CSRF must return 200');
+      const live200Data = await liveRes200.json();
+      assert.strictEqual(live200Data.success, true);
+      pass('Live HTTP POST /auth/logout with valid CSRF token succeeds with 200');
+    }
+  } catch (err) {
+    fail('Live HTTP integration test for /auth/logout CSRF enforcement', err);
+  }
+
   // ─── 3. Cookie-Only Auth (Bearer Fallback Removed) ─────────────────────────
   console.log('\n[Suite 3: Cookie-Only Authentication (No Bearer Header)]');
   try {
@@ -215,7 +333,7 @@ async function runTests() {
     }
 
     let nextCalled = false;
-    const token = jwt.sign({ id: testAdmin._id, role: testAdmin.role }, JWT_SECRET);
+    const token = jwt.sign({ id: testAdmin._id, role: testAdmin.role, sessionVersion: testAdmin.sessionVersion || 1 }, JWT_SECRET);
     const req = {
       headers: {},
       cookies: { token }
@@ -338,7 +456,7 @@ async function runTests() {
   try {
     // 5d. SUBSCRIBE_ADMIN with valid admin cookie in upgrade request receives SUBSCRIBED
     const testAdmin = await Admin.findOne({ email: 'csrf_test_admin@merya.dz' });
-    const adminToken = jwt.sign({ id: testAdmin._id, role: testAdmin.role }, JWT_SECRET);
+    const adminToken = jwt.sign({ id: testAdmin._id, role: testAdmin.role, sessionVersion: testAdmin.sessionVersion || 1 }, JWT_SECRET);
 
     const subscribed = await new Promise((resolve, reject) => {
       const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`, {
@@ -368,10 +486,15 @@ async function runTests() {
     fail('SUBSCRIBE_ADMIN with valid HttpOnly cookie receives SUBSCRIBED', err);
   } finally {
     process.env.NODE_ENV = origEnv;
-    if (wsService.wss) {
-      wsService.wss.close();
-    }
-    testServer.close();
+    await new Promise((resolve) => {
+      if (wsService.wss) {
+        wsService.wss.close(() => {
+          testServer.close(() => resolve());
+        });
+      } else {
+        testServer.close(() => resolve());
+      }
+    });
   }
 
   // ─── Summary ──────────────────────────────────────────────────────────────
