@@ -2,7 +2,8 @@ import { Order } from '../models/Order.js';
 import { DeliverySetting } from '../models/DeliverySetting.js';
 import { placeOrder, updateOrderStatus } from '../services/orderService.js';
 import { setStockAtomic } from '../services/inventoryService.js';
-import { ALGERIA_WILAYAS, DELIVERY_METHODS } from '../config/constants.js';
+import { ALGERIA_WILAYAS, DELIVERY_METHODS, ORDER_STATUS } from '../config/constants.js';
+import { normalizeAlgerianPhone } from '../utils/phone.js';
 
 // Public: Checkout order
 export const checkout = async (req, res, next) => {
@@ -41,8 +42,11 @@ export const checkout = async (req, res, next) => {
       createdAt: result.order.createdAt
     });
   } catch (error) {
-    // Business logic errors (insufficient stock, invalid product, bad delivery method)
-    // are surfaced as 400/409. Infrastructure errors (DB down, unexpected) go to next().
+    if (error.message && error.message.startsWith('IDEMPOTENCY_CONFLICT')) {
+      return res.status(409).json({ success: false, message: error.message });
+    }
+
+    // Business logic errors (insufficient stock, invalid product, bad delivery method, wilaya unavailable)
     const businessErrors = [
       'insufficient stock',
       'product not found',
@@ -50,7 +54,10 @@ export const checkout = async (req, res, next) => {
       'not available',
       'invalid item',
       'invalid delivery method',
-      'at least one item'
+      'at least one item',
+      'unavailable for delivery',
+      'wilaya mismatch',
+      'invalid wilaya'
     ];
     const isBusinessError = businessErrors.some(phrase =>
       error.message?.toLowerCase().includes(phrase)
@@ -153,83 +160,151 @@ export const changeOrderStatus = async (req, res, next) => {
   }
 };
 
-// Admin: Edit customer details and delivery on order
+// Admin: Edit customer details and delivery on order with strict validation & historical protection
 export const updateOrderCustomerDetails = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { fullName, phone, wilaya, address, agencyName, deliveryMethod, notes, deliveryFee } = req.body;
+    const { fullName, phone, wilaya, address, agencyName, deliveryMethod, notes, deliveryFee, overrideReason } = req.body;
 
     const order = await Order.findById(id);
     if (!order) {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
 
+    // Historical protection: Delivered orders cannot have their financial values modified
+    if (order.status === ORDER_STATUS.DELIVERED) {
+      if (deliveryFee !== undefined && Number(deliveryFee) !== order.deliveryFee) {
+        return res.status(400).json({
+          success: false,
+          message: 'Historical financial values (delivery fee, subtotal, total) cannot be modified on Delivered orders.'
+        });
+      }
+      if (wilaya || deliveryMethod) {
+        return res.status(400).json({
+          success: false,
+          message: 'Delivery destination cannot be modified on Delivered orders.'
+        });
+      }
+    }
+
     const previousCustomer = { ...order.customer.toObject() };
     const previousDeliveryFee = order.deliveryFee;
     const previousTotalPrice = order.totalPrice;
 
-    if (fullName) order.customer.fullName = fullName.trim();
-    if (phone) order.customer.phone = phone.trim();
-    if (address !== undefined) order.customer.address = address.trim();
-    if (agencyName !== undefined) order.customer.agencyName = agencyName.trim();
-    if (notes !== undefined) order.customer.notes = notes.trim();
+    if (fullName) {
+      if (typeof fullName !== 'string' || fullName.trim().length < 2) {
+        return res.status(400).json({ success: false, message: 'Full name must be at least 2 characters.' });
+      }
+      order.customer.fullName = fullName.trim();
+    }
+
+    // Phone normalization and strict validation
+    if (phone) {
+      try {
+        order.customer.phone = normalizeAlgerianPhone(phone);
+      } catch (phoneErr) {
+        return res.status(400).json({ success: false, message: phoneErr.message });
+      }
+    }
+
+    if (notes !== undefined) {
+      if (typeof notes === 'string' && notes.length > 500) {
+        return res.status(400).json({ success: false, message: 'Notes cannot exceed 500 characters.' });
+      }
+      order.customer.notes = notes ? notes.trim() : '';
+    }
 
     let wilayaOrMethodChanged = false;
 
-    // Resolve wilaya if provided
+    // Strict Wilaya validation
     if (wilaya) {
-      let resolvedWilaya = null;
-      if (typeof wilaya === 'object' && wilaya.code && wilaya.name) {
-        resolvedWilaya = { code: Number(wilaya.code), name: wilaya.name };
-      } else {
-        const found = ALGERIA_WILAYAS.find(w => 
-          w.code === Number(wilaya) || 
-          w.name.toLowerCase() === String(wilaya).toLowerCase()
-        );
-        if (found) {
-          resolvedWilaya = { code: found.code, name: found.name };
+      const code = typeof wilaya === 'object' ? wilaya.code : wilaya;
+      const name = typeof wilaya === 'object' ? (wilaya.name || '') : String(wilaya);
+      const codeNum = Number(code);
+
+      const canonicalWilaya = ALGERIA_WILAYAS.find(w => w.code === codeNum);
+      if (!canonicalWilaya) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid Wilaya code: ${code}. Must be a canonical Algerian Wilaya between 1 and 58.`
+        });
+      }
+
+      if (name && typeof name === 'string' && name.trim()) {
+        const normName = name.trim().toLowerCase();
+        const matchesEn = canonicalWilaya.name.toLowerCase() === normName;
+        const matchesAr = canonicalWilaya.nameAr === normName;
+        if (!matchesEn && !matchesAr) {
+          return res.status(400).json({
+            success: false,
+            message: `Wilaya mismatch: code ${codeNum} is "${canonicalWilaya.name}", but received "${name}".`
+          });
         }
       }
 
-      if (resolvedWilaya && (order.customer.wilaya?.code !== resolvedWilaya.code)) {
-        order.customer.wilaya = resolvedWilaya;
+      if (order.customer.wilaya?.code !== canonicalWilaya.code) {
+        order.customer.wilaya = { code: canonicalWilaya.code, name: canonicalWilaya.name };
         wilayaOrMethodChanged = true;
       }
     }
 
-    // Resolve delivery method
-    if (deliveryMethod) {
-      const normalizedMethod = String(deliveryMethod).toLowerCase() === 'agency' ? DELIVERY_METHODS.AGENCY : DELIVERY_METHODS.HOME;
-      if (order.customer.deliveryMethod !== normalizedMethod) {
-        order.customer.deliveryMethod = normalizedMethod;
+    // Strict Delivery Method validation
+    if (deliveryMethod !== undefined) {
+      const normMethod = String(deliveryMethod).toLowerCase().trim();
+      if (normMethod !== DELIVERY_METHODS.AGENCY && normMethod !== DELIVERY_METHODS.HOME) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid delivery method. Must be "agency" or "home".'
+        });
+      }
+
+      if (normMethod === DELIVERY_METHODS.HOME) {
+        const currentAddress = address !== undefined ? address : order.customer.address;
+        if (!currentAddress || typeof currentAddress !== 'string' || currentAddress.trim().length < 3) {
+          return res.status(400).json({
+            success: false,
+            message: 'Detailed home address is required for home delivery (min 3 characters).'
+          });
+        }
+      }
+
+      if (order.customer.deliveryMethod !== normMethod) {
+        order.customer.deliveryMethod = normMethod;
         wilayaOrMethodChanged = true;
       }
     }
 
-    // If manual delivery fee provided, apply directly
+    if (address !== undefined) order.customer.address = address ? address.trim() : '';
+    if (agencyName !== undefined) order.customer.agencyName = agencyName ? agencyName.trim() : '';
+
+    // Handle delivery fee calculation vs manual override
+    let feeOverridden = false;
     if (deliveryFee !== undefined && !isNaN(Number(deliveryFee))) {
-      order.deliveryFee = Math.max(0, Number(deliveryFee));
+      const feeNum = Number(deliveryFee);
+      if (feeNum < 0) {
+        return res.status(400).json({ success: false, message: 'Delivery fee cannot be negative.' });
+      }
+      order.deliveryFee = feeNum;
       order.totalPrice = order.subtotal + order.deliveryFee;
+      feeOverridden = true;
     } else if (wilayaOrMethodChanged) {
-      // Recalculate shipping fee from delivery settings for changed wilaya/method
       const deliverySetting = await DeliverySetting.findOne();
       if (deliverySetting) {
-        let wilayaRate = null;
         const targetCode = order.customer.wilaya?.code;
-        const targetName = order.customer.wilaya?.name?.toLowerCase();
+        const wilayaRate = deliverySetting.wilayaRates?.find(r => r.wilayaCode === Number(targetCode));
 
-        if (targetCode) {
-          wilayaRate = deliverySetting.wilayaRates?.find(r => r.wilayaCode === Number(targetCode));
-        } else if (targetName) {
-          wilayaRate = deliverySetting.wilayaRates?.find(r => r.wilayaName.toLowerCase() === targetName);
+        if (wilayaRate && wilayaRate.isAvailable === false) {
+          return res.status(400).json({
+            success: false,
+            message: `Selected Wilaya ${targetCode} is currently marked unavailable for delivery.`
+          });
         }
 
-        const isAgency = String(order.customer.deliveryMethod).toLowerCase() === 'agency';
+        const isAgency = order.customer.deliveryMethod === DELIVERY_METHODS.AGENCY;
         let newFee = isAgency
           ? (wilayaRate ? wilayaRate.agencyFee : deliverySetting.agencyDeliveryFee)
           : (wilayaRate ? wilayaRate.homeFee : deliverySetting.homeDeliveryFee);
 
-        // Apply free delivery threshold if active
         if (deliverySetting.freeDeliveryThreshold && deliverySetting.freeDeliveryThreshold > 0 && order.subtotal >= deliverySetting.freeDeliveryThreshold) {
           newFee = 0;
         }
@@ -243,14 +318,18 @@ export const updateOrderCustomerDetails = async (req, res, next) => {
       action: 'CUSTOMER_INFO_UPDATED',
       timestamp: new Date(),
       performedBy: req.admin?.username || 'Admin',
-      note: `Owner/Admin updated order info (Delivery: ${order.customer.deliveryMethod}, Wilaya: ${order.customer.wilaya?.name || 'N/A'}, Fee: ${order.deliveryFee} DZD).`,
+      note: feeOverridden
+        ? `Owner/Admin manually adjusted delivery fee from ${previousDeliveryFee} to ${order.deliveryFee} DZD (Reason: ${overrideReason || 'Manual adjustment'}).`
+        : `Owner/Admin updated order customer info (Delivery: ${order.customer.deliveryMethod}, Wilaya: ${order.customer.wilaya?.name}, Fee: ${order.deliveryFee} DZD).`,
       details: {
         previousCustomer,
         updatedCustomer: order.customer,
         previousDeliveryFee,
-        newDeliveryFee: order.deliveryFee,
+        updatedDeliveryFee: order.deliveryFee,
+        feeOverridden,
+        overrideReason: feeOverridden ? (overrideReason || 'Manual adjustment') : null,
         previousTotalPrice,
-        newTotalPrice: order.totalPrice
+        updatedTotalPrice: order.totalPrice
       }
     });
 

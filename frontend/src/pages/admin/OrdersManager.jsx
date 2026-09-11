@@ -36,6 +36,7 @@ const ORDER_STATUSES = [
   'On the way',
   'At agency',
   'Delivered',
+  'Returned',
   'Cancelled'
 ];
 
@@ -251,6 +252,8 @@ export default function OrdersManager() {
         return { backgroundColor: '#FBE9E7', color: '#D84315', border: '1px solid #FFCCBC' };
       case 'Delivered':
         return { backgroundColor: '#E8F5E9', color: '#2E7D32', border: '1px solid #A5D6A7' };
+      case 'Returned':
+        return { backgroundColor: '#FCE4EC', color: '#C2185B', border: '1px solid #F8BBD0' };
       case 'Cancelled':
         return { backgroundColor: '#FFEBEE', color: '#C62828', border: '1px solid #FFCDD2' };
       default:

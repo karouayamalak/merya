@@ -1,29 +1,109 @@
+import crypto from 'crypto';
 import { Order } from '../models/Order.js';
 import { Product } from '../models/Product.js';
 import { DeliverySetting } from '../models/DeliverySetting.js';
-import { ORDER_STATUS, VALID_STATUS_TRANSITIONS, DELIVERY_METHODS } from '../config/constants.js';
+import { ORDER_STATUS, VALID_STATUS_TRANSITIONS, DELIVERY_METHODS, ALGERIA_WILAYAS } from '../config/constants.js';
 import { generateOrderCode } from '../utils/orderCode.js';
+import { normalizeAlgerianPhone } from '../utils/phone.js';
 import { deductStockAtomic, restoreStockAtomic } from './inventoryService.js';
 import { wsService } from './websocketService.js';
+
+/**
+ * Deterministic fingerprint of order payload for strict idempotency checking.
+ */
+export function computeOrderFingerprint({ customer, items }) {
+  let normPhone = '';
+  try {
+    normPhone = normalizeAlgerianPhone(String(customer?.phone || ''));
+  } catch {
+    normPhone = String(customer?.phone || '').trim();
+  }
+
+  const wilayaCode = Number(typeof customer?.wilaya === 'object' ? customer?.wilaya?.code : customer?.wilaya);
+  const deliveryMethod = String(customer?.deliveryMethod || '').trim().toLowerCase();
+
+  const sortedItems = (items || []).map(i => ({
+    productId: String(i.productId),
+    colorName: String(i.colorName || '').trim().toLowerCase(),
+    size: String(i.size || '').trim(),
+    quantity: Number(i.quantity)
+  })).sort((a, b) => {
+    const keyA = `${a.productId}-${a.colorName}-${a.size}`;
+    const keyB = `${b.productId}-${b.colorName}-${b.size}`;
+    return keyA.localeCompare(keyB);
+  });
+
+  const payload = {
+    phone: normPhone,
+    wilayaCode,
+    deliveryMethod,
+    items: sortedItems
+  };
+
+  return crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+}
 
 /**
  * Place a new order with full database validation and atomic inventory deduction.
  */
 export async function placeOrder({ customer, items, idempotencyKey }) {
-  // 1. Check idempotency if key provided
+  if (!items || items.length === 0) {
+    throw new Error('Order must contain at least one item');
+  }
+
+  // 1. Strict Canonical Wilaya Verification & Availability Check
+  if (!customer || !customer.wilaya) {
+    throw new Error('Customer Wilaya is required');
+  }
+
+  const code = typeof customer.wilaya === 'object' ? customer.wilaya.code : customer.wilaya;
+  const name = typeof customer.wilaya === 'object' ? (customer.wilaya.name || '') : String(customer.wilaya);
+  const codeNum = Number(code);
+
+  const canonicalWilaya = ALGERIA_WILAYAS.find(w => w.code === codeNum);
+  if (!canonicalWilaya) {
+    throw new Error(`Invalid Wilaya code: ${code}. Must be between 1 and 58.`);
+  }
+
+  if (name && typeof name === 'string' && name.trim()) {
+    const normName = name.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const canonicalNorm = canonicalWilaya.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const matchesEn = canonicalNorm === normName || (codeNum === 16 && (normName === 'alger' || normName === 'algiers'));
+    const matchesAr = canonicalWilaya.nameAr === name.trim();
+    if (!matchesEn && !matchesAr) {
+      throw new Error(`Wilaya mismatch: code ${codeNum} is "${canonicalWilaya.name}", but received "${name}".`);
+    }
+  }
+
+  let deliverySetting = await DeliverySetting.findOne();
+  if (!deliverySetting) {
+    deliverySetting = await DeliverySetting.create({ agencyDeliveryFee: 500, homeDeliveryFee: 800 });
+  }
+
+  const wilayaRate = deliverySetting.wilayaRates?.find(r => r.wilayaCode === codeNum);
+  if (!wilayaRate) {
+    throw new Error(`Delivery configuration missing for Wilaya ${codeNum} (${canonicalWilaya.name})`);
+  }
+
+  if (wilayaRate.isAvailable === false) {
+    throw new Error(`Wilaya ${codeNum} (${canonicalWilaya.name}) is currently unavailable for delivery.`);
+  }
+
+  // 2. Check idempotency with deterministic fingerprint
+  const currentFingerprint = computeOrderFingerprint({ customer, items });
+
   if (idempotencyKey) {
     const existingOrder = await Order.findOne({ idempotencyKey });
     if (existingOrder) {
+      if (existingOrder.idempotencyFingerprint && existingOrder.idempotencyFingerprint !== currentFingerprint) {
+        throw new Error('IDEMPOTENCY_CONFLICT: Idempotency key reused with different request payload');
+      }
       console.log(`[OrderService] Duplicate submission caught via idempotency key: ${idempotencyKey}`);
       return { order: existingOrder, isDuplicate: true };
     }
   }
 
-  if (!items || items.length === 0) {
-    throw new Error('Order must contain at least one item');
-  }
-
-  // 2. Authoritative Database Item Verification & Snapshots
+  // 3. Authoritative Database Item Verification & Snapshots
   const itemSnapshots = [];
   let subtotal = 0;
 
@@ -69,26 +149,7 @@ export async function placeOrder({ customer, items, idempotencyKey }) {
     });
   }
 
-  // 3. Dynamic Delivery Fee calculation from database (per-Wilaya rates)
-  let deliverySetting = await DeliverySetting.findOne();
-  if (!deliverySetting) {
-    deliverySetting = await DeliverySetting.create({ agencyDeliveryFee: 500, homeDeliveryFee: 800 });
-  }
-
-  let wilayaRate = null;
-  if (customer.wilaya) {
-    const code = typeof customer.wilaya === 'object' ? customer.wilaya.code : customer.wilaya;
-    const name = typeof customer.wilaya === 'object' ? (customer.wilaya.name || '') : String(customer.wilaya);
-    const codeNum = Number(code);
-    const nameStr = String(name).trim().toLowerCase();
-
-    wilayaRate = deliverySetting.wilayaRates?.find(r => 
-      (!isNaN(codeNum) && r.wilayaCode === codeNum) ||
-      (nameStr && r.wilayaName.toLowerCase() === nameStr) ||
-      (nameStr && r.wilayaNameAr && r.wilayaNameAr === nameStr)
-    );
-  }
-
+  // 4. Dynamic Delivery Fee calculation from database
   let deliveryFee = 0;
   if (customer.deliveryMethod === DELIVERY_METHODS.AGENCY) {
     deliveryFee = wilayaRate ? wilayaRate.agencyFee : deliverySetting.agencyDeliveryFee;
@@ -105,12 +166,12 @@ export async function placeOrder({ customer, items, idempotencyKey }) {
 
   const totalPrice = subtotal + deliveryFee;
 
-  // 4. Atomic Inventory Deduction with Order Creation Rollback
+  // 5. Atomic Inventory Deduction with Order Creation Rollback
   await deductStockAtomic(items);
 
   let order;
   try {
-    // 5. Generate secure order tracking code
+    // Generate secure order tracking code
     let orderCode;
     let codeExists = true;
     while (codeExists) {
@@ -119,10 +180,11 @@ export async function placeOrder({ customer, items, idempotencyKey }) {
       if (!found) codeExists = false;
     }
 
-    // 6. Create Order Document
+    // Create Order Document with snapshot and fingerprint
     order = new Order({
       orderCode,
       idempotencyKey,
+      idempotencyFingerprint: currentFingerprint,
       customer,
       items: itemSnapshots,
       subtotal,
@@ -151,6 +213,9 @@ export async function placeOrder({ customer, items, idempotencyKey }) {
     if (saveError.code === 11000 && idempotencyKey) {
       const existingOrder = await Order.findOne({ idempotencyKey });
       if (existingOrder) {
+        if (existingOrder.idempotencyFingerprint && existingOrder.idempotencyFingerprint !== currentFingerprint) {
+          throw new Error('IDEMPOTENCY_CONFLICT: Idempotency key reused with different request payload');
+        }
         console.log(`[OrderService] Concurrent duplicate order caught via unique idempotencyKey index: ${idempotencyKey}`);
         return { order: existingOrder, isDuplicate: true };
       }
@@ -159,7 +224,7 @@ export async function placeOrder({ customer, items, idempotencyKey }) {
     throw saveError;
   }
 
-  // 7. Real-time WebSocket Broadcast to Admin
+  // 6. Real-time WebSocket Broadcast to Admin (safe, non-fatal)
   wsService.broadcastNewOrder(order);
 
   return { order, isDuplicate: false };
@@ -185,6 +250,11 @@ export async function updateOrderStatus(orderId, newStatus, adminUsername = 'Adm
     return order;
   }
 
+  // CRITICAL INVARIANT: Delivered orders can NEVER be transitioned to Cancelled or Returned (even with override)
+  if (currentStatus === ORDER_STATUS.DELIVERED) {
+    throw new Error('Cannot transition order: Terminal state violation: Delivered orders cannot be transitioned to Cancelled or Returned.');
+  }
+
   // Validate state machine unless owner/admin override is enabled
   if (!isOverride) {
     const allowedTransitions = VALID_STATUS_TRANSITIONS[currentStatus] || [];
@@ -194,17 +264,20 @@ export async function updateOrderStatus(orderId, newStatus, adminUsername = 'Adm
   }
 
   // Stock inventory management on status changes:
-  // 1. Moving to CANCELLED: restore reserved stock (only if not already restored)
-  if (newStatus === ORDER_STATUS.CANCELLED && !order.stockRestored) {
-    console.log(`[OrderService] Restoring stock for cancelled order ${order.orderCode}`);
+  // 1. Moving to CANCELLED or RETURNED: restore reserved stock (only if not already restored)
+  const isEnteringRestoredState = newStatus === ORDER_STATUS.CANCELLED || newStatus === ORDER_STATUS.RETURNED;
+  const isLeavingRestoredState = (currentStatus === ORDER_STATUS.CANCELLED || currentStatus === ORDER_STATUS.RETURNED) && !isEnteringRestoredState;
+
+  if (isEnteringRestoredState && !order.stockRestored) {
+    console.log(`[OrderService] Restoring stock for ${newStatus.toLowerCase()} order ${order.orderCode}`);
     await restoreStockAtomic(order.items);
     order.stockRestored = true;
   } 
-  // 2. Moving from CANCELLED to active status: re-deduct stock if previously restored
-  else if (currentStatus === ORDER_STATUS.CANCELLED && newStatus !== ORDER_STATUS.CANCELLED && order.stockRestored) {
+  // 2. Moving from CANCELLED/RETURNED to active status: re-deduct stock if previously restored
+  else if (isLeavingRestoredState && order.stockRestored) {
     console.log(`[OrderService] Re-deducting stock for reactivated order ${order.orderCode}`);
     // STRICT INVARIANT: If stock cannot be deducted (insufficient stock), this throws an Error!
-    // order.status and order.stockRestored are NOT modified. Order remains CANCELLED.
+    // order.status and order.stockRestored are NOT modified. Order remains in previous state.
     await deductStockAtomic(order.items);
     order.stockRestored = false;
   }
@@ -276,6 +349,7 @@ export async function getFinancialAnalytics() {
     [ORDER_STATUS.ON_THE_WAY]: 0,
     [ORDER_STATUS.AT_AGENCY]: 0,
     [ORDER_STATUS.DELIVERED]: 0,
+    [ORDER_STATUS.RETURNED]: 0,
     [ORDER_STATUS.CANCELLED]: 0
   };
 

@@ -9,7 +9,12 @@ import { ROLES, ALGERIA_WILAYAS } from '../config/constants.js';
 
 dotenv.config();
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/merya_dz';
+if (!process.env.MONGODB_URI) {
+  console.error('[Seed Error] FATAL: MONGODB_URI environment variable is required. Refusing to connect to an unspecified database.');
+  process.exit(1);
+}
+
+const MONGODB_URI = process.env.MONGODB_URI;
 
 function getDefaultWilayaRates(code) {
   if (code === 16) return { homeFee: 500, agencyFee: 350 };

@@ -31,6 +31,7 @@ if (process.env.NODE_ENV === 'production') {
   if (!process.env.JWT_SECRET) missingCriticalEnv.push('JWT_SECRET');
   if (!process.env.COOKIE_SECRET) missingCriticalEnv.push('COOKIE_SECRET');
   if (!process.env.MONGODB_URI) missingCriticalEnv.push('MONGODB_URI');
+  if (!process.env.CLIENT_ORIGIN) missingCriticalEnv.push('CLIENT_ORIGIN');
 
   if (missingCriticalEnv.length > 0) {
     console.error(`[MERYA DZ FATAL ERROR] Missing critical production environment variables: ${missingCriticalEnv.join(', ')}`);

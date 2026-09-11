@@ -7,7 +7,12 @@ import { Category } from '../models/Category.js';
 
 dotenv.config();
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/merya_dz';
+if (!process.env.MONGODB_URI) {
+  console.error('[Import Error] FATAL: MONGODB_URI environment variable is required.');
+  process.exit(1);
+}
+
+const MONGODB_URI = process.env.MONGODB_URI;
 
 const sourceFiles = [
   {

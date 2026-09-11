@@ -76,6 +76,10 @@ const orderSchema = new mongoose.Schema({
     unique: true,
     index: true
   },
+  idempotencyFingerprint: {
+    type: String,
+    index: true
+  },
   customer: {
     fullName: {
       type: String,
