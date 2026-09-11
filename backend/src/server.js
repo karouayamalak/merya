@@ -21,7 +21,9 @@ import settingRoutes from './routes/settingRoutes.js';
 import analyticsRoutes from './routes/analyticsRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
 
-dotenv.config();
+if (process.env.NODE_ENV !== 'production') {
+  dotenv.config();
+}
 
 // Strict Production Preflight Checks — Fails fast if security keys or configurations are missing
 if (process.env.NODE_ENV === 'production') {
