@@ -29,40 +29,12 @@ function getDefaultWilayaRates(code) {
 
 export const getDeliverySettings = async (req, res, next) => {
   try {
-    let settings = await DeliverySetting.findOne();
-    if (!settings) {
-      settings = new DeliverySetting({
-        agencyDeliveryFee: 500,
-        homeDeliveryFee: 800,
-        freeDeliveryThreshold: 0,
-        wilayaRates: []
+    const settings = await DeliverySetting.findOne();
+    if (!settings || !Array.isArray(settings.wilayaRates) || settings.wilayaRates.length < 58) {
+      return res.status(503).json({
+        success: false,
+        message: 'Delivery settings configuration is incomplete or uninitialized (expected 58 Algerian wilayas). Run database seed or configure delivery settings in admin.'
       });
-    }
-
-    // Ensure all 58 Wilayas are represented in wilayaRates
-    let modified = false;
-    const existingCodes = new Set((settings.wilayaRates || []).map(r => r.wilayaCode));
-
-    for (const w of ALGERIA_WILAYAS) {
-      if (!existingCodes.has(w.code)) {
-        const defaults = getDefaultWilayaRates(w.code);
-        settings.wilayaRates.push({
-          wilayaCode: w.code,
-          wilayaName: w.name,
-          wilayaNameAr: w.nameAr,
-          homeFee: defaults.homeFee,
-          agencyFee: defaults.agencyFee,
-          isAvailable: true
-        });
-        modified = true;
-      }
-    }
-
-    // Keep sorted by code 1-58
-    settings.wilayaRates.sort((a, b) => a.wilayaCode - b.wilayaCode);
-
-    if (modified || settings.isNew) {
-      await settings.save();
     }
 
     res.json({
@@ -103,15 +75,16 @@ export const updateDeliverySettings = async (req, res, next) => {
 
       for (let i = 0; i < wilayaRates.length; i++) {
         const r = wilayaRates[i];
-        const code = Number(r.wilayaCode);
 
-        // Valid canonical code 1–58
-        if (!Number.isInteger(code) || code < 1 || code > 58) {
+        // Valid canonical code 1–58 strictly as integer number
+        if (typeof r.wilayaCode !== 'number' || !Number.isInteger(r.wilayaCode) || r.wilayaCode < 1 || r.wilayaCode > 58) {
           return res.status(400).json({
             success: false,
-            message: `wilayaRates[${i}]: wilayaCode ${r.wilayaCode} is not a valid Algerian Wilaya code (must be integer 1–58).`
+            message: `wilayaRates[${i}]: wilayaCode must be an integer between 1 and 58. Received: ${JSON.stringify(r.wilayaCode)}`
           });
         }
+        const code = r.wilayaCode;
+
         if (!canonicalByCode.has(code)) {
           return res.status(400).json({
             success: false,
@@ -130,9 +103,9 @@ export const updateDeliverySettings = async (req, res, next) => {
 
         const canonical = canonicalByCode.get(code);
 
-        // wilayaName must match canonical English name
-        if (r.wilayaName !== undefined && r.wilayaName !== '') {
-          if (r.wilayaName !== canonical.name) {
+        // If client sends names, they must strictly match canonical values
+        if (r.wilayaName !== undefined) {
+          if (typeof r.wilayaName !== 'string' || !r.wilayaName.trim() || r.wilayaName !== canonical.name) {
             return res.status(400).json({
               success: false,
               message: `wilayaRates[${i}]: wilayaName "${r.wilayaName}" does not match canonical name "${canonical.name}" for code ${code}.`
@@ -140,9 +113,8 @@ export const updateDeliverySettings = async (req, res, next) => {
           }
         }
 
-        // wilayaNameAr must match canonical Arabic name if provided
-        if (r.wilayaNameAr !== undefined && r.wilayaNameAr !== '') {
-          if (r.wilayaNameAr !== canonical.nameAr) {
+        if (r.wilayaNameAr !== undefined) {
+          if (typeof r.wilayaNameAr !== 'string' || !r.wilayaNameAr.trim() || r.wilayaNameAr !== canonical.nameAr) {
             return res.status(400).json({
               success: false,
               message: `wilayaRates[${i}]: wilayaNameAr "${r.wilayaNameAr}" does not match canonical Arabic name "${canonical.nameAr}" for code ${code}.`
@@ -150,27 +122,25 @@ export const updateDeliverySettings = async (req, res, next) => {
           }
         }
 
-        // homeFee: finite non-negative number
-        const homeFee = Number(r.homeFee);
-        if (!Number.isFinite(homeFee) || homeFee < 0) {
+        // homeFee: strict finite non-negative number (reject strings, null, NaN)
+        if (typeof r.homeFee !== 'number' || !Number.isFinite(r.homeFee) || r.homeFee < 0) {
           return res.status(400).json({
             success: false,
-            message: `wilayaRates[${i}] (Wilaya ${code}): homeFee must be a finite non-negative number. Received: ${r.homeFee}`
+            message: `wilayaRates[${i}] (Wilaya ${code}): homeFee must be a finite non-negative number. Received: ${JSON.stringify(r.homeFee)}`
           });
         }
 
-        // agencyFee: finite non-negative number
-        const agencyFee = Number(r.agencyFee);
-        if (!Number.isFinite(agencyFee) || agencyFee < 0) {
+        // agencyFee: strict finite non-negative number (reject strings, null, NaN)
+        if (typeof r.agencyFee !== 'number' || !Number.isFinite(r.agencyFee) || r.agencyFee < 0) {
           return res.status(400).json({
             success: false,
-            message: `wilayaRates[${i}] (Wilaya ${code}): agencyFee must be a finite non-negative number. Received: ${r.agencyFee}`
+            message: `wilayaRates[${i}] (Wilaya ${code}): agencyFee must be a finite non-negative number. Received: ${JSON.stringify(r.agencyFee)}`
           });
         }
 
         // isAvailable MUST be a strict boolean — reject strings like "false", "true", 0, 1
         if (r.isAvailable !== undefined) {
-          if (r.isAvailable !== true && r.isAvailable !== false) {
+          if (typeof r.isAvailable !== 'boolean') {
             return res.status(400).json({
               success: false,
               message: `wilayaRates[${i}] (Wilaya ${code}): isAvailable must be a strict boolean (true or false). Received: ${JSON.stringify(r.isAvailable)}`
@@ -197,37 +167,38 @@ export const updateDeliverySettings = async (req, res, next) => {
     }
 
     if (agencyDeliveryFee !== undefined) {
-      const v = Number(agencyDeliveryFee);
-      if (!Number.isFinite(v) || v < 0) {
+      if (typeof agencyDeliveryFee !== 'number' || !Number.isFinite(agencyDeliveryFee) || agencyDeliveryFee < 0) {
         return res.status(400).json({ success: false, message: 'agencyDeliveryFee must be a finite non-negative number.' });
       }
-      settings.agencyDeliveryFee = v;
+      settings.agencyDeliveryFee = agencyDeliveryFee;
     }
     if (homeDeliveryFee !== undefined) {
-      const v = Number(homeDeliveryFee);
-      if (!Number.isFinite(v) || v < 0) {
+      if (typeof homeDeliveryFee !== 'number' || !Number.isFinite(homeDeliveryFee) || homeDeliveryFee < 0) {
         return res.status(400).json({ success: false, message: 'homeDeliveryFee must be a finite non-negative number.' });
       }
-      settings.homeDeliveryFee = v;
+      settings.homeDeliveryFee = homeDeliveryFee;
     }
     if (freeDeliveryThreshold !== undefined) {
-      const v = Number(freeDeliveryThreshold);
-      if (!Number.isFinite(v) || v < 0) {
+      if (typeof freeDeliveryThreshold !== 'number' || !Number.isFinite(freeDeliveryThreshold) || freeDeliveryThreshold < 0) {
         return res.status(400).json({ success: false, message: 'freeDeliveryThreshold must be a finite non-negative number.' });
       }
-      settings.freeDeliveryThreshold = v;
+      settings.freeDeliveryThreshold = freeDeliveryThreshold;
     }
 
     if (Array.isArray(wilayaRates)) {
-      // Safe to map — already validated above
-      settings.wilayaRates = wilayaRates.map(r => ({
-        wilayaCode: Number(r.wilayaCode),
-        wilayaName: r.wilayaName,
-        wilayaNameAr: r.wilayaNameAr || '',
-        homeFee: Number(r.homeFee),
-        agencyFee: Number(r.agencyFee),
-        isAvailable: r.isAvailable // strict boolean, validated above
-      })).sort((a, b) => a.wilayaCode - b.wilayaCode);
+      const canonicalByCode = new Map(ALGERIA_WILAYAS.map(w => [w.code, w]));
+      // Server DERIVES canonical wilayaName and wilayaNameAr unconditionally
+      settings.wilayaRates = wilayaRates.map(r => {
+        const canonical = canonicalByCode.get(r.wilayaCode);
+        return {
+          wilayaCode: r.wilayaCode,
+          wilayaName: canonical.name,
+          wilayaNameAr: canonical.nameAr,
+          homeFee: r.homeFee,
+          agencyFee: r.agencyFee,
+          isAvailable: r.isAvailable === false ? false : true
+        };
+      }).sort((a, b) => a.wilayaCode - b.wilayaCode);
     }
 
     settings.updatedBy = req.admin?._id;

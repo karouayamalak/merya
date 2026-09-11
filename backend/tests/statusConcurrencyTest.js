@@ -137,7 +137,7 @@ async function runStatusConcurrencyTests() {
 
     const results = await Promise.allSettled(
       Array.from({ length: 10 }, () =>
-        updateOrderStatus(order._id.toString(), 'Returned', 'TestAdmin', '', true)
+        updateOrderStatus(order._id.toString(), 'Returned', 'TestAdmin', '', false)
       )
     );
 
@@ -171,14 +171,14 @@ async function runStatusConcurrencyTests() {
   // ── TEST B: 10× simultaneous Pending → Cancelled ──────────────────────────
   {
     console.log('── TEST B: 10× simultaneous [Pending → Cancelled] ──');
-    console.log('   Setup: stock = 1, stockRestored = false, status = Pending');
+    console.log('   Setup: stock = 0 (already deducted upon order creation), stockRestored = false, status = Pending');
 
-    await setStock(productId, colorName, size, 1);
+    await setStock(productId, colorName, size, 0);
     const order = await createTestOrder({ productId, colorName, size, quantity, status: 'Pending', stockRestored: false });
 
     const results = await Promise.allSettled(
       Array.from({ length: 10 }, () =>
-        updateOrderStatus(order._id.toString(), 'Cancelled', 'TestAdmin', '', true)
+        updateOrderStatus(order._id.toString(), 'Cancelled', 'TestAdmin', '', false)
       )
     );
 
@@ -190,13 +190,13 @@ async function runStatusConcurrencyTests() {
     const finalStock = await getStock(productId, colorName, size);
     const finalOrder = await Order.findById(order._id);
 
-    console.log(`   Final stock: ${finalStock} (expected: 2 = 1 original + 1 restored)`);
+    console.log(`   Final stock: ${finalStock} (expected: 1 = 0 original + 1 restored)`);
     console.log(`   Final order status: ${finalOrder.status} (expected: Cancelled)`);
     console.log(`   Final stockRestored: ${finalOrder.stockRestored} (expected: true)`);
 
     try {
       assert.strictEqual(successes.length, 1, `Expected exactly 1 success, got ${successes.length}`);
-      assert.strictEqual(finalStock, 2, `Expected stock = 2, got ${finalStock}`);
+      assert.strictEqual(finalStock, 1, `Expected stock = 1, got ${finalStock}`);
       assert.strictEqual(finalOrder.status, 'Cancelled', `Expected status Cancelled, got ${finalOrder.status}`);
       assert.strictEqual(finalOrder.stockRestored, true, 'Expected stockRestored = true');
       console.log('   ✅ TEST B PASSED\n');
@@ -219,7 +219,7 @@ async function runStatusConcurrencyTests() {
 
     const results = await Promise.allSettled(
       Array.from({ length: 10 }, () =>
-        updateOrderStatus(order._id.toString(), 'Confirmed', 'TestAdmin', '', true)
+        updateOrderStatus(order._id.toString(), 'Confirmed', 'TestAdmin', '', false)
       )
     );
 
@@ -260,7 +260,7 @@ async function runStatusConcurrencyTests() {
 
     const results = await Promise.allSettled(
       Array.from({ length: 10 }, () =>
-        updateOrderStatus(order._id.toString(), 'Confirmed', 'TestAdmin', '', true)
+        updateOrderStatus(order._id.toString(), 'Confirmed', 'TestAdmin', '', false)
       )
     );
 

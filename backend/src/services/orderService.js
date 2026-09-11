@@ -273,7 +273,10 @@ export async function updateOrderStatus(orderId, newStatus, adminUsername = 'Adm
 
   const currentStatus = order.status;
   if (currentStatus === newStatus) {
-    return order; // No-op, idempotent
+    if (!isOverride) {
+      throw new Error(`Cannot transition order: Order is already in status "${newStatus}"`);
+    }
+    return order; // No-op, idempotent admin override
   }
 
   // HARD INVARIANT: Delivered is a terminal state — no override can change this
@@ -348,21 +351,35 @@ export async function updateOrderStatus(orderId, newStatus, adminUsername = 'Adm
       console.log(`[OrderService] Restoring stock for ${newStatus.toLowerCase()} order ${updatedOrder.orderCode}`);
       await restoreStockAtomic(updatedOrder.items);
     } catch (inventoryErr) {
-      // Roll back the order CAS
-      console.error(`[OrderService] Stock restoration failed for ${updatedOrder.orderCode}: ${inventoryErr.message}. Rolling back order status.`);
-      await Order.findByIdAndUpdate(updatedOrder._id, {
-        $set: { status: currentStatus, stockRestored: false },
-        $inc: { __v: 1 },
-        $push: {
-          auditHistory: {
-            action: 'STATUS_ROLLBACK',
-            timestamp: new Date(),
-            performedBy: 'SYSTEM',
-            note: `Automatic rollback: stock restoration failed — ${inventoryErr.message}`,
-            details: { attemptedStatus: newStatus, revertedTo: currentStatus }
+      // Roll back the order CAS only if the order still matches the exact state produced by this CAS.
+      // If another concurrent request has since modified the order (__v or status mismatch),
+      // we must NOT blindly overwrite the newer order state.
+      console.error(`[OrderService] Stock restoration failed for ${updatedOrder.orderCode}: ${inventoryErr.message}. Attempting conditional rollback.`);
+      const rolledBackOrder = await Order.findOneAndUpdate(
+        {
+          _id: updatedOrder._id,
+          __v: updatedOrder.__v,
+          status: newStatus,
+          stockRestored: true
+        },
+        {
+          $set: { status: currentStatus, stockRestored: false },
+          $inc: { __v: 1 },
+          $push: {
+            auditHistory: {
+              action: 'STATUS_ROLLBACK',
+              timestamp: new Date(),
+              performedBy: 'SYSTEM',
+              note: `Automatic rollback: stock restoration failed — ${inventoryErr.message}`,
+              details: { attemptedStatus: newStatus, revertedTo: currentStatus }
+            }
           }
-        }
-      });
+        },
+        { new: true }
+      );
+      if (!rolledBackOrder) {
+        console.warn(`[OrderService] Concurrency safety: Rollback skipped for order ${updatedOrder.orderCode}. The order was already modified or claimed by a concurrent transition.`);
+      }
       throw inventoryErr;
     }
   } else if (needsDeduct) {
@@ -370,21 +387,33 @@ export async function updateOrderStatus(orderId, newStatus, adminUsername = 'Adm
       console.log(`[OrderService] Re-deducting stock for reactivated order ${updatedOrder.orderCode}`);
       await deductStockAtomic(updatedOrder.items);
     } catch (inventoryErr) {
-      // Roll back the order CAS
-      console.error(`[OrderService] Stock deduction failed for ${updatedOrder.orderCode}: ${inventoryErr.message}. Rolling back order status.`);
-      await Order.findByIdAndUpdate(updatedOrder._id, {
-        $set: { status: currentStatus, stockRestored: true },
-        $inc: { __v: 1 },
-        $push: {
-          auditHistory: {
-            action: 'STATUS_ROLLBACK',
-            timestamp: new Date(),
-            performedBy: 'SYSTEM',
-            note: `Automatic rollback: stock deduction failed — ${inventoryErr.message}`,
-            details: { attemptedStatus: newStatus, revertedTo: currentStatus }
+      // Roll back the order CAS only if the order still matches the exact state produced by this CAS.
+      console.error(`[OrderService] Stock deduction failed for ${updatedOrder.orderCode}: ${inventoryErr.message}. Attempting conditional rollback.`);
+      const rolledBackOrder = await Order.findOneAndUpdate(
+        {
+          _id: updatedOrder._id,
+          __v: updatedOrder.__v,
+          status: newStatus,
+          stockRestored: false
+        },
+        {
+          $set: { status: currentStatus, stockRestored: true },
+          $inc: { __v: 1 },
+          $push: {
+            auditHistory: {
+              action: 'STATUS_ROLLBACK',
+              timestamp: new Date(),
+              performedBy: 'SYSTEM',
+              note: `Automatic rollback: stock deduction failed — ${inventoryErr.message}`,
+              details: { attemptedStatus: newStatus, revertedTo: currentStatus }
+            }
           }
-        }
-      });
+        },
+        { new: true }
+      );
+      if (!rolledBackOrder) {
+        console.warn(`[OrderService] Concurrency safety: Rollback skipped for order ${updatedOrder.orderCode}. The order was already modified or claimed by a concurrent transition.`);
+      }
       throw inventoryErr;
     }
   }

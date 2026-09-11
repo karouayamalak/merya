@@ -53,10 +53,16 @@ async function seedDatabase() {
         wilayaRates
       });
       console.log('[Seed] Default delivery settings created with all 58 Wilaya rates.');
-    } else if (!deliverySetting.wilayaRates || deliverySetting.wilayaRates.length === 0) {
-      deliverySetting.wilayaRates = wilayaRates;
+    } else if (!deliverySetting.wilayaRates || deliverySetting.wilayaRates.length < 58) {
+      const existingCodes = new Set((deliverySetting.wilayaRates || []).map(r => r.wilayaCode));
+      for (const rate of wilayaRates) {
+        if (!existingCodes.has(rate.wilayaCode)) {
+          deliverySetting.wilayaRates.push(rate);
+        }
+      }
+      deliverySetting.wilayaRates.sort((a, b) => a.wilayaCode - b.wilayaCode);
       await deliverySetting.save();
-      console.log('[Seed] Updated existing delivery settings with all 58 Wilaya rates.');
+      console.log(`[Seed] Updated existing delivery settings to ensure all 58 Wilaya rates are present.`);
     }
 
     // 2. Seed Initial Admin User (Credentials strictly sourced from environment)

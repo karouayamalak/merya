@@ -1,0 +1,9 @@
+fix: conditional inventory rollback concurrency safety, canonical wilayas, and lifecycle tests
+
+- CRITICAL: Update updateOrderStatus() Phase 2 rollback to be conditional, matching exact _id, __v, status, and stockRestored. If 0 documents match (another concurrent transition claimed/modified the order), the rollback skips without overwriting newer state.
+- TEST: Add backend/tests/rollbackRaceTest.js deterministic adversarial test proving Request A failed restoration/deduction cannot overwrite concurrent Request B state.
+- TEST: Update statusConcurrencyTest.js Test B to start with stock=0 (realistic active order), verifying 10x Pending->Cancelled results in exactly 1 transition, stock=1, stockRestored=true.
+- TEST: Add backend/tests/lifecycleTest.js verifying full order lifecycle (Delivered flow maintains stock=0, Returned->Confirmed flow restores to 1 then re-deducts to 0).
+- HIGH: DeliverySetting controller unconditionally derives canonical wilayaName and wilayaNameAr from ALGERIA_WILAYAS, preventing client tampering or invalid Wilaya names.
+- HIGH: Strict typeof === 'number' and Number.isFinite() non-negative validation for homeFee, agencyFee, agencyDeliveryFee, homeDeliveryFee, freeDeliveryThreshold, and manual deliveryFee.
+- HIGH: Make getDeliverySettings() completely read-only — zero database mutations on GET. Uninitialized configuration returns HTTP 503 instead of silent save. Database seed handles initial Wilaya seeding.

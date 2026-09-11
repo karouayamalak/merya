@@ -176,7 +176,7 @@ export const updateOrderCustomerDetails = async (req, res, next) => {
 
     // Historical protection: Delivered orders cannot have their financial values modified
     if (order.status === ORDER_STATUS.DELIVERED) {
-      if (deliveryFee !== undefined && Number(deliveryFee) !== order.deliveryFee) {
+      if (deliveryFee !== undefined && deliveryFee !== order.deliveryFee) {
         return res.status(400).json({
           success: false,
           message: 'Historical financial values (delivery fee, subtotal, total) cannot be modified on Delivered orders.'
@@ -282,9 +282,8 @@ export const updateOrderCustomerDetails = async (req, res, next) => {
 
     // Handle delivery fee calculation vs manual override
     let feeOverridden = false;
-    if (deliveryFee !== undefined && !isNaN(Number(deliveryFee))) {
-      const feeNum = Number(deliveryFee);
-      if (!Number.isFinite(feeNum) || feeNum < 0) {
+    if (deliveryFee !== undefined) {
+      if (typeof deliveryFee !== 'number' || !Number.isFinite(deliveryFee) || deliveryFee < 0) {
         return res.status(400).json({ success: false, message: 'Delivery fee must be a finite non-negative number.' });
       }
       // Require a non-empty override reason — silent fallback is not allowed
@@ -294,7 +293,7 @@ export const updateOrderCustomerDetails = async (req, res, next) => {
       if (overrideReason.trim().length > 500) {
         return res.status(400).json({ success: false, message: 'overrideReason cannot exceed 500 characters.' });
       }
-      order.deliveryFee = feeNum;
+      order.deliveryFee = deliveryFee;
       order.totalPrice = order.subtotal + order.deliveryFee;
       feeOverridden = true;
     } else if (wilayaOrMethodChanged) {
