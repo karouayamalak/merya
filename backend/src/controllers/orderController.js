@@ -143,11 +143,38 @@ export const getOrderByIdAdmin = async (req, res, next) => {
 export const changeOrderStatus = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { status, note } = req.body;
+    const { status, note, override, overrideReason } = req.body;
     const adminUsername = req.admin?.username || 'Admin';
 
-    // Allow authenticated Admin / Owner to update order status flexibly
-    const updatedOrder = await updateOrderStatus(id, status, adminUsername, note, true);
+    // Explicit override: admin must pass { override: true, overrideReason: "..." }
+    // Normal transitions: no override flag needed, state machine is enforced.
+    const isOverride = override === true;
+
+    if (isOverride) {
+      // Validate overrideReason is provided and non-empty
+      if (!overrideReason || typeof overrideReason !== 'string' || overrideReason.trim().length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'A non-empty overrideReason is required when override is true.'
+        });
+      }
+      if (overrideReason.trim().length > 500) {
+        return res.status(400).json({
+          success: false,
+          message: 'overrideReason cannot exceed 500 characters.'
+        });
+      }
+    }
+
+    const updatedOrder = await updateOrderStatus(
+      id,
+      status,
+      adminUsername,
+      note || '',
+      isOverride,
+      isOverride ? overrideReason.trim() : ''
+    );
+
     res.json({ success: true, order: updatedOrder });
   } catch (error) {
     if (error.message?.includes('Order not found')) {
@@ -156,7 +183,13 @@ export const changeOrderStatus = async (req, res, next) => {
     if (error.message?.startsWith('CONCURRENT_CONFLICT')) {
       return res.status(409).json({ success: false, message: 'Order was updated concurrently. Please refresh and retry.' });
     }
-    if (error.message?.includes('Cannot transition') || error.message?.includes('Invalid order status') || error.message?.includes('Insufficient stock')) {
+    if (
+      error.message?.startsWith('OVERRIDE_REQUIRES_REASON') ||
+      error.message?.includes('Cannot transition') ||
+      error.message?.includes('Invalid order status') ||
+      error.message?.includes('Insufficient stock') ||
+      error.message?.includes('Terminal state violation')
+    ) {
       return res.status(400).json({ success: false, message: error.message });
     }
     next(error);

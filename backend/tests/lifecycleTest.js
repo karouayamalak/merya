@@ -277,6 +277,130 @@ async function runLifecycleTests() {
     }
   }
 
+  // ── FLOW 3: 3-product lifecycle (full round-trip with multi-item order) ──
+  {
+    console.log('── FLOW 3: 3-Product Full Lifecycle (A=1, B=1, C=1 → order → At Agency → Returned → Confirmed → Delivered) ──');
+    const makeProduct = async (suffix, stock) => Product.create({
+      name: `Lifecycle Multi ${suffix}`,
+      slug: `lifecycle-multi-${suffix}-${Date.now()}`,
+      description: 'Multi-item lifecycle test product',
+      category: testCategory._id,
+      sellingPrice: 3000,
+      costPrice: 1500,
+      isActive: true,
+      colors: [{
+        colorName: 'Navy',
+        colorCode: '#001f3f',
+        images: [],
+        sizes: [{ size: 'L', stock }]
+      }]
+    });
+
+    const pA = await makeProduct('A', 1);
+    const pB = await makeProduct('B', 1);
+    const pC = await makeProduct('C', 1);
+
+    try {
+      // Step 0: A=1, B=1, C=1
+      assert.strictEqual(await getStock(pA._id, 'Navy', 'L'), 1, '3-product: Initial A=1');
+      assert.strictEqual(await getStock(pB._id, 'Navy', 'L'), 1, '3-product: Initial B=1');
+      assert.strictEqual(await getStock(pC._id, 'Navy', 'L'), 1, '3-product: Initial C=1');
+      console.log('   Step 0: A=1, B=1, C=1 [OK]');
+
+      // Step 1: Place order → A=0, B=0, C=0
+      const { order } = await placeOrder({
+        customer: {
+          fullName: 'Amina Bouhali',
+          phone: '0561234567',
+          wilaya: { code: 16, name: 'Algiers' },
+          deliveryMethod: DELIVERY_METHODS.AGENCY,
+          agencyName: 'Test Agency Multi'
+        },
+        items: [
+          { productId: pA._id, colorName: 'Navy', size: 'L', quantity: 1 },
+          { productId: pB._id, colorName: 'Navy', size: 'L', quantity: 1 },
+          { productId: pC._id, colorName: 'Navy', size: 'L', quantity: 1 }
+        ],
+        idempotencyKey: `lifecycle-multi-${Date.now()}`
+      });
+      assert.strictEqual(await getStock(pA._id, 'Navy', 'L'), 0, '3-product: After order A=0');
+      assert.strictEqual(await getStock(pB._id, 'Navy', 'L'), 0, '3-product: After order B=0');
+      assert.strictEqual(await getStock(pC._id, 'Navy', 'L'), 0, '3-product: After order C=0');
+      console.log('   Step 1: Order placed → A=0, B=0, C=0 [OK]');
+
+      // Step 2: Pending → Confirmed (no stock change)
+      let o = await updateOrderStatus(order._id, ORDER_STATUS.CONFIRMED, 'Admin');
+      assert.strictEqual(o.status, ORDER_STATUS.CONFIRMED);
+      assert.strictEqual(await getStock(pA._id, 'Navy', 'L'), 0, '3-product: Confirmed A=0');
+      assert.strictEqual(await getStock(pB._id, 'Navy', 'L'), 0, '3-product: Confirmed B=0');
+      assert.strictEqual(await getStock(pC._id, 'Navy', 'L'), 0, '3-product: Confirmed C=0');
+      console.log('   Step 2: Confirmed → A=0, B=0, C=0 [OK]');
+
+      // Step 3: Confirmed → On the way
+      o = await updateOrderStatus(order._id, ORDER_STATUS.ON_THE_WAY, 'Admin');
+      assert.strictEqual(o.status, ORDER_STATUS.ON_THE_WAY);
+      console.log('   Step 3: On the way → A=0, B=0, C=0 [OK]');
+
+      // Step 4: On the way → At Agency (NO stock restore — not delivered yet)
+      o = await updateOrderStatus(order._id, ORDER_STATUS.AT_AGENCY, 'Admin');
+      assert.strictEqual(o.status, ORDER_STATUS.AT_AGENCY);
+      assert.strictEqual(o.stockRestored, false, '3-product: At Agency stockRestored=false');
+      assert.strictEqual(await getStock(pA._id, 'Navy', 'L'), 0, '3-product: At Agency A=0');
+      assert.strictEqual(await getStock(pB._id, 'Navy', 'L'), 0, '3-product: At Agency B=0');
+      assert.strictEqual(await getStock(pC._id, 'Navy', 'L'), 0, '3-product: At Agency C=0');
+      console.log('   Step 4: At Agency → A=0, B=0, C=0, stockRestored=false [OK]');
+
+      // Step 5: At Agency → Returned (stock RESTORED → A=1, B=1, C=1)
+      o = await updateOrderStatus(order._id, ORDER_STATUS.RETURNED, 'Admin');
+      assert.strictEqual(o.status, ORDER_STATUS.RETURNED);
+      assert.strictEqual(o.stockRestored, true, '3-product: Returned stockRestored=true');
+      assert.strictEqual(await getStock(pA._id, 'Navy', 'L'), 1, '3-product: Returned A=1');
+      assert.strictEqual(await getStock(pB._id, 'Navy', 'L'), 1, '3-product: Returned B=1');
+      assert.strictEqual(await getStock(pC._id, 'Navy', 'L'), 1, '3-product: Returned C=1');
+      console.log('   Step 5: Returned → A=1, B=1, C=1, stockRestored=true [OK]');
+
+      // Step 6: Returned → Confirmed (REACTIVATED — stock DEDUCTED → A=0, B=0, C=0)
+      o = await updateOrderStatus(order._id, ORDER_STATUS.CONFIRMED, 'Admin');
+      assert.strictEqual(o.status, ORDER_STATUS.CONFIRMED);
+      assert.strictEqual(o.stockRestored, false, '3-product: Reactivated stockRestored=false');
+      assert.strictEqual(await getStock(pA._id, 'Navy', 'L'), 0, '3-product: Reactivated A=0');
+      assert.strictEqual(await getStock(pB._id, 'Navy', 'L'), 0, '3-product: Reactivated B=0');
+      assert.strictEqual(await getStock(pC._id, 'Navy', 'L'), 0, '3-product: Reactivated C=0');
+      console.log('   Step 6: Reactivated → A=0, B=0, C=0, stockRestored=false [OK]');
+
+      // Step 7: Confirmed → On the way → At Agency → Delivered
+      o = await updateOrderStatus(order._id, ORDER_STATUS.ON_THE_WAY, 'Admin');
+      o = await updateOrderStatus(order._id, ORDER_STATUS.AT_AGENCY, 'Admin');
+      o = await updateOrderStatus(order._id, ORDER_STATUS.DELIVERED, 'Admin');
+      assert.strictEqual(o.status, ORDER_STATUS.DELIVERED);
+      assert.strictEqual(o.stockRestored, false, '3-product: Delivered stockRestored=false');
+      assert.strictEqual(await getStock(pA._id, 'Navy', 'L'), 0, '3-product: Delivered A=0 (sold)');
+      assert.strictEqual(await getStock(pB._id, 'Navy', 'L'), 0, '3-product: Delivered B=0 (sold)');
+      assert.strictEqual(await getStock(pC._id, 'Navy', 'L'), 0, '3-product: Delivered C=0 (sold)');
+      console.log('   Step 7: Delivered → A=0, B=0, C=0 [OK]');
+
+      // Step 8: Delivered is terminal — even override must fail
+      let blocked = false;
+      try {
+        await updateOrderStatus(order._id, ORDER_STATUS.CONFIRMED, 'Admin', '', true, 'trying to reopen');
+      } catch (e) {
+        blocked = true;
+      }
+      assert.ok(blocked, '3-product: Delivered → anything is blocked');
+      console.log('   Step 8: Delivered terminal guard works [OK]');
+
+      console.log('   ✅ FLOW 3 PASSED: 3-product lifecycle correct at every step!\n');
+      passCount++;
+
+      await Order.deleteOne({ _id: order._id });
+    } catch (e) {
+      console.error(`   ❌ FLOW 3 FAILED: ${e.message}\n`);
+      failCount++;
+    } finally {
+      await Product.deleteMany({ _id: { $in: [pA._id, pB._id, pC._id] } });
+    }
+  }
+
   await Category.deleteOne({ _id: testCategory._id });
   await mongoose.disconnect();
 

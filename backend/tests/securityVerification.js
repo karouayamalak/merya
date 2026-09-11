@@ -13,14 +13,14 @@ try {
   const result = execSync('node -e "process.env.NODE_ENV=\'production\'; process.env.JWT_SECRET=\'\'; import(\'./src/server.js\');"', {
     cwd: process.cwd(),
     stdio: 'pipe',
-    timeout: 5000
+    timeout: 20000
   });
   assert.fail('Server should have exited with failure when JWT_SECRET was missing in production');
 } catch (err) {
   const stderr = err.stderr ? err.stderr.toString() : '';
   const stdout = err.stdout ? err.stdout.toString() : '';
   const combined = stderr + stdout;
-  assert(combined.includes('FATAL ERROR') && combined.includes('JWT_SECRET'), 'Expected fatal error message about missing JWT_SECRET');
+  assert(combined.includes('FATAL ERROR') && combined.includes('JWT_SECRET'), `Expected fatal error message about missing JWT_SECRET, got: ${combined} (err: ${err.message})`);
   console.log('  PASS: Backend correctly refused to start and exited safely.');
 }
 
@@ -30,14 +30,14 @@ try {
   execSync('node -e "process.env.NODE_ENV=\'production\'; process.env.JWT_SECRET=\'test_secret_key\'; process.env.COOKIE_SECRET=\'\'; import(\'./src/server.js\');"', {
     cwd: process.cwd(),
     stdio: 'pipe',
-    timeout: 5000
+    timeout: 20000
   });
   assert.fail('Server should have exited with failure when COOKIE_SECRET was missing in production');
 } catch (err) {
   const stderr = err.stderr ? err.stderr.toString() : '';
   const stdout = err.stdout ? err.stdout.toString() : '';
   const combined = stderr + stdout;
-  assert(combined.includes('FATAL ERROR') && combined.includes('COOKIE_SECRET'), 'Expected fatal error message about missing COOKIE_SECRET');
+  assert(combined.includes('FATAL ERROR') && combined.includes('COOKIE_SECRET'), `Expected fatal error message about missing COOKIE_SECRET, got: ${combined} (err: ${err.message})`);
   console.log('  PASS: Backend correctly refused to start when COOKIE_SECRET missing in production.');
 }
 

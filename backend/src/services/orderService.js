@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import mongoose from 'mongoose';
 import { Order } from '../models/Order.js';
 import { Product } from '../models/Product.js';
 import { DeliverySetting } from '../models/DeliverySetting.js';
@@ -78,8 +79,8 @@ export async function placeOrder({ customer, items, idempotencyKey }) {
   }
 
   if (name && typeof name === 'string' && name.trim()) {
-    const normName = name.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    const canonicalNorm = canonicalWilaya.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const normName = name.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const canonicalNorm = canonicalWilaya.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const matchesEn = canonicalNorm === normName || (codeNum === 16 && (normName === 'alger' || normName === 'algiers'));
     const matchesAr = canonicalWilaya.nameAr === name.trim();
     if (!matchesEn && !matchesAr) {
@@ -89,7 +90,19 @@ export async function placeOrder({ customer, items, idempotencyKey }) {
 
   let deliverySetting = await DeliverySetting.findOne();
   if (!deliverySetting) {
-    deliverySetting = await DeliverySetting.create({ agencyDeliveryFee: 500, homeDeliveryFee: 800 });
+    const defaultRates = ALGERIA_WILAYAS.map(w => ({
+      wilayaCode: w.code,
+      wilayaName: w.name,
+      wilayaNameAr: w.nameAr,
+      homeFee: 800,
+      agencyFee: 500,
+      isAvailable: true
+    }));
+    deliverySetting = await DeliverySetting.create({
+      agencyDeliveryFee: 500,
+      homeDeliveryFee: 800,
+      wilayaRates: defaultRates
+    });
   }
 
   const wilayaRate = deliverySetting.wilayaRates?.find(r => r.wilayaCode === codeNum);
@@ -243,45 +256,72 @@ export async function placeOrder({ customer, items, idempotencyKey }) {
 }
 
 /**
- * Atomically transition order status using optimistic concurrency control.
+ * Atomically transition order status using a MongoDB multi-document transaction.
  *
  * INVARIANTS:
+ *   - Order state change AND all inventory operations are wrapped in a single
+ *     MongoDB session/transaction. They either ALL commit or ALL abort.
+ *   - No partial inventory state can survive a failure.
  *   - Exactly ONE stock restoration per order when entering Cancelled/Returned.
  *   - Exactly ONE stock deduction per order when leaving Cancelled/Returned.
- *   - Concurrent duplicate requests: exactly one succeeds; others get a 409-style error.
- *   - If the inventory op fails after the order CAS, the order CAS is rolled back.
+ *   - Concurrent duplicate requests: exactly one CAS wins; others get CONCURRENT_CONFLICT.
  *   - Delivered orders are TERMINAL — no transition possible, even with override.
+ *   - Override requires explicit override=true AND non-empty overrideReason.
+ *   - Every override is recorded in auditHistory with the reason.
  *
- * Strategy:
- *   Phase 1: Atomic conditional findOneAndUpdate on the Order document.
- *            Conditions: correct _id AND current status AND correct __v (version) AND correct stockRestored.
- *            This is the CAS. Only ONE concurrent request can win.
- *   Phase 2: Perform the inventory operation (restore/deduct).
- *            If inventory op throws, roll back the order to its previous state.
+ * Strategy (inside a single Mongoose transaction):
+ *   1. Pre-flight: read order outside session for fast validation (no side effects)
+ *   2. Start session + transaction
+ *   3. Re-read order inside session (serialises with other transactions)
+ *   4. Re-validate CAS conditions inside the transaction
+ *   5. CAS findOneAndUpdate with __v + status + stockRestored conditions
+ *   6. If matchedCount === 0 → throw CONCURRENT_CONFLICT (abort)
+ *   7. Inventory ops with { session }
+ *   8. commitTransaction()
+ *   9. Broadcast WebSocket AFTER commit (non-fatal)
+ *
+ * @param {string}  orderId
+ * @param {string}  newStatus
+ * @param {string}  [adminUsername='Admin']
+ * @param {string}  [note='']
+ * @param {boolean} [isOverride=false]  - Must be true for non-machine transitions
+ * @param {string}  [overrideReason=''] - Required when isOverride=true
  */
-export async function updateOrderStatus(orderId, newStatus, adminUsername = 'Admin', note = '', isOverride = false) {
+export async function updateOrderStatus(
+  orderId,
+  newStatus,
+  adminUsername = 'Admin',
+  note = '',
+  isOverride = false,
+  overrideReason = ''
+) {
   const validStatuses = Object.values(ORDER_STATUS);
   if (!validStatuses.includes(newStatus)) {
     throw new Error(`Invalid order status "${newStatus}". Must be one of: ${validStatuses.join(', ')}`);
   }
 
-  // Read current order state
-  const order = await Order.findById(orderId);
-  if (!order) {
+  // Validate override parameters up-front
+  if (isOverride) {
+    if (!overrideReason || typeof overrideReason !== 'string' || overrideReason.trim().length === 0) {
+      throw new Error('OVERRIDE_REQUIRES_REASON: A non-empty overrideReason is required for manual status overrides.');
+    }
+  }
+
+  // ─── PRE-FLIGHT: Fast read outside session for early validation ───────────────
+  const preflight = await Order.findById(orderId);
+  if (!preflight) {
     throw new Error('Order not found');
   }
 
-  const currentStatus = order.status;
-  if (currentStatus === newStatus) {
-    if (!isOverride) {
-      throw new Error(`Cannot transition order: Order is already in status "${newStatus}"`);
-    }
-    return order; // No-op, idempotent admin override
-  }
+  const currentStatus = preflight.status;
 
   // HARD INVARIANT: Delivered is a terminal state — no override can change this
   if (currentStatus === ORDER_STATUS.DELIVERED) {
     throw new Error('Cannot transition order: Terminal state violation: Delivered orders cannot be transitioned.');
+  }
+
+  if (currentStatus === newStatus && !isOverride) {
+    throw new Error(`Cannot transition order: Order is already in status "${newStatus}"`);
   }
 
   // Validate state machine unless admin override
@@ -292,137 +332,174 @@ export async function updateOrderStatus(orderId, newStatus, adminUsername = 'Adm
     }
   }
 
-  // Determine if this transition requires an inventory operation
+  // ─── Determine inventory operation required (needed before choosing tx strategy) ─
   const isEnteringRestoredState = newStatus === ORDER_STATUS.CANCELLED || newStatus === ORDER_STATUS.RETURNED;
   const isLeavingRestoredState = (
     currentStatus === ORDER_STATUS.CANCELLED || currentStatus === ORDER_STATUS.RETURNED
   ) && !isEnteringRestoredState;
 
-  const needsRestore = isEnteringRestoredState && !order.stockRestored;
-  const needsDeduct = isLeavingRestoredState && order.stockRestored;
+  // Use pre-flight values as early signal; definitive check is inside transaction
+  const mayNeedRestore = isEnteringRestoredState && !preflight.stockRestored;
+  const mayNeedDeduct  = isLeavingRestoredState  && preflight.stockRestored;
+  const needsTransaction = mayNeedRestore || mayNeedDeduct;
 
-  const auditEntry = {
-    action: 'STATUS_CHANGED',
-    timestamp: new Date(),
-    performedBy: adminUsername,
-    note: note || `Owner/Admin updated status from ${currentStatus} to ${newStatus}`,
-    details: { previousStatus: currentStatus, newStatus }
-  };
+  let updatedOrder = null;
 
-  // ─── PHASE 1: Atomic Optimistic-Lock CAS on the Order ────────────────────────
-  // Build the conditional query. The __v check (version key) ensures that if
-  // two concurrent requests both read the same document, only one can win the
-  // update. The second sees a mismatched __v and gets null.
-  const casQuery = {
-    _id: order._id,
-    __v: order.__v,          // Optimistic lock — must match the version we read
-    status: currentStatus    // Must still be in the state we read
-  };
+  if (needsTransaction) {
+    // ─── TRANSACTION PATH: inventory-touching transition ────────────────────────
+    // All reads and writes happen inside a single MongoDB session so they either
+    // ALL commit or ALL abort. No compensating rollback is needed or performed.
+    const session = await mongoose.startSession();
 
-  // Also lock on stockRestored when we care about it, for extra safety
-  if (needsRestore) {
-    casQuery.stockRestored = false; // Only win if stock has NOT been restored yet
-  } else if (needsDeduct) {
-    casQuery.stockRestored = true;  // Only win if stock HAS been restored
-  }
-
-  const casUpdate = {
-    $set: {
-      status: newStatus,
-      ...(needsRestore ? { stockRestored: true } : {}),
-      ...(needsDeduct  ? { stockRestored: false } : {})
-    },
-    $inc: { __v: 1 },      // Increment version to invalidate any concurrent CAS
-    $push: { auditHistory: auditEntry }
-  };
-
-  const updatedOrder = await Order.findOneAndUpdate(casQuery, casUpdate, { new: true });
-
-  if (!updatedOrder) {
-    // Another concurrent request won the race, or the document was modified.
-    // Return a specific error that the controller can surface as 409.
-    throw new Error('CONCURRENT_CONFLICT: Order was modified concurrently. Please retry.');
-  }
-
-  // ─── PHASE 2: Inventory operation (after successful CAS) ─────────────────────
-  // If this fails, we MUST roll back the order to its previous state.
-  if (needsRestore) {
     try {
-      console.log(`[OrderService] Restoring stock for ${newStatus.toLowerCase()} order ${updatedOrder.orderCode}`);
-      await restoreStockAtomic(updatedOrder.items);
-    } catch (inventoryErr) {
-      // Roll back the order CAS only if the order still matches the exact state produced by this CAS.
-      // If another concurrent request has since modified the order (__v or status mismatch),
-      // we must NOT blindly overwrite the newer order state.
-      console.error(`[OrderService] Stock restoration failed for ${updatedOrder.orderCode}: ${inventoryErr.message}. Attempting conditional rollback.`);
-      const rolledBackOrder = await Order.findOneAndUpdate(
-        {
-          _id: updatedOrder._id,
-          __v: updatedOrder.__v,
-          status: newStatus,
-          stockRestored: true
-        },
-        {
-          $set: { status: currentStatus, stockRestored: false },
-          $inc: { __v: 1 },
-          $push: {
-            auditHistory: {
-              action: 'STATUS_ROLLBACK',
-              timestamp: new Date(),
-              performedBy: 'SYSTEM',
-              note: `Automatic rollback: stock restoration failed — ${inventoryErr.message}`,
-              details: { attemptedStatus: newStatus, revertedTo: currentStatus }
-            }
-          }
-        },
-        { new: true }
-      );
-      if (!rolledBackOrder) {
-        console.warn(`[OrderService] Concurrency safety: Rollback skipped for order ${updatedOrder.orderCode}. The order was already modified or claimed by a concurrent transition.`);
+      session.startTransaction();
+
+      // Re-read inside transaction to establish a consistent read snapshot.
+      const orderInTx = await Order.findById(orderId).session(session);
+      if (!orderInTx) {
+        throw new Error('Order not found');
       }
-      throw inventoryErr;
-    }
-  } else if (needsDeduct) {
-    try {
-      console.log(`[OrderService] Re-deducting stock for reactivated order ${updatedOrder.orderCode}`);
-      await deductStockAtomic(updatedOrder.items);
-    } catch (inventoryErr) {
-      // Roll back the order CAS only if the order still matches the exact state produced by this CAS.
-      console.error(`[OrderService] Stock deduction failed for ${updatedOrder.orderCode}: ${inventoryErr.message}. Attempting conditional rollback.`);
-      const rolledBackOrder = await Order.findOneAndUpdate(
-        {
-          _id: updatedOrder._id,
-          __v: updatedOrder.__v,
-          status: newStatus,
-          stockRestored: false
-        },
-        {
-          $set: { status: currentStatus, stockRestored: true },
-          $inc: { __v: 1 },
-          $push: {
-            auditHistory: {
-              action: 'STATUS_ROLLBACK',
-              timestamp: new Date(),
-              performedBy: 'SYSTEM',
-              note: `Automatic rollback: stock deduction failed — ${inventoryErr.message}`,
-              details: { attemptedStatus: newStatus, revertedTo: currentStatus }
-            }
-          }
-        },
-        { new: true }
-      );
-      if (!rolledBackOrder) {
-        console.warn(`[OrderService] Concurrency safety: Rollback skipped for order ${updatedOrder.orderCode}. The order was already modified or claimed by a concurrent transition.`);
+
+      // Re-check terminal state inside transaction
+      if (orderInTx.status === ORDER_STATUS.DELIVERED) {
+        throw new Error('Cannot transition order: Terminal state violation: Delivered orders cannot be transitioned.');
       }
-      throw inventoryErr;
+
+      // Re-check idempotency inside transaction
+      if (orderInTx.status === newStatus && !isOverride) {
+        throw new Error(`Cannot transition order: Order is already in status "${newStatus}"`);
+      }
+
+      // Re-validate state machine inside transaction
+      if (!isOverride) {
+        const allowedTx = VALID_STATUS_TRANSITIONS[orderInTx.status] || [];
+        if (!allowedTx.includes(newStatus)) {
+          throw new Error(`Cannot transition order from status "${orderInTx.status}" to "${newStatus}"`);
+        }
+      }
+
+      const txCurrentStatus = orderInTx.status;
+
+      // Definitively determine inventory op (inside tx, using authoritative data)
+      const txIsEntering = newStatus === ORDER_STATUS.CANCELLED || newStatus === ORDER_STATUS.RETURNED;
+      const txIsLeaving  = (txCurrentStatus === ORDER_STATUS.CANCELLED || txCurrentStatus === ORDER_STATUS.RETURNED) && !txIsEntering;
+      const needsRestore = txIsEntering && !orderInTx.stockRestored;
+      const needsDeduct  = txIsLeaving  && orderInTx.stockRestored;
+
+      const auditEntry = {
+        action: isOverride ? 'STATUS_OVERRIDE' : 'STATUS_CHANGED',
+        timestamp: new Date(),
+        performedBy: adminUsername,
+        note: note || (isOverride
+          ? `Owner/Admin manually overrode status from ${txCurrentStatus} to ${newStatus}. Reason: ${overrideReason.trim()}`
+          : `Owner/Admin updated status from ${txCurrentStatus} to ${newStatus}`
+        ),
+        details: {
+          previousStatus: txCurrentStatus,
+          newStatus,
+          ...(isOverride ? { isOverride: true, overrideReason: overrideReason.trim() } : {})
+        }
+      };
+
+      const casQuery = {
+        _id: orderInTx._id,
+        __v: orderInTx.__v,
+        status: txCurrentStatus
+      };
+      if (needsRestore) casQuery.stockRestored = false;
+      else if (needsDeduct) casQuery.stockRestored = true;
+
+      const casUpdate = {
+        $set: {
+          status: newStatus,
+          ...(needsRestore ? { stockRestored: true }  : {}),
+          ...(needsDeduct  ? { stockRestored: false } : {})
+        },
+        $inc: { __v: 1 },
+        $push: { auditHistory: auditEntry }
+      };
+
+      updatedOrder = await Order.findOneAndUpdate(casQuery, casUpdate, {
+        new: true,
+        session
+      });
+
+      if (!updatedOrder) {
+        throw new Error('CONCURRENT_CONFLICT: Order was modified concurrently. Please retry.');
+      }
+
+      // ─── INVENTORY OPERATIONS (inside the same transaction) ─────────────────
+      if (needsRestore) {
+        console.log(`[OrderService] [TX] Restoring stock for ${newStatus.toLowerCase()} order ${updatedOrder.orderCode}`);
+        await restoreStockAtomic(updatedOrder.items, session);
+      } else if (needsDeduct) {
+        console.log(`[OrderService] [TX] Re-deducting stock for reactivated order ${updatedOrder.orderCode}`);
+        await deductStockAtomic(updatedOrder.items, session);
+      }
+
+      await session.commitTransaction();
+      console.log(`[OrderService] [TX] Committed: order ${updatedOrder.orderCode} → ${newStatus}`);
+
+    } catch (err) {
+      try { await session.abortTransaction(); } catch (abortErr) {
+        console.error(`[OrderService] [TX] abortTransaction failed: ${abortErr.message}`);
+      }
+      throw err;
+    } finally {
+      session.endSession();
     }
+
+  } else {
+    // ─── NON-TRANSACTION PATH: pure status change (no inventory involved) ───────
+    // This path is safe on standalone MongoDB instances.
+    // CAS guarantees exactly-once execution without a multi-document transaction.
+    const casQuery = {
+      _id: preflight._id,
+      __v: preflight.__v,
+      status: currentStatus
+    };
+
+    const auditEntry = {
+      action: isOverride ? 'STATUS_OVERRIDE' : 'STATUS_CHANGED',
+      timestamp: new Date(),
+      performedBy: adminUsername,
+      note: note || (isOverride
+        ? `Owner/Admin manually overrode status from ${currentStatus} to ${newStatus}. Reason: ${overrideReason.trim()}`
+        : `Owner/Admin updated status from ${currentStatus} to ${newStatus}`
+      ),
+      details: {
+        previousStatus: currentStatus,
+        newStatus,
+        ...(isOverride ? { isOverride: true, overrideReason: overrideReason.trim() } : {})
+      }
+    };
+
+    const casUpdate = {
+      $set: { status: newStatus },
+      $inc: { __v: 1 },
+      $push: { auditHistory: auditEntry }
+    };
+
+    updatedOrder = await Order.findOneAndUpdate(casQuery, casUpdate, { new: true });
+
+    if (!updatedOrder) {
+      throw new Error('CONCURRENT_CONFLICT: Order was modified concurrently. Please retry.');
+    }
+
+    console.log(`[OrderService] [CAS] Updated: order ${updatedOrder.orderCode} → ${newStatus}`);
   }
 
-  // Broadcast to customer tracking page and admin
-  wsService.broadcastOrderStatus(updatedOrder.orderCode, newStatus, {
-    customerName: updatedOrder.customer.fullName,
-    updatedAt: updatedOrder.updatedAt
-  });
+  // ─── POST-COMMIT: WebSocket broadcast (non-fatal) ──────────────────────────
+  // Runs only after a successful commit, so clients never see a status that
+  // was not actually persisted.
+  try {
+    wsService.broadcastOrderStatus(updatedOrder.orderCode, newStatus, {
+      customerName: updatedOrder.customer.fullName,
+      updatedAt: updatedOrder.updatedAt
+    });
+  } catch (wsErr) {
+    console.warn(`[OrderService] WebSocket broadcast failed (non-fatal): ${wsErr.message}`);
+  }
 
   return updatedOrder;
 }
@@ -436,14 +513,14 @@ export async function getFinancialAnalytics() {
   // Aggregate delivered orders for realized revenue and profit
   const deliveredAggregation = await Order.aggregate([
     { $match: { status: ORDER_STATUS.DELIVERED } },
-    { $unwind: "$items" },
+    { $unwind: '$items' },
     {
       $group: {
         _id: null,
-        totalRevenue: { $sum: { $multiply: ["$items.unitPrice", "$items.quantity"] } },
-        totalCost: { $sum: { $multiply: ["$items.unitCost", "$items.quantity"] } },
-        totalDeliveryFees: { $sum: "$deliveryFee" },
-        unitsSold: { $sum: "$items.quantity" }
+        totalRevenue: { $sum: { $multiply: ['$items.unitPrice', '$items.quantity'] } },
+        totalCost: { $sum: { $multiply: ['$items.unitCost', '$items.quantity'] } },
+        totalDeliveryFees: { $sum: '$deliveryFee' },
+        unitsSold: { $sum: '$items.quantity' }
       }
     }
   ]);
@@ -461,9 +538,9 @@ export async function getFinancialAnalytics() {
   const statusCounts = await Order.aggregate([
     {
       $group: {
-        _id: "$status",
+        _id: '$status',
         count: { $sum: 1 },
-        totalAmount: { $sum: "$totalPrice" }
+        totalAmount: { $sum: '$totalPrice' }
       }
     }
   ]);

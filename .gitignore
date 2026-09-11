@@ -49,6 +49,8 @@ data.js
 copy_new_uploads.js
 update_categories.js
 update_cats.js
+backend/test_data_rs/
+test_data_rs/
 
 # Test coverage
 coverage/

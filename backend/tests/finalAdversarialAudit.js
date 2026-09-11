@@ -240,7 +240,7 @@ async function runAdversarialAudit() {
     console.log('  ✓ 1. Active -> Cancelled: Stock restored exactly once');
 
     // 2. Cancelled -> Cancelled (no second restoration)
-    await updateOrderStatus(o1._id, ORDER_STATUS.CANCELLED, 'Admin', '', true);
+    await updateOrderStatus(o1._id, ORDER_STATUS.CANCELLED, 'Admin', '', true, 'Audit test duplicate cancel');
     prodDoc = await Product.findById(p1._id);
     assert.strictEqual(prodDoc.colors[0].sizes[0].stock, 1, 'Case 2: No double restoration on second cancellation');
     console.log('  ✓ 2. Cancelled -> Cancelled: No second restoration');
@@ -266,7 +266,7 @@ async function runAdversarialAudit() {
     console.log('  ✓ 4. At Agency -> Returned: Stock restored exactly once');
 
     // 5. Returned -> Returned (no second restoration)
-    await updateOrderStatus(o2._id, ORDER_STATUS.RETURNED, 'Admin', '', true);
+    await updateOrderStatus(o2._id, ORDER_STATUS.RETURNED, 'Admin', '', true, 'Audit test duplicate returned');
     prodDoc = await Product.findById(p2._id);
     assert.strictEqual(prodDoc.colors[0].sizes[0].stock, 1, 'Case 5: No double restoration on repeated Returned');
     console.log('  ✓ 5. Returned -> Returned: No second restoration');
@@ -278,14 +278,14 @@ async function runAdversarialAudit() {
     console.log('  ✓ 6. Returned -> Confirmed: Stock deducted exactly once');
 
     // 7. Returned -> Confirmed with insufficient stock
-    await updateOrderStatus(o2._id, ORDER_STATUS.CANCELLED, 'Admin', '', true); // Cancel -> stock is 1
+    await updateOrderStatus(o2._id, ORDER_STATUS.CANCELLED, 'Admin', '', true, 'Audit test manual cancel'); // Cancel -> stock is 1
     // Drain stock
     await deductStockAtomic([{ productId: p2._id.toString(), colorName: 'Noir', size: 'M', quantity: 1 }]);
     prodDoc = await Product.findById(p2._id);
     assert.strictEqual(prodDoc.colors[0].sizes[0].stock, 0); // Now 0
     let reactivateFailed = false;
     try {
-      await updateOrderStatus(o2._id, ORDER_STATUS.CONFIRMED, 'Admin', '', true);
+      await updateOrderStatus(o2._id, ORDER_STATUS.CONFIRMED, 'Admin', '', true, 'Audit test reactivate with insufficient stock');
     } catch (err) {
       reactivateFailed = true;
     }
@@ -315,7 +315,7 @@ async function runAdversarialAudit() {
     // 9. Delivered -> Cancelled (REJECT THE TRANSITION!)
     let delivCancelFailed = false;
     try {
-      await updateOrderStatus(o3._id, ORDER_STATUS.CANCELLED, 'Admin', 'Attempting illegal cancel', true);
+      await updateOrderStatus(o3._id, ORDER_STATUS.CANCELLED, 'Admin', 'Attempting illegal cancel', true, 'Illegal override attempt');
     } catch (err) {
       delivCancelFailed = true;
       assert(err.message.includes('Terminal state violation'));
@@ -328,7 +328,7 @@ async function runAdversarialAudit() {
     // 10. Delivered -> Returned (REJECT THE TRANSITION!)
     let delivReturnFailed = false;
     try {
-      await updateOrderStatus(o3._id, ORDER_STATUS.RETURNED, 'Admin', 'Attempting illegal return', true);
+      await updateOrderStatus(o3._id, ORDER_STATUS.RETURNED, 'Admin', 'Attempting illegal return', true, 'Illegal override attempt');
     } catch (err) {
       delivReturnFailed = true;
       assert(err.message.includes('Terminal state violation'));
@@ -491,8 +491,8 @@ async function runAdversarialAudit() {
     console.log('  ✓ Wilaya code/name mismatch rejected with 400');
 
     // 3. Delivered order historical financial immutability
-    await updateOrderStatus(order._id, ORDER_STATUS.CONFIRMED, 'Admin', '', true);
-    await updateOrderStatus(order._id, ORDER_STATUS.DELIVERED, 'Admin', '', true);
+    await updateOrderStatus(order._id, ORDER_STATUS.CONFIRMED, 'Admin', '', true, 'Audit test confirm');
+    await updateOrderStatus(order._id, ORDER_STATUS.DELIVERED, 'Admin', '', true, 'Audit test deliver');
 
     const res3 = mockRes();
     await updateOrderCustomerDetails(

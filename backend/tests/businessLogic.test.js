@@ -16,10 +16,23 @@ const TEST_DB = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/merya_dz';
 describe('MERYA DZ Core Business Logic & Inventory Integrity', () => {
   let testCategory;
   let testProduct;
+  let isReplicaSet = false;
 
   before(async () => {
     if (mongoose.connection.readyState === 0) {
       await mongoose.connect(TEST_DB);
+    }
+
+    // Detect whether MongoDB supports transactions (requires a replica set)
+    try {
+      const status = await mongoose.connection.db.admin().command({ isMaster: 1 });
+      isReplicaSet = !!(status.setName || status.hosts);
+    } catch {
+      isReplicaSet = false;
+    }
+    if (!isReplicaSet) {
+      console.warn('[businessLogic.test] Running on standalone MongoDB — tests requiring transactions will be skipped.');
+      console.warn('[businessLogic.test] To run all tests, use a MongoDB Atlas URI or local replica set (MONGODB_URI=...).');
     }
 
     // Create a clean test category and product
@@ -169,7 +182,11 @@ describe('MERYA DZ Core Business Logic & Inventory Integrity', () => {
     assert.strictEqual(submission2.order.orderCode, submission1.order.orderCode, 'Must return original order code');
   });
 
-  test('4. Order Cancellation restores stock atomically and only once', async () => {
+  test('4. Order Cancellation restores stock atomically and only once', async (t) => {
+    if (!isReplicaSet) {
+      t.skip('Skipped on standalone MongoDB — requires replica set for transactions. Will run on Atlas/Render.');
+      return;
+    }
     // Create an order of 1 item
     const { order } = await placeOrder({
       customer: {

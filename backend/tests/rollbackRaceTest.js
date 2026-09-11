@@ -133,42 +133,23 @@ async function runTests() {
   let passCount = 0;
   let failCount = 0;
 
-  // ── TEST 1: At Agency → Returned raced by Returned → Confirmed on inventory failure
+  // ── TEST 1: Direction 1 — At Agency → Returned transaction aborts on inventory failure ──
   {
-    console.log('── TEST 1: Request A (At Agency → Returned) failure does NOT overwrite Request B (Returned → Confirmed) ──');
+    console.log('── TEST 1: Request A (At Agency → Returned) inventory failure triggers transaction abort without blind rollback ──');
     console.log('   Setup: stock = 0, status = "At Agency", stockRestored = false');
 
     await setStock(productId, colorName, size, 0);
     const order = await createTestOrder({ productId, colorName, size, quantity, status: ORDER_STATUS.AT_AGENCY, stockRestored: false });
 
-    // We hook Product.updateOne so that when Request A attempts to restore stock:
-    // 1. We execute Request B: Returned → Confirmed (with stock replenished for B)
-    // 2. Request B wins its CAS, deducts stock, and completes!
-    // 3. Request A's updateOne throws an intentional error simulating inventory failure
-    // 4. Request A attempts conditional rollback on its own state/version
-    // 5. Result: A's rollback matches 0 documents and does NOT overwrite B's Confirmed state!
-
+    // Hook Product.updateOne to force a simulated failure during Request A's stock restoration inside transaction
     const originalUpdateOne = Product.updateOne;
     let intercepted = false;
 
     Product.updateOne = async function (filter, update, options) {
-      if (!intercepted && filter._id && filter._id.toString() === productId.toString()) {
+      if (!intercepted && filter._id && filter._id.toString() === productId.toString() && options?.session) {
         intercepted = true;
-        console.log('   [Interception] Request A is in Phase 2 restoring stock. Launching concurrent Request B...');
-
-        // Replenish stock so Request B can successfully deduct
-        await originalUpdateOne.call(Product,
-          { _id: productId },
-          { $set: { 'colors.$[c].sizes.$[s].stock': 1 } },
-          { arrayFilters: [{ 'c.colorName': colorName }, { 's.size': size }] }
-        );
-
-        // Request B: Returned → Confirmed
-        const resB = await updateOrderStatus(order._id.toString(), 'Confirmed', 'AdminB', 'Confirmed by B');
-        console.log(`   [Interception] Request B completed: status = ${resB.status}, __v = ${resB.__v}`);
-
-        // Now simulate Request A's inventory restoration failure
-        throw new Error('Simulated network failure during Request A stock restoration');
+        console.log('   [Interception] Request A is inside transaction restoring stock. Simulating inventory failure...');
+        throw new Error('Simulated network/DB failure during Request A stock restoration');
       }
       return originalUpdateOne.call(this, filter, update, options);
     };
@@ -185,19 +166,29 @@ async function runTests() {
 
     assert.strictEqual(requestAFailed, true, 'Request A must fail due to simulated inventory error');
 
-    // Inspect final state in DB
-    const finalOrder = await Order.findById(order._id);
-    const finalStock = await getStock(productId, colorName, size);
+    // Inspect state in DB — transaction abort must leave order completely untouched
+    const afterAbortOrder = await Order.findById(order._id);
+    const afterAbortStock = await getStock(productId, colorName, size);
 
-    console.log(`   Final order status: ${finalOrder.status} (expected: Confirmed)`);
-    console.log(`   Final stockRestored: ${finalOrder.stockRestored} (expected: false)`);
-    console.log(`   Final stock: ${finalStock} (expected: 0)`);
+    console.log(`   After abort order status: ${afterAbortOrder.status} (expected: At agency)`);
+    console.log(`   After abort stockRestored: ${afterAbortOrder.stockRestored} (expected: false)`);
+    console.log(`   After abort stock: ${afterAbortStock} (expected: 0)`);
 
     try {
-      assert.strictEqual(finalOrder.status, 'Confirmed', 'Order status must remain Confirmed (B wins, A rollback was skipped)');
-      assert.strictEqual(finalOrder.stockRestored, false, 'stockRestored must be false');
-      assert.strictEqual(finalStock, 0, 'Final stock must be 0 (deducted by B)');
-      console.log('   ✅ TEST 1 PASSED: Conditional rollback safely protected Request B from blind overwrite!\n');
+      assert.strictEqual(afterAbortOrder.status, ORDER_STATUS.AT_AGENCY, 'Order status must remain At agency after abort');
+      assert.strictEqual(afterAbortOrder.stockRestored, false, 'stockRestored must remain false');
+      assert.strictEqual(afterAbortStock, 0, 'Stock must remain 0 (no partial restoration)');
+
+      // Now demonstrate that a subsequent/concurrent transition (e.g. At Agency → Returned retry) succeeds cleanly
+      console.log('   Testing subsequent transition after abort (system is in clean state)...');
+      const retryOrder = await updateOrderStatus(order._id.toString(), 'Returned', 'AdminA', 'Returned retry');
+      const retryStock = await getStock(productId, colorName, size);
+
+      assert.strictEqual(retryOrder.status, ORDER_STATUS.RETURNED, 'Retry must transition to Returned');
+      assert.strictEqual(retryOrder.stockRestored, true, 'stockRestored must be true');
+      assert.strictEqual(retryStock, 1, 'Stock must be restored to 1');
+
+      console.log('   ✅ TEST 1 PASSED: Transaction abort completely isolated failed attempt; subsequent transition succeeded cleanly!\n');
       passCount++;
     } catch (e) {
       console.error(`   ❌ TEST 1 FAILED: ${e.message}\n`);
@@ -207,57 +198,50 @@ async function runTests() {
     await Order.deleteOne({ _id: order._id });
   }
 
-  // ── TEST 2: Reverse Direction — Returned → Confirmed fails inventory deduction while order is concurrently updated
+  // ── TEST 2: Direction 2 — Returned → Confirmed fails inventory deduction without leaving corrupt state ──
   {
-    console.log('── TEST 2: Request A (Returned → Confirmed) failed deduction does NOT overwrite concurrent modification ──');
+    console.log('── TEST 2: Request A (Returned → Confirmed) insufficient stock triggers transaction abort ──');
     console.log('   Setup: stock = 0, status = "Returned", stockRestored = true');
 
     await setStock(productId, colorName, size, 0);
-    const order = await createTestOrder({ productId, colorName, size, quantity, status: 'Returned', stockRestored: true });
-
-    // Hook Product.findOneAndUpdate so that when Request A is in deductStockAtomic:
-    // Before the deduction fails (or right as it attempts deduction):
-    // A concurrent event updates the order (e.g. status transition or admin update that bumps __v)
-    const originalFindOneAndUpdate = Product.findOneAndUpdate;
-    let intercepted2 = false;
-
-    Product.findOneAndUpdate = async function (filter, update, options) {
-      if (!intercepted2 && filter._id && filter._id.toString() === productId.toString()) {
-        intercepted2 = true;
-        console.log('   [Interception] Request A is attempting stock deduction. Concurrent admin modifies order in background...');
-
-        // Concurrent update modifies the order directly in DB, bumping __v and changing status
-        await Order.updateOne(
-          { _id: order._id },
-          {
-            $set: { status: 'Cancelled', notes: 'Concurrently cancelled by owner' },
-            $inc: { __v: 1 }
-          }
-        );
-        console.log('   [Interception] Concurrent order modification completed (__v incremented, status = Cancelled).');
-      }
-      return originalFindOneAndUpdate.call(this, filter, update, options);
-    };
+    const order = await createTestOrder({ productId, colorName, size, quantity, status: ORDER_STATUS.RETURNED, stockRestored: true });
 
     let requestAFailed2 = false;
     try {
-      // With stock = 0, deductStockAtomic will fail
+      // With stock = 0, deductStockAtomic inside the transaction will throw Insufficient Stock
       await updateOrderStatus(order._id.toString(), 'Confirmed', 'AdminA', 'Confirmed by A');
     } catch (err) {
       requestAFailed2 = true;
       console.log(`   Request A caught expected error: ${err.message}`);
-    } finally {
-      Product.findOneAndUpdate = originalFindOneAndUpdate;
     }
 
     assert.strictEqual(requestAFailed2, true, 'Request A must fail because stock is 0');
 
-    const finalOrder2 = await Order.findById(order._id);
-    console.log(`   Final order status: ${finalOrder2.status} (expected: Cancelled)`);
+    // Inspect state in DB — transaction abort must leave order completely untouched
+    const afterAbortOrder2 = await Order.findById(order._id);
+    const afterAbortStock2 = await getStock(productId, colorName, size);
+
+    console.log(`   After abort order status: ${afterAbortOrder2.status} (expected: Returned)`);
+    console.log(`   After abort stockRestored: ${afterAbortOrder2.stockRestored} (expected: true)`);
+    console.log(`   After abort stock: ${afterAbortStock2} (expected: 0)`);
 
     try {
-      assert.strictEqual(finalOrder2.status, 'Cancelled', 'Order status must remain Cancelled (concurrent state preserved)');
-      console.log('   ✅ TEST 2 PASSED: Conditional rollback did NOT overwrite concurrent state!\n');
+      assert.strictEqual(afterAbortOrder2.status, ORDER_STATUS.RETURNED, 'Order status must remain Returned after abort');
+      assert.strictEqual(afterAbortOrder2.stockRestored, true, 'stockRestored must remain true');
+      assert.strictEqual(afterAbortStock2, 0, 'Stock must remain 0 (no partial deduction)');
+
+      // Replenish stock and verify transition succeeds cleanly
+      console.log('   Replenishing stock to 1 and verifying reactivation succeeds cleanly...');
+      await setStock(productId, colorName, size, 1);
+
+      const retryOrder2 = await updateOrderStatus(order._id.toString(), 'Confirmed', 'AdminA', 'Reactivated after restock');
+      const retryStock2 = await getStock(productId, colorName, size);
+
+      assert.strictEqual(retryOrder2.status, ORDER_STATUS.CONFIRMED, 'Order must transition to Confirmed');
+      assert.strictEqual(retryOrder2.stockRestored, false, 'stockRestored must be false');
+      assert.strictEqual(retryStock2, 0, 'Stock must be deducted back to 0');
+
+      console.log('   ✅ TEST 2 PASSED: Transaction abort preserved Returned state; reactivation succeeded after restock!\n');
       passCount++;
     } catch (e) {
       console.error(`   ❌ TEST 2 FAILED: ${e.message}\n`);
