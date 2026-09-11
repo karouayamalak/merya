@@ -51,7 +51,7 @@ export default function OrdersManager() {
   const [loading, setLoading] = useState(true);
   const [updatingOrderId, setUpdatingOrderId] = useState(null);
 
-  // Delivery settings & all 69 Wilayas for editing
+  // Delivery settings & all 58 Wilayas for editing
   const [wilayasList, setWilayasList] = useState([]);
   const [deliverySettings, setDeliverySettings] = useState(null);
 
@@ -719,7 +719,7 @@ export default function OrdersManager() {
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                     <div>
-                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.3rem' }}>Wilaya (69 Wilayas) *</label>
+                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.3rem' }}>Wilaya (58 Wilayas) *</label>
                       <select
                         value={editWilayaCode}
                         onChange={(e) => handleWilayaOrMethodChange(e.target.value, editDeliveryMethod)}

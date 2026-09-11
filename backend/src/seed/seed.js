@@ -20,7 +20,7 @@ function getDefaultWilayaRates(code) {
   if (code === 16) return { homeFee: 500, agencyFee: 350 };
   if ([9, 35, 42].includes(code)) return { homeFee: 600, agencyFee: 400 };
   if ([31, 25, 19, 15, 6, 23, 13, 27, 2, 5, 18, 21, 22, 24, 26, 29, 34, 43, 44, 46, 48].includes(code)) return { homeFee: 750, agencyFee: 450 };
-  if ([3, 4, 7, 10, 12, 14, 17, 20, 28, 38, 40, 41, 45, 51, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69].includes(code)) return { homeFee: 850, agencyFee: 500 };
+  if ([3, 4, 7, 10, 12, 14, 17, 20, 28, 38, 40, 41, 45, 51].includes(code)) return { homeFee: 850, agencyFee: 500 };
   if ([8, 30, 32, 39, 47, 55, 57, 58].includes(code)) return { homeFee: 1000, agencyFee: 700 };
   return { homeFee: 1400, agencyFee: 900 };
 }
@@ -31,7 +31,7 @@ async function seedDatabase() {
     await mongoose.connect(MONGODB_URI);
     console.log('[Seed] Connected successfully.');
 
-    // 1. Seed Delivery Settings (Singleton) with all 69 Algerian Wilayas
+    // 1. Seed Delivery Settings (Singleton) with all 58 Algerian Wilayas
     let deliverySetting = await DeliverySetting.findOne();
     const wilayaRates = ALGERIA_WILAYAS.map(w => {
       const d = getDefaultWilayaRates(w.code);
@@ -52,17 +52,36 @@ async function seedDatabase() {
         freeDeliveryThreshold: 0,
         wilayaRates
       });
-      console.log('[Seed] Default delivery settings created with all 69 Wilaya rates.');
-    } else if (!deliverySetting.wilayaRates || deliverySetting.wilayaRates.length < 69) {
-      const existingCodes = new Set((deliverySetting.wilayaRates || []).map(r => r.wilayaCode));
-      for (const rate of wilayaRates) {
-        if (!existingCodes.has(rate.wilayaCode)) {
-          deliverySetting.wilayaRates.push(rate);
+      console.log('[Seed] Default delivery settings created with all 58 Wilaya rates.');
+    } else {
+      // Ensure exactly the 58 canonical wilayas are present (filter out any > 58 codes safely)
+      const existingMap = new Map((deliverySetting.wilayaRates || []).map(r => [r.wilayaCode, r]));
+      const normalizedRates = ALGERIA_WILAYAS.map(w => {
+        if (existingMap.has(w.code)) {
+          const ex = existingMap.get(w.code);
+          return {
+            wilayaCode: w.code,
+            wilayaName: w.name,
+            wilayaNameAr: w.nameAr,
+            homeFee: ex.homeFee,
+            agencyFee: ex.agencyFee,
+            isAvailable: ex.isAvailable !== false
+          };
         }
-      }
-      deliverySetting.wilayaRates.sort((a, b) => a.wilayaCode - b.wilayaCode);
+        const d = getDefaultWilayaRates(w.code);
+        return {
+          wilayaCode: w.code,
+          wilayaName: w.name,
+          wilayaNameAr: w.nameAr,
+          homeFee: d.homeFee,
+          agencyFee: d.agencyFee,
+          isAvailable: true
+        };
+      }).sort((a, b) => a.wilayaCode - b.wilayaCode);
+
+      deliverySetting.wilayaRates = normalizedRates;
       await deliverySetting.save();
-      console.log(`[Seed] Updated existing delivery settings to ensure all 69 Wilaya rates are present.`);
+      console.log(`[Seed] Delivery settings normalized to exactly 58 canonical Wilaya rates.`);
     }
 
     // 2. Seed Initial Admin User (Credentials strictly sourced from environment)

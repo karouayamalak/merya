@@ -506,14 +506,14 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                   </div>
                 </div>
 
-                {/* Row 3: Wilaya (All 69 Wilayas) */}
+                {/* Row 3: Wilaya (All 58 Wilayas) */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
                   <div className="checkout-icon-badge">
                     <MapPin size={16} />
                   </div>
                   <div style={{ flex: 1 }}>
                     <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', color: '#2A241F', marginBottom: '0.25rem' }}>
-                      Wilaya (69 Wilayas) : <span style={{ color: '#A86450' }}>*</span>
+                      Wilaya (58 Wilayas) : <span style={{ color: '#A86450' }}>*</span>
                     </label>
                     <select
                       value={selectedWilayaCode}

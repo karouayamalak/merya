@@ -590,7 +590,7 @@ Admin credentials are never stored in code or repository files. The system provi
 
 ```bash
 INITIAL_ADMIN_EMAIL=your_admin_email@example.com
-INITIAL_ADMIN_PASSWORD=YourStrongPasswordHere!
+INITIAL_ADMIN_PASSWORD=your_secure_password
 INITIAL_ADMIN_USERNAME="Store Owner"
 ```
 

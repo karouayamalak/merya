@@ -632,17 +632,22 @@ async function runAdversarialAudit() {
   }
 
   // ============================================================================
-  // AUDIT 11: 69 CANONICAL ALGERIAN WILAYAS
+  // AUDIT 11: 58 CANONICAL ALGERIAN WILAYAS
   // ============================================================================
-  console.log('\n[AUDIT 11] Testing 69 Algerian Wilayas...');
+  console.log('\n[AUDIT 11] Testing 58 Algerian Wilayas...');
   {
-    assert.strictEqual(ALGERIA_WILAYAS.length, 69);
+    assert.strictEqual(ALGERIA_WILAYAS.length, 58);
     const baseValid = {
       customer: { fullName: 'Wilaya Tester', phone: '0555123456', deliveryMethod: DELIVERY_METHODS.HOME, address: 'Valid address here' },
       items: [{ productId: '507f1f77bcf86cd799439011', colorName: 'Noir', size: 'M', quantity: 1 }]
     };
 
-    for (const code of [0, 70, -1, 3.14, 'fake', 99]) {
+    // Valid code 58 must pass
+    const parsed58 = checkoutOrderSchema.safeParse({ ...baseValid, customer: { ...baseValid.customer, wilaya: { code: 58, name: 'El Meniaa' } } });
+    assert(parsed58.success, 'Wilaya 58 must pass checkout validation');
+
+    // Invalid codes: 0, -1, 59, 60, 69, 70, floats, strings, 99 must all fail
+    for (const code of [0, 59, 60, 69, 70, -1, 3.14, 'fake', 99]) {
       let failed = false;
       try {
         checkoutOrderSchema.parse({ ...baseValid, customer: { ...baseValid.customer, wilaya: { code, name: 'Test' } } });
@@ -651,7 +656,7 @@ async function runAdversarialAudit() {
       }
       assert(failed, `Wilaya ${code} must fail validation`);
     }
-    console.log('  ✓ 69 Wilayas verified; invalid codes (0, 70, -1, floats, strings) rejected.');
+    console.log('  ✓ 58 Wilayas verified; code 58 accepted; invalid codes (0, 59, 60, 69, 70, -1, floats, strings) rejected.');
   }
 
   // ============================================================================

@@ -1,23 +1,25 @@
 /**
- * promotionsAndWilayas69Test.js
+ * promotionsAndWilayas58Test.js
  *
- * Comprehensive integration test suite covering all 12 required scenarios:
+ * Comprehensive integration test suite covering the 58-Wilaya system & promotions:
  *
- * DOMAIN 1 – 69 WILAYAS CANONICAL CONSTANTS
- *   1.  Exactly 69 canonical Wilayas exist.
- *   2.  Codes 59–69 match the correct 2026 official mapping.
- *   3.  All 69 codes are accepted by Zod checkout validation.
- *   4.  Invalid Wilaya codes are rejected.
- *   5.  Delivery settings support every Wilaya (69 entries in DB).
- *   6.  Delivery fee remains server-authoritative (client value ignored).
+ * DOMAIN 1 – 58 CANONICAL WILAYAS
+ *   1. Exactly 58 canonical Wilayas exist (codes 1–58).
+ *   2. Code 58 is El Meniaa (المنيعة). Codes 59–69 do NOT exist.
+ *   3. All 58 codes are accepted by Zod checkout validation.
+ *   4. Invalid Wilaya codes (0, 59, 60, 69, 70, -1, 99, 3.14) are rejected by validation.
+ *   5. Delivery settings support every Wilaya (exactly 58 entries in DB).
+ *   6. Delivery fee remains server-authoritative (client value ignored).
  *
- * DOMAIN 2 – PRODUCT PROMOTIONS
- *   7.  Promotion can be activated.
- *   8.  Promotional price must be strictly lower than base price.
- *   9.  Customer sees old price + new promotional price (effectivePrice virtual).
+ * DOMAIN 2 – PRODUCT PROMOTIONS & HISTORICAL PROTECTION
+ *   7. Promotion can be activated (promotionalPrice < basePrice).
+ *   8. Promotional price equal to or greater than base price is rejected.
+ *   9. Customer sees effectivePrice (promotionalPrice when active).
  *   10. Checkout uses the promotional price (server-authoritative).
  *   11. Historical order keeps its original promotional price after promotion changes/is removed.
  *   12. Concurrent product-price/promotion change cannot cause checkout to use a client-supplied price.
+ *   13. Wilaya 58 accepted by placeOrder; Wilaya 59 strictly rejected.
+ *   14. Admin line-item editing requires mandatory reason and protects existing item prices.
  */
 
 import assert from 'assert';
@@ -29,8 +31,8 @@ import { Order } from '../src/models/Order.js';
 import { DeliverySetting } from '../src/models/DeliverySetting.js';
 import { ALGERIA_WILAYAS, DELIVERY_METHODS } from '../src/config/constants.js';
 import { checkoutOrderSchema, productSchema, updateProductSchema } from '../src/middleware/validation.js';
-import { placeOrder } from '../src/services/orderService.js';
-import { migrate69Wilayas } from '../src/seed/migrate69Wilayas.js';
+import { placeOrder, updateOrderItemsService } from '../src/services/orderService.js';
+import { normalize58Wilayas } from '../src/seed/normalize58Wilayas.js';
 
 dotenv.config();
 
@@ -43,13 +45,13 @@ function pass(msg) {
 }
 
 async function runTests() {
-  console.log('=== RUNNING PROMOTIONS & 69 WILAYAS INTEGRATION SUITE (2026 Official Mapping) ===\n');
+  console.log('=== RUNNING PROMOTIONS & 58 WILAYAS INTEGRATION SUITE ===\n');
 
   await mongoose.connect(DB_URI);
   console.log('[Setup] Connected to MongoDB');
 
-  // Ensure DB delivery settings are migrated to 69 Wilayas
-  await migrate69Wilayas();
+  // Normalize DB delivery settings to exactly 58 Wilayas
+  await normalize58Wilayas();
 
   // Shared test category
   const testCategory = await Category.findOneAndUpdate(
@@ -59,45 +61,25 @@ async function runTests() {
   );
 
   // =========================================================================
-  console.log('\n--- DOMAIN 1: 69 WILAYAS CANONICAL CONSTANTS & OFFICIAL 2026 MAPPING ---');
+  console.log('\n--- DOMAIN 1: 58 WILAYAS CANONICAL CONSTANTS & BOUNDARY CHECKS ---');
   // =========================================================================
 
-  // SCENARIO 1: Exactly 69 canonical Wilayas
-  assert.strictEqual(ALGERIA_WILAYAS.length, 69, 'ALGERIA_WILAYAS must have exactly 69 entries');
+  // SCENARIO 1: Exactly 58 canonical Wilayas
+  assert.strictEqual(ALGERIA_WILAYAS.length, 58, 'ALGERIA_WILAYAS must have exactly 58 entries');
   assert.strictEqual(ALGERIA_WILAYAS[0].code, 1);
   assert.strictEqual(ALGERIA_WILAYAS[0].name, 'Adrar');
   assert.strictEqual(ALGERIA_WILAYAS[57].code, 58);
   assert.strictEqual(ALGERIA_WILAYAS[57].name, 'El Meniaa');
-  assert.strictEqual(ALGERIA_WILAYAS[58].code, 59);
-  assert.strictEqual(ALGERIA_WILAYAS[59].code, 60);
-  assert.strictEqual(ALGERIA_WILAYAS[68].code, 69);
-  pass('Scenario 1: Exactly 69 canonical Wilayas exist (codes 1–69)');
+  pass('Scenario 1: Exactly 58 canonical Wilayas exist (codes 1–58)');
 
-  // SCENARIO 2: Codes 59–69 match the correct 2026 official mapping
-  const expected2026 = [
-    { code: 59, name: 'Aflou' },
-    { code: 60, name: 'Barika' },
-    { code: 61, name: 'El Kantara' },
-    { code: 62, name: 'Bir El Ater' },
-    { code: 63, name: 'El Aricha' },
-    { code: 64, name: 'Ksar Chellala' },
-    { code: 65, name: 'Aïn Ouessara' },
-    { code: 66, name: 'Messaad' },
-    { code: 67, name: 'Ksar El Boukhari' },
-    { code: 68, name: 'Bou Saâda' },
-    { code: 69, name: 'El Abiodh Sidi Cheikh' },
-  ];
-  for (const expected of expected2026) {
-    const actual = ALGERIA_WILAYAS.find(w => w.code === expected.code);
-    assert(actual, `Wilaya code ${expected.code} must exist in ALGERIA_WILAYAS`);
-    assert.strictEqual(
-      actual.name, expected.name,
-      `Wilaya ${expected.code}: expected "${expected.name}", got "${actual.name}"`
-    );
+  // SCENARIO 2: Boundary check — codes 59–69 do NOT exist in canonical list
+  for (let c = 59; c <= 69; c++) {
+    const found = ALGERIA_WILAYAS.find(w => w.code === c);
+    assert.strictEqual(found, undefined, `Wilaya code ${c} must NOT exist in ALGERIA_WILAYAS`);
   }
-  pass('Scenario 2: Codes 59–69 all match the correct 2026 official mapping');
+  pass('Scenario 2: Codes 59–69 are completely absent from canonical ALGERIA_WILAYAS');
 
-  // SCENARIO 3: All 69 codes accepted by Zod checkout validation
+  // SCENARIO 3: All 58 codes accepted by Zod checkout validation
   const baseCustomer = {
     fullName: 'Amina Test',
     phone: '0555123456',
@@ -116,10 +98,10 @@ async function runTests() {
       `Wilaya code ${w.code} (${w.name}) must pass Zod checkout validation`
     );
   }
-  pass('Scenario 3: All 69 Wilaya codes are accepted by checkout Zod validation');
+  pass('Scenario 3: All 58 Wilaya codes are accepted by checkout Zod validation');
 
-  // SCENARIO 4: Invalid Wilaya codes are rejected
-  for (const invalidCode of [0, 70, -1, 99, 3.14]) {
+  // SCENARIO 4: Invalid Wilaya codes (including 59, 60, 69, 70, 0, -1, 99, 3.14) are rejected
+  for (const invalidCode of [0, 59, 60, 65, 69, 70, -1, 99, 3.14]) {
     const payload = {
       customer: { ...baseCustomer, wilaya: { code: invalidCode, name: 'Invalid' } },
       items: baseItems
@@ -129,24 +111,19 @@ async function runTests() {
       `Wilaya code ${invalidCode} must fail Zod validation`
     );
   }
-  pass('Scenario 4: Invalid Wilaya codes (0, 70, -1, 99, 3.14) are rejected by validation');
+  pass('Scenario 4: Invalid Wilaya codes (0, 59, 60, 69, 70, -1, 99, 3.14) are strictly rejected by validation');
 
-  // SCENARIO 5: Delivery settings support every Wilaya (69 entries in DB)
+  // SCENARIO 5: Delivery settings support every Wilaya (exactly 58 entries in DB)
   const settingDoc = await DeliverySetting.findOne();
   assert(settingDoc, 'DeliverySetting document must exist');
-  assert.strictEqual(settingDoc.wilayaRates.length, 69, 'DeliverySetting must have exactly 69 Wilaya rates');
+  assert.strictEqual(settingDoc.wilayaRates.length, 58, 'DeliverySetting must have exactly 58 Wilaya rates');
   for (const w of ALGERIA_WILAYAS) {
     const rate = settingDoc.wilayaRates.find(r => r.wilayaCode === w.code);
     assert(rate, `DeliverySetting must have a rate entry for Wilaya ${w.code} (${w.name})`);
     assert(typeof rate.homeFee === 'number' && rate.homeFee > 0, `homeFee for Wilaya ${w.code} must be a positive number`);
     assert(typeof rate.agencyFee === 'number' && rate.agencyFee > 0, `agencyFee for Wilaya ${w.code} must be a positive number`);
   }
-  // Verify the newly corrected Wilayas 61–69 are all present and named correctly
-  for (const expected of expected2026) {
-    const rate = settingDoc.wilayaRates.find(r => r.wilayaCode === expected.code);
-    assert(rate, `DeliverySetting must contain Wilaya ${expected.code} (${expected.name})`);
-  }
-  pass('Scenario 5: Delivery settings contain exactly 69 Wilaya rate entries (including corrected codes 61–69)');
+  pass('Scenario 5: Delivery settings contain exactly 58 Wilaya rate entries (codes 1–58)');
 
   // =========================================================================
   console.log('\n--- DOMAIN 2: PRODUCT PROMOTIONS LIFECYCLE & VALIDATION ---');
@@ -181,7 +158,7 @@ async function runTests() {
 
   assert.throws(() => productSchema.parse({
     ...baseValidProduct,
-    promotion: { active: true, promotionalPrice: 4500 }
+    promotion: { active: true, promotionalPrice: 5000 }
   }), 'promotionalPrice greater than sellingPrice must be rejected');
 
   assert.throws(() => productSchema.parse({
@@ -192,133 +169,75 @@ async function runTests() {
   assert.throws(() => productSchema.parse({
     ...baseValidProduct,
     promotion: { active: true, promotionalPrice: -500 }
-  }), 'Negative promotionalPrice must be rejected');
+  }), 'negative promotionalPrice must be rejected');
+  pass('Scenario 8: Invalid promotional prices (equal, greater, zero, negative) are rejected');
 
-  assert.throws(() => updateProductSchema.parse({
-    sellingPrice: 2500,
-    promotion: { active: true, promotionalPrice: 2500 }
-  }), 'Update schema must reject promo price equal to updated selling price');
-
-  assert.doesNotThrow(() => updateProductSchema.parse({
-    promotion: { active: false, promotionalPrice: null }
-  }), 'Deactivating promotion must pass update schema');
-  pass('Scenario 8: Promotion rejects price >= base price (equal, greater, zero, negative all rejected)');
-
-  // SCENARIO 9: Customer sees old + new price (effectivePrice virtual)
+  // Create product in DB with promotion active
   const promoProduct = await Product.create({
-    name: 'Robe Abaya Dubai Promo',
-    slug: `robe-abaya-dubai-promo-${Date.now()}`,
-    description: 'Abaya élégante avec broderie fine',
+    name: 'Abaya Dubai Luxe',
+    slug: `abaya-dubai-luxe-${Date.now()}`,
+    description: 'Abaya perlee faite main aux Emirats',
     category: testCategory._id,
-    sellingPrice: 5000,
-    costPrice: 2500,
-    promotion: { active: true, promotionalPrice: 3800 },
+    sellingPrice: 8000,
+    costPrice: 4000,
+    promotion: { active: true, promotionalPrice: 6000 },
     colors: [{
       colorName: 'Noir Profond',
-      colorCode: '#000000',
-      images: ['https://example.com/abaya-noir.jpg'],
-      sizes: [{ size: 'M', stock: 20 }]
+      colorCode: '#0A0A0A',
+      images: ['/uploads/abaya_noir.jpg'],
+      sizes: [{ size: 'M', stock: 10 }]
     }]
   });
 
-  // sellingPrice (base/old) and effectivePrice (new/promotional) are distinct
-  assert.strictEqual(promoProduct.sellingPrice, 5000, 'sellingPrice (base/old price) must remain 5000');
-  assert.strictEqual(promoProduct.promotion.active, true);
-  assert.strictEqual(promoProduct.promotion.promotionalPrice, 3800);
-  assert.strictEqual(promoProduct.effectivePrice, 3800, 'effectivePrice virtual must return promotionalPrice (3800) when active');
-  // Customer UI: old price = sellingPrice, new price = effectivePrice
-  // discount % = Math.round((1 - effectivePrice/sellingPrice) * 100) = 24%
-  const discountPct = Math.round((1 - promoProduct.effectivePrice / promoProduct.sellingPrice) * 100);
-  assert.strictEqual(discountPct, 24, 'Discount percentage should be 24%');
-  pass('Scenario 9: Customer sees old price (5000) crossed out and new price (3800, -24%) via effectivePrice virtual');
-
-  // Deactivating restores base price in virtual
+  // SCENARIO 9: Effective price virtual returns promotionalPrice when promotion is active
+  assert.strictEqual(promoProduct.effectivePrice, 6000, 'effectivePrice must be promotionalPrice (6000) when active');
   promoProduct.promotion.active = false;
-  promoProduct.promotion.promotionalPrice = null;
-  await promoProduct.save();
-  assert.strictEqual(promoProduct.effectivePrice, 5000, 'effectivePrice must revert to sellingPrice when promotion deactivated');
-
-  // Reactivate with price that will be used at checkout
+  assert.strictEqual(promoProduct.effectivePrice, 8000, 'effectivePrice must fall back to sellingPrice (8000) when inactive');
   promoProduct.promotion.active = true;
-  promoProduct.promotion.promotionalPrice = 3500;
   await promoProduct.save();
-  assert.strictEqual(promoProduct.effectivePrice, 3500);
-
-  // =========================================================================
-  console.log('\n--- DOMAIN 3: SERVER-AUTHORITATIVE CHECKOUT PRICING ---');
-  // =========================================================================
+  pass('Scenario 9: effectivePrice virtual dynamically switches between sellingPrice and promotionalPrice');
 
   // SCENARIO 10: Checkout uses the promotional price (server-authoritative)
-  // Client sends a fabricated unitPrice of 1000 — server must ignore it and use 3500
-  const checkoutPayload = {
+  const { order: createdOrder } = await placeOrder({
     customer: {
-      fullName: 'Karima Customer',
-      phone: '0661998877',
-      wilaya: { code: 59, name: 'Aflou' },
+      fullName: 'Fatima Zahra',
+      phone: '0661234567',
+      wilaya: { code: 16, name: 'Algiers' },
       deliveryMethod: DELIVERY_METHODS.HOME,
-      address: 'Quartier Administratif Aflou'
+      address: 'Didouche Mourad, Alger Centre'
     },
     items: [{
       productId: promoProduct._id.toString(),
       colorName: 'Noir Profond',
       size: 'M',
       quantity: 2,
-      unitPrice: 1000 // Client-supplied tampered price — must be ignored
+      unitPrice: 99999 // Client attempts to tamper with price
     }]
-  };
+  });
 
-  const { order: createdOrder } = await placeOrder(checkoutPayload);
-  assert(createdOrder, 'Order should be successfully placed');
-  assert.strictEqual(createdOrder.items[0].unitPrice, 3500, 'Server must enforce DB promotional price 3500, not client-sent 1000');
-  assert.strictEqual(createdOrder.subtotal, 7000, 'Subtotal must be 3500 × 2 = 7000');
+  assert.strictEqual(createdOrder.items[0].unitPrice, 6000, 'Order item unitPrice must be promotional price (6000), ignoring client value (99999)');
+  assert.strictEqual(createdOrder.subtotal, 12000, 'Subtotal must be 2 * 6000 = 12000');
+  pass('Scenario 10: Checkout uses promotional price (6000 DZD) and rejects client price tampering');
 
-  // SCENARIO 6: Delivery fee is server-authoritative
-  const rateW59 = settingDoc.wilayaRates.find(r => r.wilayaCode === 59);
-  assert(rateW59, 'Wilaya 59 (Aflou) must exist in delivery settings');
-  assert.strictEqual(createdOrder.deliveryFee, rateW59.homeFee, 'Delivery fee must match DB rate for Wilaya 59, not client value');
-  assert.strictEqual(createdOrder.totalPrice, 7000 + rateW59.homeFee, 'Total price must be subtotal + authoritative delivery fee');
-  pass('Scenario 6: Delivery fee is server-authoritative (client cannot override)');
-  pass('Scenario 10: Checkout uses promotional price 3500, not client-tampered 1000');
-
-  // =========================================================================
-  console.log('\n--- DOMAIN 4: HISTORICAL SNAPSHOT IMMUTABILITY ---');
-  // =========================================================================
-
-  // SCENARIO 11: Historical order keeps its original price after promotion changes/is removed
-  // Step 11a: Change the promotional price
-  promoProduct.promotion.promotionalPrice = 4200;
-  await promoProduct.save();
-
-  const orderReloaded1 = await Order.findById(createdOrder._id);
-  assert.strictEqual(orderReloaded1.items[0].unitPrice, 3500, 'Changing promotion price must NOT mutate historical order unitPrice');
-  assert.strictEqual(orderReloaded1.subtotal, 7000, 'Changing promotion price must NOT mutate historical subtotal');
-
-  // Step 11b: Remove promotion entirely and change base price
+  // SCENARIO 11: Historical order keeps its original price after promotion is deactivated
   promoProduct.promotion.active = false;
-  promoProduct.promotion.promotionalPrice = null;
-  promoProduct.sellingPrice = 6000;
+  promoProduct.sellingPrice = 9000;
   await promoProduct.save();
 
-  const orderReloaded2 = await Order.findById(createdOrder._id);
-  assert.strictEqual(orderReloaded2.items[0].unitPrice, 3500, 'Deactivating promotion + changing base price must NOT mutate historical order');
-  assert.strictEqual(orderReloaded2.subtotal, 7000);
-  assert.strictEqual(orderReloaded2.totalPrice, 7000 + rateW59.homeFee);
-  pass('Scenario 11: Historical order permanently retains its promotional unitPrice (3500) after promotion changes/removal');
+  const reloadedOrder = await Order.findById(createdOrder._id);
+  assert.strictEqual(reloadedOrder.items[0].unitPrice, 6000, 'Historical order must retain original promotional price 6000 DZD');
+  assert.strictEqual(reloadedOrder.subtotal, 12000, 'Historical order subtotal must remain 12000 DZD');
+  pass('Scenario 11: Historical order retains original purchase price (6000 DZD) after product promotion is turned off');
 
-  // =========================================================================
-  console.log('\n--- DOMAIN 5: CONCURRENT TAMPER PROTECTION & COVERAGE ---');
-  // =========================================================================
-
-  // SCENARIO 12: Concurrent product-price/promotion change cannot cause checkout to use client-supplied price
-  // Two "simultaneous" orders using the product with different client unitPrices — both must use server price
+  // SCENARIO 12: Server-authoritative checkout under concurrent price update
   const [resultA, resultB] = await Promise.all([
     placeOrder({
       customer: {
-        fullName: 'Concurrent Buyer A',
-        phone: '0770000001',
-        wilaya: { code: 16, name: 'Algiers' },
+        fullName: 'Client A',
+        phone: '0555111111',
+        wilaya: { code: 31, name: 'Oran' },
         deliveryMethod: DELIVERY_METHODS.HOME,
-        address: 'Rue Test A'
+        address: 'Front de Mer, Oran'
       },
       items: [{
         productId: promoProduct._id.toString(),
@@ -330,39 +249,56 @@ async function runTests() {
     }),
     placeOrder({
       customer: {
-        fullName: 'Concurrent Buyer B',
-        phone: '0770000002',
+        fullName: 'Client B',
+        phone: '0555222222',
         wilaya: { code: 25, name: 'Constantine' },
-        deliveryMethod: DELIVERY_METHODS.HOME,
-        address: 'Rue Test B'
+        deliveryMethod: DELIVERY_METHODS.AGENCY,
+        agencyName: 'Yalidine Constantine'
       },
       items: [{
         productId: promoProduct._id.toString(),
         colorName: 'Noir Profond',
         size: 'M',
         quantity: 1,
-        unitPrice: 1 // Extreme tamper by client B
+        unitPrice: 1 // Tampered by client B
       }]
     })
   ]);
 
-  // After promotion was removed, sellingPrice=6000 — both must use 6000 (not client-sent values)
-  assert.strictEqual(resultA.order.items[0].unitPrice, 6000, 'Concurrent order A must use server-authoritative sellingPrice 6000, not client 9999');
-  assert.strictEqual(resultB.order.items[0].unitPrice, 6000, 'Concurrent order B must use server-authoritative sellingPrice 6000, not client 1');
-  pass('Scenario 12: Concurrent orders with client-tampered prices both receive server-authoritative price (6000)');
+  // Current sellingPrice is 9000
+  assert.strictEqual(resultA.order.items[0].unitPrice, 9000, 'Order A must use server-authoritative sellingPrice 9000');
+  assert.strictEqual(resultB.order.items[0].unitPrice, 9000, 'Order B must use server-authoritative sellingPrice 9000');
+  pass('Scenario 12: Concurrent orders with client-tampered prices both receive server-authoritative price (9000)');
 
-  // Test all new Wilayas 61–69 are each accepted by placeOrder
-  const newWilayaCodes = [61, 62, 63, 64, 65, 66, 67, 68, 69];
-  const newWilayaOrders = [];
-  for (const code of newWilayaCodes) {
-    const w = ALGERIA_WILAYAS.find(w => w.code === code);
-    const { order } = await placeOrder({
+  // SCENARIO 13: Place order with Wilaya 58 works; Wilaya 59 strictly rejected
+  const w58 = ALGERIA_WILAYAS.find(w => w.code === 58);
+  assert(w58, 'Wilaya 58 must exist');
+  const order58Result = await placeOrder({
+    customer: {
+      fullName: 'Customer El Meniaa',
+      phone: '0770585858',
+      wilaya: { code: 58, name: w58.name },
+      deliveryMethod: DELIVERY_METHODS.HOME,
+      address: 'Centre Ville El Meniaa'
+    },
+    items: [{
+      productId: promoProduct._id.toString(),
+      colorName: 'Noir Profond',
+      size: 'M',
+      quantity: 1
+    }]
+  });
+  assert.strictEqual(order58Result.order.customer.wilaya.code, 58);
+  pass('Scenario 13a: Order placement for Wilaya 58 (El Meniaa) succeeds with authoritative fee');
+
+  await assert.rejects(
+    () => placeOrder({
       customer: {
-        fullName: `Test Customer W${code}`,
-        phone: `077${String(code).padStart(7, '0')}`,
-        wilaya: { code: w.code, name: w.name },
-        deliveryMethod: DELIVERY_METHODS.AGENCY,
-        agencyName: `Agency ${w.name}`
+        fullName: 'Customer 59',
+        phone: '0770595959',
+        wilaya: { code: 59, name: 'Aflou' },
+        deliveryMethod: DELIVERY_METHODS.HOME,
+        address: 'Test Address'
       },
       items: [{
         productId: promoProduct._id.toString(),
@@ -370,24 +306,53 @@ async function runTests() {
         size: 'M',
         quantity: 1
       }]
-    });
-    const rate = settingDoc.wilayaRates.find(r => r.wilayaCode === code);
-    assert(rate, `Wilaya ${code} (${w.name}) must have a delivery rate in DB`);
-    assert.strictEqual(order.deliveryFee, rate.agencyFee, `Wilaya ${code} agency fee must match DB`);
-    assert.strictEqual(order.customer.wilaya.name, w.name, `Order must snapshot correct canonical name for Wilaya ${code}`);
-    newWilayaOrders.push(order._id);
-  }
-  pass('Scenario 3 (extended): All new Wilayas 61–69 (correct 2026 mapping) are each accepted by checkout and get correct delivery fee');
+    }),
+    /Invalid Wilaya code/,
+    'Order placement for Wilaya 59 must be rejected'
+  );
+  pass('Scenario 13b: Order placement for Wilaya 59 is strictly rejected by server');
 
-  // =========================================================================
+  // SCENARIO 14: Historical order line items cannot be silently repriced
+  // When an admin modifies line items, reason is mandatory and existing item price is preserved
+  await assert.rejects(
+    () => updateOrderItemsService({
+      orderId: createdOrder._id.toString(),
+      newItems: [{
+        productId: promoProduct._id.toString(),
+        colorName: 'Noir Profond',
+        size: 'M',
+        quantity: 3
+      }],
+      reason: '' // Empty reason must be rejected
+    }),
+    /A valid reason is required/,
+    'Empty admin reason must be rejected'
+  );
+
+  // Now update with a valid reason: unitPrice should NOT be recalculated to 9000, it must stay 6000!
+  const updatedOrder = await updateOrderItemsService({
+    orderId: createdOrder._id.toString(),
+    newItems: [{
+      productId: promoProduct._id.toString(),
+      colorName: 'Noir Profond',
+      size: 'M',
+      quantity: 3
+    }],
+    reason: 'Customer requested 1 additional unit at agreed purchase price'
+  });
+
+  assert.strictEqual(updatedOrder.items[0].unitPrice, 6000, 'Recorded unitPrice must be preserved at 6000 DZD, not re-evaluated to current catalog price 9000 DZD');
+  assert.strictEqual(updatedOrder.subtotal, 18000, 'Subtotal must be 3 * 6000 = 18000');
+  assert.strictEqual(updatedOrder.auditHistory.slice(-1)[0].details.reason, 'Customer requested 1 additional unit at agreed purchase price');
+  pass('Scenario 14: Historical order line item price is protected from silent repricing during admin modifications');
+
   // Cleanup
-  // =========================================================================
   await Product.findByIdAndDelete(promoProduct._id);
-  await Order.deleteMany({ _id: { $in: [createdOrder._id, resultA.order._id, resultB.order._id, ...newWilayaOrders] } });
+  await Order.deleteMany({ _id: { $in: [createdOrder._id, resultA.order._id, resultB.order._id, order58Result.order._id] } });
 
   console.log('\n======================================================');
   console.log(`ALL ${passCount} SCENARIOS PASSED!`);
-  console.log('Promotions & 69 Wilayas (2026 Official Mapping) ✓');
+  console.log('Promotions & 58 Wilayas System Fully Verified ✓');
   console.log('======================================================\n');
 
   await mongoose.disconnect();

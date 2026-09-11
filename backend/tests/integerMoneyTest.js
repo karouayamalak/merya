@@ -506,7 +506,8 @@ async function runTests() {
           quantity: 2
         }
       ],
-      adminUsername: 'AdminMoneyAuditor'
+      adminUsername: 'AdminMoneyAuditor',
+      reason: 'Integer recalculation audit test'
     });
 
     assert.strictEqual(Number.isInteger(updated.subtotal), true);

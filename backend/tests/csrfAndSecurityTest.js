@@ -402,6 +402,8 @@ async function runTests() {
       ws.on('close', (code) => resolve(code));
       ws.on('error', () => {}); // ignore error event prior to close
     });
+    // Small delay to let libuv finish closing the rejected connection's async handle (Windows safety)
+    await new Promise(r => setTimeout(r, 50));
     assert.strictEqual(closeCode, 1008, `Expected close code 1008 for untrusted origin, got ${closeCode}`);
     pass('WebSocket rejects connection from untrusted Origin with close code 1008');
   } catch (err) {
@@ -423,6 +425,8 @@ async function runTests() {
       });
       ws.on('error', reject);
     });
+    // Small delay to let libuv finish closing the connection's async handle (Windows safety)
+    await new Promise(r => setTimeout(r, 50));
     assert.strictEqual(isConnected, true);
     pass('WebSocket accepts connection from whitelisted Origin');
   } catch (err) {
@@ -447,6 +451,8 @@ async function runTests() {
       });
       ws.on('error', reject);
     });
+    // Small delay to let libuv finish closing the connection's async handle (Windows safety)
+    await new Promise(r => setTimeout(r, 50));
     assert.strictEqual(errorReceived, true);
     pass('SUBSCRIBE_ADMIN without admin session cookie is rejected with Unauthorized error');
   } catch (err) {

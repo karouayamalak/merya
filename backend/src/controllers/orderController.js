@@ -264,7 +264,7 @@ export const updateOrderCustomerDetails = async (req, res, next) => {
       if (!canonicalWilaya) {
         return res.status(400).json({
           success: false,
-          message: `Invalid Wilaya code: ${code}. Must be a canonical Algerian Wilaya between 1 and 69.`
+          message: `Invalid Wilaya code: ${code}. Must be a canonical Algerian Wilaya between 1 and 58.`
         });
       }
 

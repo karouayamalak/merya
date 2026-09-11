@@ -104,7 +104,7 @@ async function ensureDeliverySettings() {
     settings = await DeliverySetting.create({
       agencyDeliveryFee: 500,
       homeDeliveryFee: 800,
-      wilayaRates: Array.from({ length: 69 }, (_, i) => ({
+      wilayaRates: Array.from({ length: 58 }, (_, i) => ({
         wilayaCode: i + 1,
         agencyFee: 300,
         homeFee: 600,

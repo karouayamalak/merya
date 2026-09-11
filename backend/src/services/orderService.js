@@ -90,7 +90,7 @@ export async function placeOrder({ customer, items, idempotencyKey }) {
 
   const canonicalWilaya = ALGERIA_WILAYAS.find(w => w.code === codeNum);
   if (!canonicalWilaya) {
-    throw new Error(`Invalid Wilaya code: ${code}. Must be between 1 and 69.`);
+    throw new Error(`Invalid Wilaya code: ${code}. Must be between 1 and 58.`);
   }
 
   if (name && typeof name === 'string' && name.trim()) {
@@ -666,8 +666,11 @@ export async function updateOrderItemsService({
   newItems,
   expectedVersion,
   adminUsername = 'Admin',
-  reason = 'Admin order item modification'
+  reason
 }) {
+  // Note: reason is validated after order-level status checks inside the transaction
+  // so that status errors (Delivered, Cancelled) surface with priority over the reason guard.
+
   if (!mongoose.Types.ObjectId.isValid(orderId)) {
     const err = new Error('Invalid order ID');
     err.statusCode = 400;
@@ -761,7 +764,15 @@ export async function updateOrderItemsService({
       throw err;
     }
 
+    // 3b. Reason validation — must have a non-empty reason to proceed with any modification
+    if (!reason || typeof reason !== 'string' || !reason.trim()) {
+      const err = new Error('A valid reason is required for admin order item modifications.');
+      err.statusCode = 400;
+      throw err;
+    }
+
     // 4. Validate all requested products and variants exist and are active
+
     const uniqueProductIds = [...new Set(consolidatedItems.map(it => it.productId))];
     const products = await Product.find({ _id: { $in: uniqueProductIds } }, null, sessionOpt);
     const productMap = new Map(products.map(p => [p._id.toString(), p]));
@@ -882,18 +893,73 @@ export async function updateOrderItemsService({
       }
     }
 
-    // 7. Construct fresh authoritative item snapshots
+    // 7. Construct fresh authoritative item snapshots with historical price protection
     const previousItems = order.items.map(it => it.toObject());
     const previousSubtotal = order.subtotal;
     const previousDeliveryFee = order.deliveryFee;
     const previousTotalPrice = order.totalPrice;
 
+    // Index existing items to protect historical financial values
+    const previousItemMap = new Map();
+    for (const oldIt of order.items) {
+      const key = `${oldIt.productId.toString()}:${oldIt.colorName.toLowerCase()}:${oldIt.size}`;
+      previousItemMap.set(key, oldIt);
+    }
+
+    const priceChanges = [];
+
     const snapshotItems = consolidatedItems.map(it => {
       const prod = productMap.get(it.productId);
       const colorObj = prod.colors.find(c => c.colorName.toLowerCase() === it.colorName.toLowerCase());
-      const effectiveUnitPrice = (prod.promotion && prod.promotion.active && typeof prod.promotion.promotionalPrice === 'number' && prod.promotion.promotionalPrice > 0 && prod.promotion.promotionalPrice < prod.sellingPrice)
-        ? prod.promotion.promotionalPrice
-        : prod.sellingPrice;
+      const key = `${it.productId}:${it.colorName.toLowerCase()}:${it.size}`;
+      const existingOrderItem = previousItemMap.get(key);
+
+      let unitPrice;
+      let unitCost;
+
+      if (existingOrderItem) {
+        // IMMUTABILITY RULE: An existing item's recorded price is immutable unless explicitly modified
+        if (it.unitPrice !== undefined) {
+          const explicitPrice = Number(it.unitPrice);
+          if (!Number.isInteger(explicitPrice) || explicitPrice <= 0 || !Number.isSafeInteger(explicitPrice)) {
+            const err = new Error(`Explicit unitPrice for "${prod.name}" must be a positive integer in DZD.`);
+            err.statusCode = 400;
+            throw err;
+          }
+          unitPrice = explicitPrice;
+          if (unitPrice !== existingOrderItem.unitPrice) {
+            priceChanges.push({
+              productId: prod._id,
+              productName: prod.name,
+              colorName: colorObj.colorName,
+              size: it.size,
+              previousPrice: existingOrderItem.unitPrice,
+              newPrice: unitPrice
+            });
+          }
+        } else {
+          // Preserve already-recorded historical price
+          unitPrice = existingOrderItem.unitPrice;
+        }
+        unitCost = existingOrderItem.unitCost ?? prod.costPrice;
+      } else {
+        // New item added to order: if explicit unitPrice provided, use it; else use current product effective price
+        if (it.unitPrice !== undefined) {
+          const explicitPrice = Number(it.unitPrice);
+          if (!Number.isInteger(explicitPrice) || explicitPrice <= 0 || !Number.isSafeInteger(explicitPrice)) {
+            const err = new Error(`Explicit unitPrice for "${prod.name}" must be a positive integer in DZD.`);
+            err.statusCode = 400;
+            throw err;
+          }
+          unitPrice = explicitPrice;
+        } else {
+          unitPrice = (prod.promotion && prod.promotion.active && typeof prod.promotion.promotionalPrice === 'number' && prod.promotion.promotionalPrice > 0 && prod.promotion.promotionalPrice < prod.sellingPrice)
+            ? prod.promotion.promotionalPrice
+            : prod.sellingPrice;
+        }
+        unitCost = prod.costPrice;
+      }
+
       return {
         productId: prod._id,
         productName: prod.name,
@@ -901,8 +967,8 @@ export async function updateOrderItemsService({
         colorCode: colorObj.colorCode,
         size: it.size,
         quantity: it.quantity,
-        unitPrice: effectiveUnitPrice,
-        unitCost: prod.costPrice,
+        unitPrice,
+        unitCost,
         image: colorObj.images?.[0] || ''
       };
     });
@@ -954,7 +1020,7 @@ export async function updateOrderItemsService({
       action: 'LINE_ITEMS_UPDATED',
       timestamp: new Date(),
       performedBy: adminUsername,
-      note: `Admin modified order line items. (Subtotal: ${previousSubtotal} -> ${newSubtotal} DZD, Total: ${previousTotalPrice} -> ${newTotalPrice} DZD). ${reason ? `Reason: ${reason.trim()}` : ''}`,
+      note: `Admin modified order line items. (Subtotal: ${previousSubtotal} -> ${newSubtotal} DZD, Total: ${previousTotalPrice} -> ${newTotalPrice} DZD). Reason: ${reason.trim()}`,
       details: {
         previousItems,
         updatedItems: snapshotItems,
@@ -964,7 +1030,8 @@ export async function updateOrderItemsService({
         updatedDeliveryFee: newDeliveryFee,
         previousTotalPrice,
         updatedTotalPrice: newTotalPrice,
-        reason: reason?.trim() || null
+        priceChanges,
+        reason: reason.trim()
       }
     };
 

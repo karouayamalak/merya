@@ -76,7 +76,7 @@ export default function DeliverySettingsManager() {
       });
 
       if (res.success) {
-        setMessage('All 69 Wilayas delivery prices successfully updated in database! All checkout calculations will immediately use these rates.');
+        setMessage('All 58 Wilayas delivery prices successfully updated in database! All checkout calculations will immediately use these rates.');
         if (res.settings && res.settings.wilayaRates) {
           setWilayaRates(res.settings.wilayaRates);
         }
@@ -110,10 +110,10 @@ export default function DeliverySettingsManager() {
     <div style={{ maxWidth: '1000px' }}>
       <div style={{ marginBottom: '2rem' }}>
         <h1 className="heading-display" style={{ fontSize: '1.8rem', color: 'var(--color-espresso)' }}>
-          DELIVERY PRICING PER WILAYA (69 WILAYAS)
+          DELIVERY PRICING PER WILAYA (58 WILAYAS)
         </h1>
         <p style={{ fontSize: '0.85rem', color: '#666', marginTop: '0.2rem' }}>
-          Configure custom Home Delivery and Agency Pickup (Stopdesk) prices for each of the 69 Algerian Wilayas.
+          Configure custom Home Delivery and Agency Pickup (Stopdesk) prices for each of the 58 Algerian Wilayas.
         </p>
       </div>
 
@@ -207,7 +207,7 @@ export default function DeliverySettingsManager() {
           </div>
         </div>
 
-        {/* 69 Wilayas Pricing Table */}
+        {/* 58 Wilayas Pricing Table */}
         <div style={{
           backgroundColor: 'var(--color-surface)',
           borderRadius: 'var(--radius-xl)',

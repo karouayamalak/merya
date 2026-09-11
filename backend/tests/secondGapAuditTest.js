@@ -89,13 +89,13 @@ async function runGapAudit() {
   // ──────────────────────────────────────────────────────────────────────────
   console.log('[Domain 1: Wilaya Shipping & Historical Immutability]');
 
-  // 1a. Verify all 69 Algerian Wilayas exist in constants
-  assert.strictEqual(ALGERIA_WILAYAS.length, 69, 'There must be exactly 69 Algerian Wilayas');
+  // 1a. Verify all 58 Algerian Wilayas exist in constants
+  assert.strictEqual(ALGERIA_WILAYAS.length, 58, 'There must be exactly 58 Algerian Wilayas');
   assert.strictEqual(ALGERIA_WILAYAS[0].code, 1);
-  assert.strictEqual(ALGERIA_WILAYAS[68].code, 69);
-  pass('All 69 Algerian Wilayas correctly defined with French and Arabic names');
+  assert.strictEqual(ALGERIA_WILAYAS[57].code, 58);
+  pass('All 58 Algerian Wilayas correctly defined with French and Arabic names');
 
-  // 1b. Ensure DeliverySetting has rates for all 69 Wilayas with distinct fees
+  // 1b. Ensure DeliverySetting has rates for all 58 Wilayas with distinct fees
   const wilayaRates = ALGERIA_WILAYAS.map(w => ({
     wilayaCode: w.code,
     wilayaName: w.name,
@@ -109,8 +109,8 @@ async function runGapAudit() {
     { agencyDeliveryFee: 500, homeDeliveryFee: 800, freeDeliveryThreshold: 0, wilayaRates },
     { upsert: true, new: true }
   );
-  assert.strictEqual(deliverySetting.wilayaRates.length, 69, 'DeliverySetting must have rates for all 69 Wilayas');
-  pass('DeliverySetting stores distinct home and agency pickup fees for all 69 Wilayas');
+  assert.strictEqual(deliverySetting.wilayaRates.length, 58, 'DeliverySetting must have rates for all 58 Wilayas');
+  pass('DeliverySetting stores distinct home and agency pickup fees for all 58 Wilayas');
 
   // 1c. Test Authoritative Backend Fee Calculation for Wilaya 16 Home (500 DZD)
   const productA = await Product.create({

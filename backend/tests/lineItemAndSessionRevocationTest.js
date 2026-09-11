@@ -434,7 +434,8 @@ async function runAllTests() {
           orderId: order._id.toString(),
           newItems: [{ productId: prodB._id.toString(), colorName: 'Beige', size: 'XL', quantity: 10 }],
           expectedVersion: order.__v,
-          adminUsername: 'AdminTester'
+          adminUsername: 'AdminTester',
+          reason: 'Attempting stock-exceeding swap'
         });
       },
       /Insufficient stock/
@@ -607,7 +608,8 @@ async function runAllTests() {
       orderId: order._id.toString(),
       newItems: [{ productId: prodB._id.toString(), colorName: 'Beige', size: 'Standard', quantity: 2 }],
       expectedVersion: order.__v,
-      adminUsername: 'Admin'
+      adminUsername: 'Admin',
+      reason: 'Customer switch to Khimar for cancellation test'
     });
 
     let pB = await Product.findById(prodB._id);

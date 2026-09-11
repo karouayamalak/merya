@@ -375,7 +375,7 @@ export default function ProductDetail({ product, onBack, onSelectRelated }) {
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.85rem' }}>
                 <Truck size={18} color="var(--color-primary-dark)" />
-                <span>Paiement à la livraison (Cash on Delivery) across all 69 Wilayas.</span>
+                <span>Paiement à la livraison (Cash on Delivery) across all 58 Wilayas.</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.85rem' }}>
                 <ShieldCheck size={18} color="var(--color-primary-dark)" />

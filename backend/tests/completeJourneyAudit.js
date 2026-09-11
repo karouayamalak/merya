@@ -17,11 +17,41 @@
 
 import assert from 'node:assert';
 import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
+import { Admin } from '../src/models/Admin.js';
+import { ROLES } from '../src/config/constants.js';
 
 dotenv.config();
 
 const API_BASE = 'http://localhost:5000/api/v1';
+
+const TEST_ADMIN_EMAIL = process.env.INITIAL_ADMIN_EMAIL || process.env.ADMIN_EMAIL || 'test_admin@example.com';
+const TEST_ADMIN_PASSWORD = process.env.INITIAL_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD || 'test_admin_secure_password';
+
+async function ensureTestAdmin() {
+  const dbUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27018/merya_dz?replicaSet=rs0';
+  if (mongoose.connection.readyState === 0) {
+    await mongoose.connect(dbUri);
+  }
+  let admin = await Admin.findOne({ email: TEST_ADMIN_EMAIL.toLowerCase() });
+  if (!admin) {
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(TEST_ADMIN_PASSWORD, salt);
+    await Admin.create({
+      username: 'Test Admin',
+      email: TEST_ADMIN_EMAIL.toLowerCase(),
+      passwordHash,
+      role: ROLES.OWNER,
+      isActive: true
+    });
+  } else {
+    const salt = await bcrypt.genSalt(10);
+    admin.passwordHash = await bcrypt.hash(TEST_ADMIN_PASSWORD, salt);
+    admin.isActive = true;
+    await admin.save();
+  }
+}
 
 async function runJourneyAudit() {
   console.log('=== RUNNING REAL CUSTOMER JOURNEY MULTI-PATH AUDIT ===\n');
@@ -102,10 +132,11 @@ async function runJourneyAudit() {
 
   // Step 5: Admin Session Login via HttpOnly Cookie & CSRF
   console.log('1.5 Admin logs in & primes CSRF token...');
+  await ensureTestAdmin();
   const loginRes = await fetch(`${API_BASE}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: 'admin@meryadz.com', password: 'MeryaAdmin2026!' })
+    body: JSON.stringify({ email: TEST_ADMIN_EMAIL, password: TEST_ADMIN_PASSWORD })
   });
   const loginData = await loginRes.json();
   assert(loginData.success);

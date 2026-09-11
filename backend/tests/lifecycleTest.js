@@ -50,9 +50,9 @@ async function runLifecycleTests() {
   await mongoose.connect(DB_URI);
   console.log('Connected to MongoDB.');
 
-  // Ensure DeliverySetting exists with all 69 rates
+  // Ensure DeliverySetting exists with all 58 rates
   let ds = await DeliverySetting.findOne();
-  if (!ds || !ds.wilayaRates || ds.wilayaRates.length < 69) {
+  if (!ds || !ds.wilayaRates || ds.wilayaRates.length < 58) {
     const rates = ALGERIA_WILAYAS.map(w => ({
       wilayaCode: w.code,
       wilayaName: w.name,

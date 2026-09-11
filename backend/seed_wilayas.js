@@ -6,7 +6,7 @@ function getDefaultWilayaRates(code) {
   if (code === 16) return { homeFee: 500, agencyFee: 350 };
   if ([9, 35, 42].includes(code)) return { homeFee: 600, agencyFee: 400 };
   if ([31, 25, 19, 15, 6, 23, 13, 27, 2, 5, 18, 21, 22, 24, 26, 29, 34, 43, 44, 46, 48].includes(code)) return { homeFee: 750, agencyFee: 450 };
-  if ([3, 4, 7, 10, 12, 14, 17, 20, 28, 38, 40, 41, 45, 51, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69].includes(code)) return { homeFee: 850, agencyFee: 500 };
+  if ([3, 4, 7, 10, 12, 14, 17, 20, 28, 38, 40, 41, 45, 51].includes(code)) return { homeFee: 850, agencyFee: 500 };
   if ([8, 30, 32, 39, 47, 55, 57, 58].includes(code)) return { homeFee: 1000, agencyFee: 700 };
   return { homeFee: 1400, agencyFee: 900 };
 }

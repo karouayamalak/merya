@@ -80,7 +80,7 @@ async function runTests() {
 
   // Ensure DeliverySetting exists
   let ds = await DeliverySetting.findOne();
-  if (!ds || !ds.wilayaRates || ds.wilayaRates.length < 69) {
+  if (!ds || !ds.wilayaRates || ds.wilayaRates.length < 58) {
     const rates = ALGERIA_WILAYAS.map(w => ({
       wilayaCode: w.code,
       wilayaName: w.name,

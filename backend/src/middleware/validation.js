@@ -26,7 +26,7 @@ export const checkoutOrderSchema = z.object({
     fullName: z.string().min(2, 'Full name is required (min 2 characters)').max(100),
     phone: z.string().min(8, 'Phone number must be at least 8 digits').max(20),
     wilaya: z.object({
-      code: z.number().int().min(1).max(69),
+      code: z.number().int().min(1).max(58),
       name: z.string().min(2)
     }),
     deliveryMethod: z.enum([DELIVERY_METHODS.AGENCY, DELIVERY_METHODS.HOME]),
