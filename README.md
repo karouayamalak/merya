@@ -464,24 +464,43 @@ All endpoints are prefixed with `/api/v1`. 🔒 = requires admin JWT cookie.
 |--------|----------|------|-------------|
 | `POST` | `/upload/image` | 🔒 | Upload image → Sharp WebP conversion → returns URL |
 
-### WebSocket
+### WebSocket Protocol
 
-Connect to `ws://localhost:5000/ws` and subscribe to an order channel:
+Connect to `ws://localhost:5000/ws` (proxied in frontend dev via `/ws`).
+
+#### 1. Customer Order Tracking Subscription
+Customers subscribe to live order updates by sending their `orderCode` along with the matching customer `phone` number for ownership verification:
 
 ```js
 const ws = new WebSocket('ws://localhost:5000/ws');
 
 ws.onopen = () => {
-  ws.send(JSON.stringify({ type: 'subscribe', channel: 'order:MD-5YNYMS' }));
+  ws.send(JSON.stringify({
+    action: 'SUBSCRIBE_ORDER',
+    orderCode: 'MD-5YNYMS',
+    phone: '0555123456'
+  }));
 };
 
 ws.onmessage = ({ data }) => {
-  const { type, status } = JSON.parse(data);
-  if (type === 'ORDER_STATUS_UPDATE') {
-    console.log('New status:', status); // e.g. "On the way"
+  const payload = JSON.parse(data);
+  if (payload.type === 'ORDER_STATUS_UPDATED') {
+    console.log('Order:', payload.orderCode, 'New status:', payload.status);
   }
 };
 ```
+
+#### 2. Admin Live Dashboard Subscription
+Admin clients authenticate automatically during the WebSocket upgrade handshake via HttpOnly session cookies. Once connected, subscribe to all administrative events:
+
+```js
+ws.send(JSON.stringify({ action: 'SUBSCRIBE_ADMIN' }));
+```
+
+Admin broadcasts include:
+- `NEW_ORDER_RECEIVED`: Emitted when any new customer order is placed.
+- `ORDER_STATUS_UPDATED`: Emitted on order status transitions across all orders.
+- `ORDER_UPDATED`: Emitted when an order's items or financial totals are modified.
 
 ---
 
