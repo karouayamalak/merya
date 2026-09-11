@@ -5,6 +5,7 @@ import {
   getOrderByIdAdmin,
   changeOrderStatus,
   updateOrderCustomerDetails,
+  updateOrderItems,
   adjustVariantStock
 } from '../controllers/orderController.js';
 import { authenticateAdmin } from '../middleware/auth.js';
@@ -22,6 +23,7 @@ router.get('/admin', authenticateAdmin, getAllOrdersAdmin);
 router.get('/admin/:id', authenticateAdmin, getOrderByIdAdmin);
 router.patch('/admin/:id/status', authenticateAdmin, verifyCsrf, validate(statusChangeSchema), changeOrderStatus);
 router.put('/admin/:id/customer', authenticateAdmin, verifyCsrf, updateOrderCustomerDetails);
+router.put('/admin/:id/items', authenticateAdmin, verifyCsrf, updateOrderItems);
 router.post('/admin/inventory/adjust', authenticateAdmin, verifyCsrf, adjustVariantStock);
 
 export default router;

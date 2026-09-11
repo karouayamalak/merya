@@ -122,6 +122,10 @@ export const adminUpdateCustomerDetails = (id, customerData) => request(`/orders
   method: 'PUT',
   body: JSON.stringify(customerData)
 });
+export const adminUpdateOrderItems = (id, itemsData) => request(`/orders/admin/${id}/items`, {
+  method: 'PUT',
+  body: JSON.stringify(itemsData)
+});
 export const adminAdjustStock = (productId, colorName, size, newStock) => request('/orders/admin/inventory/adjust', {
   method: 'POST',
   body: JSON.stringify({ productId, colorName, size, newStock })

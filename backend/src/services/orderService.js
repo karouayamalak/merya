@@ -641,3 +641,330 @@ export async function getFinancialAnalytics() {
     unitsSold: deliveredMetrics.unitsSold
   };
 }
+
+/**
+ * Update order line items with full transactional stock adjustment, validation,
+ * financial recalculation, and audit logging.
+ *
+ * @param {Object} params
+ * @param {string} params.orderId - Order ID to edit
+ * @param {Array}  params.newItems - Array of { productId, colorName, size, quantity }
+ * @param {number} [params.expectedVersion] - Expected __v for CAS optimistic locking
+ * @param {string} [params.adminUsername] - Admin user performing the change
+ * @param {string} [params.reason] - Reason for line item edit
+ * @returns {Promise<Order>} Updated order
+ */
+export async function updateOrderItemsService({
+  orderId,
+  newItems,
+  expectedVersion,
+  adminUsername = 'Admin',
+  reason = 'Admin order item modification'
+}) {
+  if (!mongoose.Types.ObjectId.isValid(orderId)) {
+    const err = new Error('Invalid order ID');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  if (!Array.isArray(newItems) || newItems.length === 0) {
+    const err = new Error('Items list must be a non-empty array');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  // Validate item format
+  for (let i = 0; i < newItems.length; i++) {
+    const it = newItems[i];
+    if (!it.productId || !mongoose.Types.ObjectId.isValid(it.productId)) {
+      const err = new Error(`Item ${i + 1}: valid productId is required`);
+      err.statusCode = 400;
+      throw err;
+    }
+    if (!it.colorName || typeof it.colorName !== 'string' || !it.colorName.trim()) {
+      const err = new Error(`Item ${i + 1}: colorName is required`);
+      err.statusCode = 400;
+      throw err;
+    }
+    if (!it.size || typeof it.size !== 'string' || !it.size.trim()) {
+      const err = new Error(`Item ${i + 1}: size is required`);
+      err.statusCode = 400;
+      throw err;
+    }
+    const qty = Number(it.quantity);
+    if (!Number.isInteger(qty) || qty <= 0 || !Number.isSafeInteger(qty)) {
+      const err = new Error(`Item ${i + 1}: quantity must be a positive whole integer`);
+      err.statusCode = 400;
+      throw err;
+    }
+  }
+
+  // Consolidate duplicate variant rows if any
+  const consolidatedMap = new Map();
+  for (const it of newItems) {
+    const key = `${it.productId.toString()}:${it.colorName.trim()}:${it.size.trim()}`;
+    const qty = Number(it.quantity);
+    if (consolidatedMap.has(key)) {
+      const existing = consolidatedMap.get(key);
+      existing.quantity += qty;
+    } else {
+      consolidatedMap.set(key, {
+        productId: it.productId.toString(),
+        colorName: it.colorName.trim(),
+        size: it.size.trim(),
+        quantity: qty
+      });
+    }
+  }
+  const consolidatedItems = Array.from(consolidatedMap.values());
+
+  const updatedOrder = await withTransactionRetry(async (session) => {
+    const sessionOpt = session ? { session } : {};
+
+    // 1. Fetch order inside transaction
+    const order = await Order.findById(orderId, null, sessionOpt);
+    if (!order) {
+      const err = new Error('Order not found');
+      err.statusCode = 404;
+      throw err;
+    }
+
+    // 2. Concurrency check (CAS)
+    if (expectedVersion !== undefined && order.__v !== Number(expectedVersion)) {
+      const err = new Error('CONCURRENT_CONFLICT: Order was modified concurrently. Please refresh and retry.');
+      err.statusCode = 409;
+      err.code = 'CONCURRENT_CONFLICT';
+      throw err;
+    }
+
+    // 3. Status checks
+    if (order.status === ORDER_STATUS.DELIVERED) {
+      const err = new Error('Historical financial values and items cannot be modified on Delivered orders.');
+      err.statusCode = 400;
+      throw err;
+    }
+    if (order.status === ORDER_STATUS.CANCELLED) {
+      const err = new Error('Cannot modify items on a Cancelled order.');
+      err.statusCode = 400;
+      throw err;
+    }
+    if (order.stockRestored === true) {
+      const err = new Error('Order stock is marked as restored; cannot modify active line items.');
+      err.statusCode = 400;
+      throw err;
+    }
+
+    // 4. Validate all requested products and variants exist and are active
+    const uniqueProductIds = [...new Set(consolidatedItems.map(it => it.productId))];
+    const products = await Product.find({ _id: { $in: uniqueProductIds } }, null, sessionOpt);
+    const productMap = new Map(products.map(p => [p._id.toString(), p]));
+
+    for (const it of consolidatedItems) {
+      const prod = productMap.get(it.productId);
+      if (!prod) {
+        const err = new Error(`Product ${it.productId} not found`);
+        err.statusCode = 400;
+        throw err;
+      }
+      if (!prod.isActive || prod.isArchived) {
+        const err = new Error(`Product "${prod.name}" is inactive or archived`);
+        err.statusCode = 400;
+        throw err;
+      }
+      const colorObj = prod.colors?.find(c => c.colorName.toLowerCase() === it.colorName.toLowerCase());
+      if (!colorObj) {
+        const err = new Error(`Color "${it.colorName}" does not exist for product "${prod.name}"`);
+        err.statusCode = 400;
+        throw err;
+      }
+      const sizeObj = colorObj.sizes?.find(s => s.size === it.size);
+      if (!sizeObj) {
+        const err = new Error(`Size "${it.size}" does not exist for color "${it.colorName}" in product "${prod.name}"`);
+        err.statusCode = 400;
+        throw err;
+      }
+    }
+
+    // 5. Calculate net delta per variant:
+    // deltaMap: key -> net quantity change (positive = deduct more stock, negative = release stock)
+    const deltaMap = new Map();
+
+    // Old items currently deducted (release them)
+    for (const oldIt of order.items) {
+      const key = `${oldIt.productId.toString()}:${oldIt.colorName}:${oldIt.size}`;
+      deltaMap.set(key, (deltaMap.get(key) || 0) - oldIt.quantity);
+    }
+
+    // New items to be deducted
+    for (const newIt of consolidatedItems) {
+      const key = `${newIt.productId}:${newIt.colorName}:${newIt.size}`;
+      deltaMap.set(key, (deltaMap.get(key) || 0) + newIt.quantity);
+    }
+
+    // 6. Apply atomic stock modifications
+    for (const [key, netDelta] of deltaMap.entries()) {
+      if (netDelta === 0) continue; // Unchanged variant quantity
+
+      const [pId, cName, sVal] = key.split(':');
+
+      if (netDelta > 0) {
+        // Need to deduct additional netDelta units atomically with conditional $gte
+        const updatedProduct = await Product.findOneAndUpdate(
+          {
+            _id: pId,
+            isActive: true,
+            isArchived: false,
+            colors: {
+              $elemMatch: {
+                colorName: cName,
+                sizes: {
+                  $elemMatch: {
+                    size: sVal,
+                    stock: { $gte: netDelta }
+                  }
+                }
+              }
+            }
+          },
+          {
+            $inc: { 'colors.$[c].sizes.$[s].stock': -netDelta }
+          },
+          {
+            session,
+            new: true,
+            arrayFilters: [
+              { 'c.colorName': cName },
+              { 's.size': sVal }
+            ]
+          }
+        );
+
+        if (!updatedProduct) {
+          const prod = productMap.get(pId) || await Product.findById(pId, null, sessionOpt);
+          const err = new Error(`Insufficient stock for "${prod?.name || pId}" (${cName} - Size ${sVal}). Required additional: ${netDelta}`);
+          err.statusCode = 400;
+          throw err;
+        }
+      } else if (netDelta < 0) {
+        // Need to restore Math.abs(netDelta) units back into stock
+        const restoreUnits = Math.abs(netDelta);
+        const restoredProduct = await Product.findOneAndUpdate(
+          {
+            _id: pId,
+            'colors.colorName': cName,
+            'colors.sizes.size': sVal
+          },
+          {
+            $inc: { 'colors.$[c].sizes.$[s].stock': restoreUnits }
+          },
+          {
+            session,
+            new: true,
+            arrayFilters: [
+              { 'c.colorName': cName },
+              { 's.size': sVal }
+            ]
+          }
+        );
+
+        if (!restoredProduct) {
+          const err = new Error(`Failed to restore inventory for ${cName} - Size ${sVal}`);
+          err.statusCode = 500;
+          throw err;
+        }
+      }
+    }
+
+    // 7. Construct fresh authoritative item snapshots
+    const previousItems = order.items.map(it => it.toObject());
+    const previousSubtotal = order.subtotal;
+    const previousDeliveryFee = order.deliveryFee;
+    const previousTotalPrice = order.totalPrice;
+
+    const snapshotItems = consolidatedItems.map(it => {
+      const prod = productMap.get(it.productId);
+      const colorObj = prod.colors.find(c => c.colorName.toLowerCase() === it.colorName.toLowerCase());
+      return {
+        productId: prod._id,
+        productName: prod.name,
+        colorName: colorObj.colorName,
+        colorCode: colorObj.colorCode,
+        size: it.size,
+        quantity: it.quantity,
+        unitPrice: prod.sellingPrice,
+        unitCost: prod.costPrice,
+        image: colorObj.images?.[0] || ''
+      };
+    });
+
+    const newSubtotal = snapshotItems.reduce((acc, it) => acc + (it.unitPrice * it.quantity), 0);
+
+    // 8. Authoritative delivery fee check (e.g. Free Delivery Threshold)
+    let newDeliveryFee = order.deliveryFee;
+    const deliverySetting = await DeliverySetting.findOne(null, null, sessionOpt);
+    if (deliverySetting?.freeDeliveryThreshold && deliverySetting.freeDeliveryThreshold > 0) {
+      if (newSubtotal >= deliverySetting.freeDeliveryThreshold) {
+        newDeliveryFee = 0;
+      } else if (order.deliveryFee === 0 && previousSubtotal >= deliverySetting.freeDeliveryThreshold) {
+        // Subtotal dropped below free threshold: recalculate authoritative fee
+        const targetCode = order.customer.wilaya?.code;
+        const wilayaRate = deliverySetting.wilayaRates?.find(r => r.wilayaCode === Number(targetCode));
+        const isAgency = order.customer.deliveryMethod === DELIVERY_METHODS.AGENCY;
+        newDeliveryFee = isAgency
+          ? (wilayaRate ? wilayaRate.agencyFee : deliverySetting.agencyDeliveryFee)
+          : (wilayaRate ? wilayaRate.homeFee : deliverySetting.homeDeliveryFee);
+      }
+    }
+
+    const newTotalPrice = newSubtotal + newDeliveryFee;
+
+    // 9. Append audit log
+    const auditEntry = {
+      action: 'LINE_ITEMS_UPDATED',
+      timestamp: new Date(),
+      performedBy: adminUsername,
+      note: `Admin modified order line items. (Subtotal: ${previousSubtotal} -> ${newSubtotal} DZD, Total: ${previousTotalPrice} -> ${newTotalPrice} DZD). ${reason ? `Reason: ${reason.trim()}` : ''}`,
+      details: {
+        previousItems,
+        updatedItems: snapshotItems,
+        previousSubtotal,
+        updatedSubtotal: newSubtotal,
+        previousDeliveryFee,
+        updatedDeliveryFee: newDeliveryFee,
+        previousTotalPrice,
+        updatedTotalPrice: newTotalPrice,
+        reason: reason?.trim() || null
+      }
+    };
+
+    order.items = snapshotItems;
+    order.subtotal = newSubtotal;
+    order.deliveryFee = newDeliveryFee;
+    order.totalPrice = newTotalPrice;
+    order.auditHistory.push(auditEntry);
+
+    try {
+      await order.save({ session });
+    } catch (saveErr) {
+      if (saveErr.name === 'VersionError') {
+        const err = new Error('CONCURRENT_CONFLICT: Order was modified concurrently. Please refresh and retry.');
+        err.statusCode = 409;
+        err.code = 'CONCURRENT_CONFLICT';
+        throw err;
+      }
+      throw saveErr;
+    }
+    return order;
+  });
+
+  // 10. Broadcast real-time notifications
+  try {
+    if (updatedOrder?.orderCode && typeof wsService.broadcastOrderUpdate === 'function') {
+      wsService.broadcastOrderUpdate(updatedOrder.orderCode, updatedOrder);
+    }
+  } catch (wsErr) {
+    console.warn('[OrderService] Non-critical WS notification failed:', wsErr.message);
+  }
+
+  return updatedOrder;
+}

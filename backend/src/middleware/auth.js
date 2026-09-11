@@ -23,6 +23,13 @@ export const authenticateAdmin = async (req, res, next) => {
       return res.status(401).json({ success: false, message: 'Invalid session or account inactive' });
     }
 
+    // Enforce instantaneous session revocation on logout
+    const tokenVersion = decoded.sessionVersion !== undefined ? decoded.sessionVersion : 1;
+    const currentVersion = admin.sessionVersion !== undefined ? admin.sessionVersion : 1;
+    if (tokenVersion !== currentVersion) {
+      return res.status(401).json({ success: false, message: 'Session revoked. Please log in again.' });
+    }
+
     req.admin = admin;
     next();
   } catch (error) {

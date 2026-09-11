@@ -6,21 +6,30 @@ import { Category } from '../src/models/Category.js';
 dotenv.config();
 
 const BASE = 'http://localhost:5000/api/v1';
-let adminToken, testProductId;
+let adminCookies = '';
+let csrfToken = '';
+let testProductId;
 const testColorName = 'Noir';
 const testSizeName = 'M';
 
-async function req(method, path, body, token) {
+/**
+ * Helper: make an authenticated admin HTTP request using cookie + CSRF.
+ * Safe methods (GET) do not send CSRF token.
+ */
+async function req(method, path, body, cookies, csrf) {
+  const isMutating = !['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase());
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(cookies ? { Cookie: cookies } : {}),
+    ...(isMutating && csrf ? { 'X-CSRF-Token': csrf } : {})
+  };
   const res = await fetch(BASE + path, {
     method,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { 'Authorization': 'Bearer ' + token } : {})
-    },
+    headers,
     body: body ? JSON.stringify(body) : undefined
   });
   const json = await res.json().catch(() => ({}));
-  return { status: res.status, body: json };
+  return { status: res.status, headers: res.headers, body: json };
 }
 
 function pass(msg) { console.log('  ✓ ' + msg); }
@@ -31,13 +40,41 @@ async function connect() {
   console.log('Connected to MongoDB.');
 }
 
+/**
+ * Login via HTTP (cookie-based), then fetch CSRF token.
+ * Returns { adminCookies, csrfToken }.
+ */
 async function adminLogin() {
-  const r = await req('POST', '/auth/login', {
-    email: process.env.INITIAL_ADMIN_EMAIL,
-    password: process.env.INITIAL_ADMIN_PASSWORD
+  const loginRes = await fetch(`${BASE}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      email: process.env.INITIAL_ADMIN_EMAIL,
+      password: process.env.INITIAL_ADMIN_PASSWORD
+    })
   });
-  if (r.status !== 200) throw new Error('Admin login failed: ' + JSON.stringify(r.body));
-  adminToken = r.body.token;
+  if (loginRes.status !== 200) throw new Error('Admin login failed: ' + loginRes.status);
+
+  const setCookieRaw = loginRes.headers.get('set-cookie') || '';
+  const tokenMatch = setCookieRaw.match(/token=([^;]+)/);
+  if (!tokenMatch) throw new Error('No token cookie in login response');
+  const tokenCookiePart = tokenMatch[0]; // "token=<value>"
+
+  // Fetch CSRF token
+  const csrfRes = await fetch(`${BASE}/auth/csrf-token`, {
+    headers: { Cookie: tokenCookiePart }
+  });
+  if (csrfRes.status !== 200) throw new Error('CSRF token fetch failed: ' + csrfRes.status);
+  const csrfData = await csrfRes.json();
+  const csrf = csrfData.csrfToken;
+  const csrfCookieRaw = csrfRes.headers.get('set-cookie') || '';
+  const csrfCookieMatch = csrfCookieRaw.match(/csrf_token=([^;]+)/);
+  const csrfCookiePart = csrfCookieMatch ? csrfCookieMatch[0] : `csrf_token=${csrf}`;
+
+  return {
+    adminCookies: `${tokenCookiePart}; ${csrfCookiePart}`,
+    csrfToken: csrf
+  };
 }
 
 async function ensureCategory() {
@@ -66,7 +103,7 @@ async function test1_createProductStripsStock() {
       images: ['https://example.com/img.jpg'],
       sizes: [{ size: testSizeName, stock: 50 }, { size: 'L', stock: 99 }]
     }]
-  }, adminToken);
+  }, adminCookies, csrfToken);
   if (r.status !== 201) { fail('Expected 201, got ' + r.status + ': ' + JSON.stringify(r.body)); return; }
   testProductId = r.body.product._id;
   const colorObj = r.body.product.colors && r.body.product.colors.find(c => c.colorName === testColorName);
@@ -83,7 +120,7 @@ async function test2_adjustVariantStock() {
   const r = await req('POST', '/orders/admin/inventory/adjust', {
     productId: testProductId, colorName: testColorName, size: testSizeName,
     newStock: 50, reason: 'Initial stock setup after product creation'
-  }, adminToken);
+  }, adminCookies, csrfToken);
   if (r.status !== 200) { fail('Expected 200, got ' + r.status + ': ' + JSON.stringify(r.body)); return; }
   const adj = r.body.adjustment;
   (adj && adj.previousStock === 0) ? pass('previousStock=0') : fail('previousStock=' + (adj && adj.previousStock));
@@ -103,11 +140,11 @@ async function test3_concurrentAdminAdjustments() {
   await req('POST', '/orders/admin/inventory/adjust', {
     productId: testProductId, colorName: testColorName, size: testSizeName,
     newStock: 10, reason: 'Baseline'
-  }, adminToken);
+  }, adminCookies, csrfToken);
 
   const [rA, rB] = await Promise.all([
-    req('POST', '/orders/admin/inventory/adjust', { productId: testProductId, colorName: testColorName, size: testSizeName, newStock: 15, reason: 'Admin A' }, adminToken),
-    req('POST', '/orders/admin/inventory/adjust', { productId: testProductId, colorName: testColorName, size: testSizeName, newStock: 8,  reason: 'Admin B' }, adminToken)
+    req('POST', '/orders/admin/inventory/adjust', { productId: testProductId, colorName: testColorName, size: testSizeName, newStock: 15, reason: 'Admin A' }, adminCookies, csrfToken),
+    req('POST', '/orders/admin/inventory/adjust', { productId: testProductId, colorName: testColorName, size: testSizeName, newStock: 8,  reason: 'Admin B' }, adminCookies, csrfToken)
   ]);
 
   console.log('  Admin A -> status=' + rA.status + ' newStock=' + (rA.body.adjustment && rA.body.adjustment.newStock));
@@ -138,7 +175,9 @@ async function test3_concurrentAdminAdjustments() {
 (async () => {
   try {
     await connect();
-    await adminLogin();
+    const auth = await adminLogin();
+    adminCookies = auth.adminCookies;
+    csrfToken = auth.csrfToken;
     await test1_createProductStripsStock();
     await test2_adjustVariantStock();
     await test3_concurrentAdminAdjustments();

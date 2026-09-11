@@ -35,6 +35,9 @@ describe('MERYA DZ Core Business Logic & Inventory Integrity', () => {
       console.warn('[businessLogic.test] To run all tests, use a MongoDB Atlas URI or local replica set (MONGODB_URI=...).');
     }
 
+    // Ensure clean delivery settings for fee assertion
+    await DeliverySetting.updateOne({}, { $set: { freeDeliveryThreshold: 0 } });
+
     // Create a clean test category and product
     testCategory = await Category.create({
       name: 'Test Category',

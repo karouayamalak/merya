@@ -20,13 +20,17 @@ import {
   ShoppingBag,
   Save,
   Check,
-  RefreshCw
+  RefreshCw,
+  Plus,
+  Trash2
 } from 'lucide-react';
 import {
   adminGetOrders,
   adminGetOrderById,
   adminUpdateOrderStatus,
   adminUpdateCustomerDetails,
+  adminUpdateOrderItems,
+  adminGetProducts,
   fetchDeliverySettings
 } from '../../services/api';
 
@@ -70,6 +74,14 @@ export default function OrdersManager() {
   const [isFeeOverridden, setIsFeeOverridden] = useState(false);
   const [editOverrideReason, setEditOverrideReason] = useState('');
   const [editNotes, setEditNotes] = useState('');
+
+  // Line item editing state
+  const [editItemsOpen, setEditItemsOpen] = useState(false);
+  const [editItemsList, setEditItemsList] = useState([]);
+  const [editItemsReason, setEditItemsReason] = useState('');
+  const [availableProducts, setAvailableProducts] = useState([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [itemsActionLoading, setItemsActionLoading] = useState(false);
 
   // Load orders
   const loadOrders = async () => {
@@ -253,6 +265,83 @@ export default function OrdersManager() {
       alert(err.message || 'Failed to update order details');
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  // Line item editing handlers
+  const handleOpenEditItems = async () => {
+    if (!activeOrder) return;
+    if (activeOrder.status === 'Delivered' || activeOrder.status === 'Cancelled') {
+      alert('Items cannot be modified on Delivered or Cancelled orders.');
+      return;
+    }
+    setEditItemsOpen(true);
+    setEditItemsReason('');
+    setEditItemsList(activeOrder.items.map(item => ({
+      productId: item.productId?._id || item.productId,
+      productName: item.productName,
+      colorName: item.colorName,
+      size: item.size,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice
+    })));
+
+    if (availableProducts.length === 0) {
+      setLoadingProducts(true);
+      try {
+        const res = await adminGetProducts();
+        if (res.success) {
+          setAvailableProducts(res.products || []);
+        }
+      } catch (err) {
+        console.error('Failed to load products for editing:', err);
+      } finally {
+        setLoadingProducts(false);
+      }
+    }
+  };
+
+  const handleSaveItems = async (e) => {
+    e.preventDefault();
+    if (!activeOrder) return;
+    if (editItemsList.length === 0) {
+      alert('Order must contain at least one item.');
+      return;
+    }
+
+    const ok = window.confirm('Are you sure you want to save these item changes? Inventory will be atomically adjusted in the database.');
+    if (!ok) return;
+
+    setItemsActionLoading(true);
+    setFeedback('');
+    try {
+      const payload = {
+        items: editItemsList.map(it => ({
+          productId: it.productId,
+          colorName: it.colorName,
+          size: it.size,
+          quantity: Number(it.quantity)
+        })),
+        expectedVersion: activeOrder.__v,
+        reason: editItemsReason.trim() || 'Admin order item modification'
+      };
+
+      const res = await adminUpdateOrderItems(activeOrder._id, payload);
+      if (res.success) {
+        setActiveOrder(res.order);
+        setEditItemsOpen(false);
+        setFeedback('Order line items updated and inventory atomically adjusted!');
+        loadOrders();
+      }
+    } catch (err) {
+      if (err.code === 'CONCURRENT_CONFLICT' || err.message?.includes('CONCURRENT_CONFLICT')) {
+        alert('CONCURRENT_CONFLICT: The order was updated concurrently. Refreshing details...');
+        openOrderDetails(activeOrder._id);
+      } else {
+        alert(err.message || 'Failed to update order items');
+      }
+    } finally {
+      setItemsActionLoading(false);
     }
   };
 
@@ -798,26 +887,227 @@ export default function OrdersManager() {
               )}
             </div>
 
-            {/* Items Snapshot */}
+            {/* Items Snapshot & Editor */}
             <div style={{ marginBottom: '1.5rem' }}>
-              <h4 style={{ fontSize: '0.85rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.75rem', color: 'var(--color-espresso)' }}>
-                Order Items Snapshot
-              </h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                {activeOrder.items.map((item, idx) => (
-                  <div key={idx} style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', backgroundColor: 'var(--color-bg-base)', padding: '0.6rem 0.85rem', borderRadius: 'var(--radius-md)' }}>
-                    <img src={item.image} alt="" style={{ width: '40px', height: '52px', objectFit: 'cover', borderRadius: '4px' }} />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: '700', fontSize: '0.88rem' }}>{item.productName}</div>
-                      <div style={{ fontSize: '0.78rem', color: '#666' }}>Color: {item.colorName} • Size: {item.size} • Qty: {item.quantity}</div>
-                    </div>
-                    <div style={{ textAlign: 'right', fontSize: '0.88rem' }}>
-                      <div style={{ fontWeight: '700' }}>{(item.unitPrice * item.quantity).toLocaleString()} DZD</div>
-                      <div style={{ fontSize: '0.72rem', color: '#888' }}>Cost: {(item.unitCost * item.quantity).toLocaleString()} DZD</div>
-                    </div>
-                  </div>
-                ))}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                <h4 style={{ fontSize: '0.85rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em', margin: 0, color: 'var(--color-espresso)' }}>
+                  Order Items Snapshot
+                </h4>
+                {activeOrder.status !== 'Delivered' && activeOrder.status !== 'Cancelled' && (
+                  <button
+                    type="button"
+                    onClick={() => editItemsOpen ? setEditItemsOpen(false) : handleOpenEditItems()}
+                    className="btn btn-secondary btn-sm"
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem', padding: '0.3rem 0.6rem' }}
+                  >
+                    <Edit2 size={12} />
+                    <span>{editItemsOpen ? 'Cancel Edit' : 'Edit Items'}</span>
+                  </button>
+                )}
               </div>
+
+              {editItemsOpen ? (
+                <form onSubmit={handleSaveItems} style={{ backgroundColor: '#FBF9F6', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', marginBottom: '1rem' }}>
+                  {loadingProducts ? (
+                    <div style={{ padding: '1rem', textAlign: 'center', fontSize: '0.85rem', color: '#666' }}>
+                      <Loader2 size={18} className="animate-spin" style={{ display: 'inline', marginRight: '0.5rem' }} />
+                      Loading product catalog...
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                      {editItemsList.map((item, idx) => {
+                        const currentProd = availableProducts.find(p => p._id === item.productId) || availableProducts[0];
+                        const availableColors = currentProd?.colors || [];
+                        const currentColor = availableColors.find(c => c.colorName.toLowerCase() === item.colorName?.toLowerCase()) || availableColors[0];
+                        const availableSizes = currentColor?.sizes || [];
+                        const currentSizeObj = availableSizes.find(s => s.size === item.size);
+                        const availableStock = currentSizeObj ? currentSizeObj.stock : 0;
+
+                        return (
+                          <div key={idx} style={{ backgroundColor: '#FFF', padding: '0.75rem', borderRadius: '6px', border: '1px solid #E0DCD6' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                              <span style={{ fontSize: '0.78rem', fontWeight: '700', color: 'var(--color-espresso)' }}>Line Item #{idx + 1}</span>
+                              {editItemsList.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setEditItemsList(prev => prev.filter((_, i) => i !== idx))}
+                                  style={{ color: '#D32F2F', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.72rem' }}
+                                >
+                                  <Trash2 size={12} />
+                                  <span>Remove</span>
+                                </button>
+                              )}
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: '0.5rem' }}>
+                              {/* Product Select */}
+                              <div>
+                                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', marginBottom: '0.2rem' }}>Product</label>
+                                <select
+                                  value={item.productId}
+                                  onChange={(e) => {
+                                    const newPId = e.target.value;
+                                    const pObj = availableProducts.find(p => p._id === newPId);
+                                    const firstColor = pObj?.colors?.[0];
+                                    const firstSize = firstColor?.sizes?.[0];
+                                    setEditItemsList(prev => prev.map((it, i) => i === idx ? {
+                                      ...it,
+                                      productId: newPId,
+                                      productName: pObj?.name || '',
+                                      colorName: firstColor?.colorName || '',
+                                      size: firstSize?.size || 'M',
+                                      unitPrice: pObj?.sellingPrice || 0
+                                    } : it));
+                                  }}
+                                  style={{ width: '100%', padding: '0.45rem', fontSize: '0.8rem', borderRadius: '4px', border: '1px solid var(--color-border)' }}
+                                >
+                                  {availableProducts.filter(p => p.isActive && !p.isArchived).map(p => (
+                                    <option key={p._id} value={p._id}>{p.name} ({p.sellingPrice.toLocaleString()} DZD)</option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              {/* Color Select */}
+                              <div>
+                                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', marginBottom: '0.2rem' }}>Color</label>
+                                <select
+                                  value={item.colorName}
+                                  onChange={(e) => {
+                                    const newCol = e.target.value;
+                                    const cObj = availableColors.find(c => c.colorName === newCol);
+                                    const firstSize = cObj?.sizes?.[0];
+                                    setEditItemsList(prev => prev.map((it, i) => i === idx ? {
+                                      ...it,
+                                      colorName: newCol,
+                                      size: firstSize?.size || it.size
+                                    } : it));
+                                  }}
+                                  style={{ width: '100%', padding: '0.45rem', fontSize: '0.8rem', borderRadius: '4px', border: '1px solid var(--color-border)' }}
+                                >
+                                  {availableColors.map((c, cIdx) => (
+                                    <option key={cIdx} value={c.colorName}>{c.colorName}</option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              {/* Size Select */}
+                              <div>
+                                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', marginBottom: '0.2rem' }}>
+                                  Size <span style={{ color: availableStock > 0 ? '#2E7D32' : '#C62828', fontSize: '0.68rem' }}>({availableStock} in stock)</span>
+                                </label>
+                                <select
+                                  value={item.size}
+                                  onChange={(e) => {
+                                    const newSz = e.target.value;
+                                    setEditItemsList(prev => prev.map((it, i) => i === idx ? { ...it, size: newSz } : it));
+                                  }}
+                                  style={{ width: '100%', padding: '0.45rem', fontSize: '0.8rem', borderRadius: '4px', border: '1px solid var(--color-border)' }}
+                                >
+                                  {availableSizes.map((s, sIdx) => (
+                                    <option key={sIdx} value={s.size}>{s.size} ({s.stock} avail)</option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              {/* Quantity Input */}
+                              <div>
+                                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', marginBottom: '0.2rem' }}>Quantity</label>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  step="1"
+                                  required
+                                  value={item.quantity}
+                                  onChange={(e) => {
+                                    const val = Math.max(1, parseInt(e.target.value) || 1);
+                                    setEditItemsList(prev => prev.map((it, i) => i === idx ? { ...it, quantity: val } : it));
+                                  }}
+                                  style={{ width: '100%', padding: '0.45rem', fontSize: '0.8rem', borderRadius: '4px', border: '1px solid var(--color-border)' }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      <div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (availableProducts.length > 0) {
+                              const p = availableProducts[0];
+                              const c = p.colors?.[0];
+                              const s = c?.sizes?.[0];
+                              setEditItemsList(prev => [
+                                ...prev,
+                                {
+                                  productId: p._id,
+                                  productName: p.name,
+                                  colorName: c?.colorName || '',
+                                  size: s?.size || 'M',
+                                  quantity: 1,
+                                  unitPrice: p.sellingPrice || 0
+                                }
+                              ]);
+                            }
+                          }}
+                          className="btn btn-secondary btn-sm"
+                          style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem' }}
+                        >
+                          <Plus size={12} />
+                          <span>Add Another Item</span>
+                        </button>
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '0.2rem' }}>Modification Reason</label>
+                        <input
+                          type="text"
+                          value={editItemsReason}
+                          onChange={(e) => setEditItemsReason(e.target.value)}
+                          placeholder="e.g. Customer called to swap size from M to L..."
+                          style={{ width: '100%', padding: '0.45rem', fontSize: '0.8rem', borderRadius: '4px', border: '1px solid var(--color-border)' }}
+                        />
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
+                        <button
+                          type="button"
+                          onClick={() => setEditItemsOpen(false)}
+                          className="btn btn-secondary btn-sm"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={itemsActionLoading}
+                          className="btn btn-primary btn-sm"
+                          style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+                        >
+                          {itemsActionLoading ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                          <span>Save Line Items</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </form>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {activeOrder.items.map((item, idx) => (
+                    <div key={idx} style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', backgroundColor: 'var(--color-bg-base)', padding: '0.6rem 0.85rem', borderRadius: 'var(--radius-md)' }}>
+                      <img src={item.image} alt="" style={{ width: '40px', height: '52px', objectFit: 'cover', borderRadius: '4px' }} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: '700', fontSize: '0.88rem' }}>{item.productName}</div>
+                        <div style={{ fontSize: '0.78rem', color: '#666' }}>Color: {item.colorName} • Size: {item.size} • Qty: {item.quantity}</div>
+                      </div>
+                      <div style={{ textAlign: 'right', fontSize: '0.88rem' }}>
+                        <div style={{ fontWeight: '700' }}>{(item.unitPrice * item.quantity).toLocaleString()} DZD</div>
+                        <div style={{ fontSize: '0.72rem', color: '#888' }}>Cost: {(item.unitCost * item.quantity).toLocaleString()} DZD</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <div style={{
                 display: 'flex',

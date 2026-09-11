@@ -24,7 +24,12 @@ export const login = async (req, res, next) => {
     }
 
     const token = jwt.sign(
-      { id: admin._id, role: admin.role, username: admin.username },
+      {
+        id: admin._id,
+        role: admin.role,
+        username: admin.username,
+        sessionVersion: admin.sessionVersion !== undefined ? admin.sessionVersion : 1
+      },
       secret,
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
@@ -57,15 +62,32 @@ export const login = async (req, res, next) => {
   }
 };
 
-export const logout = (req, res) => {
-  const isProduction = process.env.NODE_ENV === 'production';
-  const sameSite = isProduction ? (process.env.COOKIE_SAME_SITE || 'none') : 'lax';
-  res.clearCookie('token', {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite
-  });
-  res.json({ success: true, message: 'Logged out successfully' });
+export const logout = async (req, res, next) => {
+  try {
+    // Increment admin sessionVersion in DB so any previously issued JWT is immediately revoked server-side
+    const token = req.cookies?.token;
+    if (token && process.env.JWT_SECRET) {
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        if (decoded?.id) {
+          await Admin.findByIdAndUpdate(decoded.id, { $inc: { sessionVersion: 1 } });
+        }
+      } catch {
+        // Token already invalid or expired; proceed with cookie clearing
+      }
+    }
+
+    const isProduction = process.env.NODE_ENV === 'production';
+    const sameSite = isProduction ? (process.env.COOKIE_SAME_SITE || 'none') : 'lax';
+    res.clearCookie('token', {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite
+    });
+    res.json({ success: true, message: 'Logged out successfully' });
+  } catch (err) {
+    next(err);
+  }
 };
 
 export const getMe = (req, res) => {

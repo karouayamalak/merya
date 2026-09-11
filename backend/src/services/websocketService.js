@@ -46,7 +46,9 @@ class WebSocketService {
             if (secret) {
               const decoded = jwt.verify(token, secret);
               const admin = await Admin.findById(decoded.id).select('-passwordHash');
-              if (admin && admin.isActive && (admin.role === 'admin' || admin.role === 'owner')) {
+              const tokenVersion = decoded.sessionVersion !== undefined ? decoded.sessionVersion : 1;
+              const currentVersion = admin?.sessionVersion !== undefined ? admin.sessionVersion : 1;
+              if (admin && admin.isActive && tokenVersion === currentVersion && (admin.role === 'admin' || admin.role === 'owner')) {
                 ws._adminIdentity = admin;
               }
             }
@@ -260,6 +262,43 @@ class WebSocketService {
         } catch (err) {
           // Non-fatal: order is already saved. Log and clean up dead socket.
           console.warn('[WebSocket] broadcastNewOrder send error (non-fatal):', err.message);
+          this.cleanupClient(ws);
+        }
+      }
+    });
+  }
+
+  broadcastOrderUpdate(orderCode, order) {
+    const code = orderCode.trim().toUpperCase();
+    const payload = JSON.stringify({
+      type: 'ORDER_UPDATED',
+      orderCode: code,
+      status: order.status,
+      totalPrice: order.totalPrice,
+      subtotal: order.subtotal,
+      deliveryFee: order.deliveryFee,
+      itemsCount: order.items?.length || 0,
+      timestamp: new Date().toISOString()
+    });
+
+    const clients = this.orderSubscriptions.get(code);
+    if (clients) {
+      clients.forEach((ws) => {
+        if (ws.readyState === WebSocket.OPEN) {
+          try {
+            ws.send(payload);
+          } catch (err) {
+            this.cleanupClient(ws);
+          }
+        }
+      });
+    }
+
+    this.adminClients.forEach((ws) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        try {
+          ws.send(payload);
+        } catch (err) {
           this.cleanupClient(ws);
         }
       }
