@@ -171,6 +171,85 @@ async function runAuditTests() {
     fail('Concurrent conflict audit record creation', err);
   }
 
+  // ── TEST 4: Transaction abort leaves stock unchanged and creates zero audit records ──
+  console.log('\n── Test 4: Transaction abort rolls back stock change and creates zero audit ──');
+  try {
+    const prodBefore = await Product.findById(productId);
+    const stockSBefore = prodBefore.colors[0].sizes.find(s => s.size === 'S').stock;
+    const auditsBefore = await InventoryAdjustment.countDocuments({ productId, size: 'S' });
+
+    // Temporarily monkey-patch InventoryAdjustment.create to simulate failure during audit persistence
+    const origCreate = InventoryAdjustment.create;
+    InventoryAdjustment.create = async () => {
+      throw new Error('SIMULATED_DISK_WRITE_FAILURE_DURING_AUDIT');
+    };
+
+    await assert.rejects(
+      async () => {
+        await setStockAtomic(productId, 'Rouge', 'S', 99, 'FailingAdmin', 'Should fail and abort');
+      },
+      /SIMULATED_DISK_WRITE_FAILURE_DURING_AUDIT/
+    );
+
+    // Restore original create method
+    InventoryAdjustment.create = origCreate;
+
+    // Verify DB stock was NOT updated to 99 (rolled back by abortTransaction)
+    const prodAfter = await Product.findById(productId);
+    const stockSAfter = prodAfter.colors[0].sizes.find(s => s.size === 'S').stock;
+    assert.strictEqual(stockSAfter, stockSBefore, 'Stock must remain unchanged after transaction abort');
+
+    const auditsAfter = await InventoryAdjustment.countDocuments({ productId, size: 'S' });
+    assert.strictEqual(auditsAfter, auditsBefore, 'Audit count must remain unchanged after transaction abort');
+
+    pass('Transaction abort completely rolled back stock mutation and persisted zero audit records');
+  } catch (err) {
+    fail('Transaction abort rollback', err);
+  }
+
+  // ── TEST 5: Fail-closed requirement: Reject without transactions (no stock mod, no audit) ──
+  console.log('\n── Test 5: Fail-closed when transactions unavailable ──');
+  try {
+    const { setTransactionSupportOverride, resetTransactionSupportCache } = await import('../src/utils/transactionRetry.js');
+    
+    // Read baseline stock and audit count
+    const prodBefore = await Product.findById(productId);
+    const stockMBefore = prodBefore.colors[0].sizes.find(s => s.size === 'M').stock;
+    const auditsMBefore = await InventoryAdjustment.countDocuments({ productId, size: 'M' });
+
+    // Simulate transaction support unavailable on MongoDB deployment
+    setTransactionSupportOverride(false);
+
+    try {
+      // Attempt inventory adjustment - MUST fail closed with TRANSACTION_UNAVAILABLE
+      await assert.rejects(
+        async () => {
+          await setStockAtomic(productId, 'Rouge', 'M', 75, 'OfflineAdmin', 'Should reject when tx unavailable');
+        },
+        (err) => {
+          return err.code === 'TRANSACTION_UNAVAILABLE' || err.message?.includes('TRANSACTION_UNAVAILABLE');
+        }
+      );
+
+      // Verify that database was completely untouched:
+      // 1. Stock remains unchanged
+      const prodAfter = await Product.findById(productId);
+      const stockMAfter = prodAfter.colors[0].sizes.find(s => s.size === 'M').stock;
+      assert.strictEqual(stockMAfter, stockMBefore, 'Stock must remain unchanged when transactions are unavailable');
+
+      // 2. Zero audit records were created
+      const auditsMAfter = await InventoryAdjustment.countDocuments({ productId, size: 'M' });
+      assert.strictEqual(auditsMAfter, auditsMBefore, 'Zero audit records must be created when transactions are unavailable');
+
+      pass('Authoritative inventory endpoint fails closed: rejects with TRANSACTION_UNAVAILABLE, zero stock change, zero audit');
+    } finally {
+      // Restore cached transaction support
+      resetTransactionSupportCache();
+    }
+  } catch (err) {
+    fail('Fail-closed inventory requirement', err);
+  }
+
   // Clean up
   await InventoryAdjustment.deleteMany({ productId });
   await Product.deleteOne({ _id: productId });

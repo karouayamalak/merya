@@ -1,12 +1,41 @@
 import mongoose from 'mongoose';
 
 /**
- * Checks whether an error represents a retryable MongoDB transaction failure:
- * - TransientTransactionError
+ * Checks whether an error represents an uncertain commit outcome:
  * - UnknownTransactionCommitResult
+ *
+ * When this error occurs, the commit was sent to the server and may have
+ * already committed. The client MUST NOT restart or re-execute the business
+ * operation, as doing so would cause duplicate mutations.
+ *
+ * @param {Error} err
+ * @returns {boolean}
+ */
+export function isUnknownCommitResult(err) {
+  if (!err) return false;
+
+  if (typeof err.hasErrorLabel === 'function' && err.hasErrorLabel('UnknownTransactionCommitResult')) {
+    return true;
+  }
+  if (Array.isArray(err.errorLabels) && err.errorLabels.includes('UnknownTransactionCommitResult')) {
+    return true;
+  }
+  if (err.errorLabelSet && typeof err.errorLabelSet.has === 'function' && err.errorLabelSet.has('UnknownTransactionCommitResult')) {
+    return true;
+  }
+  const msg = (err.message || '').toLowerCase();
+  return msg.includes('unknowntransactioncommitresult');
+}
+
+/**
+ * Checks whether an error represents a genuine retryable MongoDB transaction failure:
+ * - TransientTransactionError
  * - Transient write conflicts (code 112 WriteConflict)
  * - Lock acquisition timeouts (code 24 LockTimeout)
  * - NoSuchTransaction (code 251)
+ *
+ * IMPORTANT: UnknownTransactionCommitResult is specifically EXCLUDED from this check.
+ * An uncertain commit result must NEVER trigger a full business operation retry.
  *
  * @param {Error} err
  * @returns {boolean}
@@ -14,21 +43,28 @@ import mongoose from 'mongoose';
 export function isTransientTransactionError(err) {
   if (!err) return false;
 
+  // UnknownTransactionCommitResult is an UNCERTAIN COMMIT status, NOT a transient
+  // execution error. Blindly re-running workFn on UnknownTransactionCommitResult
+  // would cause duplicate orders, double inventory deductions, or duplicate audits.
+  if (isUnknownCommitResult(err)) {
+    return false;
+  }
+
   // 1. Check MongoDB driver error labels
   if (typeof err.hasErrorLabel === 'function') {
-    if (err.hasErrorLabel('TransientTransactionError') || err.hasErrorLabel('UnknownTransactionCommitResult')) {
+    if (err.hasErrorLabel('TransientTransactionError')) {
       return true;
     }
   }
 
   if (Array.isArray(err.errorLabels)) {
-    if (err.errorLabels.includes('TransientTransactionError') || err.errorLabels.includes('UnknownTransactionCommitResult')) {
+    if (err.errorLabels.includes('TransientTransactionError')) {
       return true;
     }
   }
 
   if (err.errorLabelSet && typeof err.errorLabelSet.has === 'function') {
-    if (err.errorLabelSet.has('TransientTransactionError') || err.errorLabelSet.has('UnknownTransactionCommitResult')) {
+    if (err.errorLabelSet.has('TransientTransactionError')) {
       return true;
     }
   }
@@ -49,7 +85,6 @@ export function isTransientTransactionError(err) {
     msg.includes('writeconflict') ||
     msg.includes('locktimeout') ||
     msg.includes('transienttransactionerror') ||
-    msg.includes('unknowntransactioncommitresult') ||
     msg.includes('unable to acquire ix lock') ||
     msg.includes('due to catalog changes')
   ) {
@@ -91,7 +126,24 @@ export function resetTransactionSupportCache() {
 }
 
 /**
+ * Manually overrides transaction support status (useful for deterministic tests of fail-closed behavior).
+ *
+ * @param {boolean|null} value
+ */
+export function setTransactionSupportOverride(value) {
+  cachedSupportsTransactions = value;
+}
+
+/**
  * Executes an operation inside a MongoDB transaction with bounded, safe retry logic.
+ *
+ * Uses session.withTransaction() as the primary engine:
+ * - MongoDB driver handles commit uncertainty (UnknownTransactionCommitResult) by
+ *   retrying commitTransaction() without re-running workFn.
+ * - Genuine TransientTransactionError conditions trigger a clean, bounded retry.
+ * - UnknownTransactionCommitResult that bubbles out is NEVER blindly retried at
+ *   the business operation level.
+ * - Standalone fallback is fail-closed by default (allowStandaloneFallback: false).
  *
  * @param {Function} workFn - async (session, attempt) => result
  * @param {Object} [options]
@@ -99,7 +151,7 @@ export function resetTransactionSupportCache() {
  * @param {number} [options.initialDelayMs=20] - Initial delay before retry (ms)
  * @param {number} [options.maxDelayMs=300] - Maximum delay before retry (ms)
  * @param {mongoose.ClientSession} [options.session] - Optional pre-existing session
- * @param {boolean} [options.allowStandaloneFallback=true] - Fall back to non-transactional execution if standalone
+ * @param {boolean} [options.allowStandaloneFallback=false] - Fall back to non-transactional execution if standalone
  * @returns {Promise<any>} Result returned by workFn
  */
 export async function withTransactionRetry(workFn, options = {}) {
@@ -108,14 +160,21 @@ export async function withTransactionRetry(workFn, options = {}) {
     initialDelayMs = 20,
     maxDelayMs = 300,
     session: existingSession = null,
-    allowStandaloneFallback = true
+    allowStandaloneFallback = false
   } = options;
 
   const canUseTx = await supportsTransactions();
 
-  if (!canUseTx && allowStandaloneFallback) {
-    // Standalone MongoDB does not support multi-document transactions
-    return await workFn(null, 1);
+  if (!canUseTx) {
+    if (allowStandaloneFallback) {
+      // Standalone MongoDB fallback only when explicitly permitted by caller (e.g. read-only or legacy tests)
+      return await workFn(null, 1);
+    }
+    const err = new Error(
+      'TRANSACTION_UNAVAILABLE: Multi-document transactions are unavailable on this MongoDB deployment.'
+    );
+    err.code = 'TRANSACTION_UNAVAILABLE';
+    throw err;
   }
 
   const isOuterSession = !!existingSession;
@@ -129,16 +188,27 @@ export async function withTransactionRetry(workFn, options = {}) {
       attempt++;
       try {
         let result;
-        // Use session.withTransaction() as the primary engine for transaction lifecycle
+        // Use session.withTransaction() as the primary engine for transaction lifecycle.
+        // The MongoDB driver internally retries commitTransaction() when UnknownTransactionCommitResult
+        // occurs, ensuring workFn is not executed again.
         await session.withTransaction(async (txSession) => {
-          // Inside withTransaction, txSession is the active session
           result = await workFn(txSession, attempt);
         });
         return result;
       } catch (err) {
         lastError = err;
 
-        // Check if error is transient and retryable
+        // If the commit outcome was uncertain, the transaction may have already succeeded on the server.
+        // NEVER re-execute workFn! Propagate the uncertainty immediately so callers know not to duplicate mutations.
+        if (isUnknownCommitResult(err)) {
+          console.error(
+            `[TransactionRetry] UnknownTransactionCommitResult on attempt ${attempt}. ` +
+            `Refusing to re-execute business callback to prevent duplicate mutations.`
+          );
+          throw err;
+        }
+
+        // Only retry genuine TransientTransactionError conditions (e.g. WriteConflict, LockTimeout)
         if (isTransientTransactionError(err)) {
           if (attempt < maxRetries) {
             const delay = Math.min(
@@ -153,7 +223,7 @@ export async function withTransactionRetry(workFn, options = {}) {
           }
         }
 
-        // Non-retryable error or retries exhausted
+        // Non-retryable error (validation, business logic, permanent CAS conflict, or retries exhausted)
         throw err;
       }
     }

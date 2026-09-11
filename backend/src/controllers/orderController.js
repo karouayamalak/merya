@@ -469,6 +469,13 @@ export const adjustVariantStock = async (req, res, next) => {
     if (error.message?.startsWith('CONCURRENT_CONFLICT')) {
       return res.status(409).json({ success: false, message: error.message, code: 'CONCURRENT_CONFLICT' });
     }
+    if (error.code === 'TRANSACTION_UNAVAILABLE' || error.message?.includes('TRANSACTION_UNAVAILABLE')) {
+      return res.status(503).json({
+        success: false,
+        message: 'Inventory adjustments are temporarily unavailable because transaction support is offline.',
+        code: 'TRANSACTION_UNAVAILABLE'
+      });
+    }
     if (error.message?.includes('not found') || error.message?.includes('negative')) {
       return res.status(400).json({ success: false, message: error.message });
     }

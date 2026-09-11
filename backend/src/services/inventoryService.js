@@ -1,6 +1,6 @@
 import { Product } from '../models/Product.js';
 import { InventoryAdjustment } from '../models/InventoryAdjustment.js';
-import { withTransactionRetry } from '../utils/transactionRetry.js';
+import { withTransactionRetry, supportsTransactions } from '../utils/transactionRetry.js';
 
 export { InventoryAdjustment };
 
@@ -185,6 +185,17 @@ export async function setStockAtomic(productId, colorName, size, newStock, admin
   const previousStock = sizeObj.stock;
   const expectedVersion = existingProduct.__v;
 
+  // Fail-closed requirement: Authoritative inventory mutation MUST be transactional.
+  // Reject immediately if transactions are unavailable to avoid non-transactional stock mutations.
+  const canUseTx = await supportsTransactions();
+  if (!canUseTx) {
+    const err = new Error(
+      'TRANSACTION_UNAVAILABLE: Inventory adjustments require replica set / transaction support and are temporarily unavailable.'
+    );
+    err.code = 'TRANSACTION_UNAVAILABLE';
+    throw err;
+  }
+
   return await withTransactionRetry(async (session) => {
     const sessionOpt = session ? { session } : {};
 
@@ -244,5 +255,5 @@ export async function setStockAtomic(productId, colorName, size, newStock, admin
 
     updated._adjustment = auditRecord.toObject();
     return updated;
-  });
+  }, { allowStandaloneFallback: false });
 }

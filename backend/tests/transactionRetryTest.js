@@ -6,7 +6,7 @@ import { Category } from '../src/models/Category.js';
 import { Order } from '../src/models/Order.js';
 import { placeOrder, updateOrderStatus } from '../src/services/orderService.js';
 import { wsService } from '../src/services/websocketService.js';
-import { withTransactionRetry, isTransientTransactionError } from '../src/utils/transactionRetry.js';
+import { withTransactionRetry, isTransientTransactionError, isUnknownCommitResult } from '../src/utils/transactionRetry.js';
 import { ORDER_STATUS, DELIVERY_METHODS } from '../src/config/constants.js';
 
 dotenv.config();
@@ -67,7 +67,13 @@ async function runTests() {
     const conflictErr = new Error('CONCURRENT_CONFLICT: Order modified');
     assert.strictEqual(isTransientTransactionError(conflictErr), false);
 
-    pass('isTransientTransactionError accurately classifies transient vs permanent errors');
+    // Critical check: UnknownTransactionCommitResult MUST NOT be classified as a transient retryable error!
+    const unknownCommitErr = new Error('Commit outcome uncertain');
+    unknownCommitErr.errorLabels = ['UnknownTransactionCommitResult'];
+    assert.strictEqual(isUnknownCommitResult(unknownCommitErr), true);
+    assert.strictEqual(isTransientTransactionError(unknownCommitErr), false, 'UnknownTransactionCommitResult must NEVER be classified as a transient retry error');
+
+    pass('isTransientTransactionError accurately classifies transient vs permanent errors, excluding commit uncertainty');
   } catch (err) {
     fail('isTransientTransactionError classification', err);
   }
