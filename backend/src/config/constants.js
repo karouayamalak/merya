@@ -91,13 +91,13 @@ export const ALGERIA_WILAYAS = [
   { code: 58, name: 'El Meniaa', nameAr: 'المنيعة' },
   { code: 59, name: 'Aflou', nameAr: 'آفلو' },
   { code: 60, name: 'Barika', nameAr: 'بريكة' },
-  { code: 61, name: 'Ksar Chellala', nameAr: 'قصر الشلالة' },
-  { code: 62, name: 'Aïn Oussera', nameAr: 'عين وسارة' },
-  { code: 63, name: 'Messaad', nameAr: 'مسعد' },
-  { code: 64, name: 'Ksar El Boukhari', nameAr: 'قصر البخاري' },
-  { code: 65, name: 'Bou Saâda', nameAr: 'بوسعادة' },
-  { code: 66, name: 'El Bayadh Sidi Cheikh', nameAr: 'الأبيض سيدي الشيخ' },
-  { code: 67, name: 'El Kantara', nameAr: 'القنطرة' },
-  { code: 68, name: 'Bir El Ater', nameAr: 'بئر العاتر' },
-  { code: 69, name: 'El Aricha', nameAr: 'العريشة' }
+  { code: 61, name: 'El Kantara', nameAr: 'القنطرة' },
+  { code: 62, name: 'Bir El Ater', nameAr: 'بئر العاتر' },
+  { code: 63, name: 'El Aricha', nameAr: 'العريشة' },
+  { code: 64, name: 'Ksar Chellala', nameAr: 'قصر الشلالة' },
+  { code: 65, name: 'Aïn Ouessara', nameAr: 'عين وسارة' },
+  { code: 66, name: 'Messaad', nameAr: 'مسعد' },
+  { code: 67, name: 'Ksar El Boukhari', nameAr: 'قصر البخاري' },
+  { code: 68, name: 'Bou Saâda', nameAr: 'بوسعادة' },
+  { code: 69, name: 'El Abiodh Sidi Cheikh', nameAr: 'الأبيض سيدي الشيخ' }
 ];

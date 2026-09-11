@@ -274,11 +274,16 @@ export async function placeOrder({ customer, items, idempotencyKey }) {
       }
 
       // 7. Create Order Document with snapshot and fingerprint inside session
+      // Always store canonical Wilaya name (not client-supplied variant) in the snapshot
+      const canonicalCustomer = {
+        ...customer,
+        wilaya: { code: codeNum, name: canonicalWilaya.name }
+      };
       const createdOrder = new Order({
         orderCode,
         idempotencyKey,
         idempotencyFingerprint: currentFingerprint,
-        customer,
+        customer: canonicalCustomer,
         items: itemSnapshots,
         subtotal,
         deliveryFee,
