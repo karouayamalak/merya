@@ -76,8 +76,9 @@ export const productSchema = z.object({
     colorCode: z.string().min(1),
     images: z.array(z.string()).min(1, 'At least one image is required per color'),
     sizes: z.array(z.object({
-      size: z.enum(['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Standard', 'One Size']),
-      stock: z.number().int().min(0)
+      size: z.enum(['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Standard', 'One Size'])
+      // stock is intentionally absent: initial stock is always 0.
+      // Use the inventory adjustment endpoint (POST /admin/inventory/adjust) to set stock.
     })).min(1, 'At least one size is required')
   })).min(1, 'At least one color variant is required')
 });

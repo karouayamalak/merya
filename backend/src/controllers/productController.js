@@ -183,6 +183,19 @@ export const createProduct = async (req, res, next) => {
       counter++;
     }
 
+    // Strip any client-provided stock values — inventory boundary enforcement.
+    // All new variants always start at stock = 0.
+    // Stock must be set through the inventory adjustment endpoint (POST /admin/inventory/adjust).
+    const sanitizedColors = (colors || []).map(color => ({
+      colorName: color.colorName,
+      colorCode: color.colorCode,
+      images: color.images || [],
+      sizes: (color.sizes || []).map(s => ({
+        size: s.size,
+        stock: 0   // always zero regardless of what the client sends
+      }))
+    }));
+
     const product = new Product({
       name,
       slug,
@@ -192,7 +205,7 @@ export const createProduct = async (req, res, next) => {
       costPrice,
       isActive: isActive !== undefined ? isActive : true,
       isBestSeller: !!isBestSeller,
-      colors
+      colors: sanitizedColors
     });
 
     await product.save();
@@ -207,6 +220,7 @@ export const createProduct = async (req, res, next) => {
     next(error);
   }
 };
+
 
 // Admin: Update product
 export const updateProduct = async (req, res, next) => {

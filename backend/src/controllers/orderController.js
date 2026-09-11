@@ -411,6 +411,9 @@ export const adjustVariantStock = async (req, res, next) => {
       adjustment: updatedProduct._adjustment
     });
   } catch (error) {
+    if (error.message?.startsWith('CONCURRENT_CONFLICT')) {
+      return res.status(409).json({ success: false, message: error.message, code: 'CONCURRENT_CONFLICT' });
+    }
     if (error.message?.includes('not found') || error.message?.includes('negative')) {
       return res.status(400).json({ success: false, message: error.message });
     }

@@ -138,6 +138,13 @@ export async function restoreStockAtomic(items, session = null) {
  * Adjust stock to a specific number (Admin function, not part of order lifecycle).
  * Authoritative point for manual inventory adjustments.
  *
+ * Uses optimistic concurrency control: reads the current product `__v` and
+ * previousStock, then performs a conditional findOneAndUpdate that also
+ * checks `__v` and increments it on success.  If another admin has written
+ * concurrently the `__v` will have changed, the update will match no document,
+ * and the function throws a CONCURRENT_CONFLICT error (the controller maps
+ * this to HTTP 409).
+ *
  * @param {string} productId
  * @param {string} colorName
  * @param {string} size
@@ -145,12 +152,15 @@ export async function restoreStockAtomic(items, session = null) {
  * @param {string} [admin='Admin']
  * @param {string} [reason='']
  * @returns {Promise<Product>} Updated product document with _adjustment metadata
+ * @throws  Error('CONCURRENT_CONFLICT') if the product was modified concurrently
  */
 export async function setStockAtomic(productId, colorName, size, newStock, admin = 'Admin', reason = '') {
   if (newStock < 0) {
     throw new Error('Stock cannot be negative');
   }
 
+  // ── Read phase ──────────────────────────────────────────────────────────────
+  // Capture the current __v (optimistic concurrency token) and previousStock.
   const existingProduct = await Product.findById(productId);
   if (!existingProduct) {
     throw new Error('Product not found');
@@ -166,18 +176,25 @@ export async function setStockAtomic(productId, colorName, size, newStock, admin
     throw new Error(`Size "${size}" not found in color "${colorName}"`);
   }
 
-  const previousStock = sizeObj.stock;
+  const previousStock  = sizeObj.stock;
+  const expectedVersion = existingProduct.__v;
 
+  // ── Write phase (CAS on __v) ─────────────────────────────────────────────────
+  // The update only executes if __v still matches what we read.
+  // $inc: { __v: 1 } ensures the next concurrent caller will see a different
+  // version and must retry / receive a 409 instead of silently overwriting.
   const updated = await Product.findOneAndUpdate(
     {
       _id: productId,
+      __v: expectedVersion,          // optimistic concurrency condition
       'colors.colorName': colorName,
       'colors.sizes.size': size
     },
     {
       $set: {
         'colors.$[c].sizes.$[s].stock': newStock
-      }
+      },
+      $inc: { __v: 1 }
     },
     {
       arrayFilters: [
@@ -189,7 +206,11 @@ export async function setStockAtomic(productId, colorName, size, newStock, admin
   );
 
   if (!updated) {
-    throw new Error('Product or variant not found');
+    // __v mismatch — another admin modified this product concurrently.
+    throw new Error(
+      `CONCURRENT_CONFLICT: Product was modified concurrently. ` +
+      `Please refresh and retry your inventory adjustment.`
+    );
   }
 
   const adjustment = {
