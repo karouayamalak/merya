@@ -355,6 +355,9 @@ async function runTests() {
         if (msg.type === 'SUBSCRIBED' && msg.channel === 'admin') {
           ws.close();
           resolve(true);
+        } else if (msg.type === 'ERROR') {
+          ws.close();
+          reject(new Error(`Received ERROR: ${msg.message}`));
         }
       });
       ws.on('error', reject);
@@ -365,6 +368,9 @@ async function runTests() {
     fail('SUBSCRIBE_ADMIN with valid HttpOnly cookie receives SUBSCRIBED', err);
   } finally {
     process.env.NODE_ENV = origEnv;
+    if (wsService.wss) {
+      wsService.wss.close();
+    }
     testServer.close();
   }
 

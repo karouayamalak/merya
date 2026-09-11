@@ -40,8 +40,18 @@ export default function OrderTracking({ initialPhone = '', initialOrderCode = ''
     if (!orderData?.orderCode) return;
 
     const unsubscribe = subscribeOrder(orderData.orderCode, phone, (event) => {
-      console.log('[WebSocket Tracking] Received status update:', event);
-      setOrderData((prev) => prev ? { ...prev, status: event.status } : null);
+      // WebSocket events are signals only — the database is the source of truth.
+      // Re-fetch authoritative order state from the API on every status notification.
+      console.log('[WebSocket Tracking] Status signal received, refreshing from API:', event.type);
+      trackOrder(phone, orderData.orderCode)
+        .then((res) => {
+          if (res.success) {
+            setOrderData(res.order);
+          }
+        })
+        .catch((err) => {
+          console.warn('[WebSocket Tracking] API refresh failed after WS signal:', err.message);
+        });
       setLiveFlash(true);
       setTimeout(() => setLiveFlash(false), 3000);
     });

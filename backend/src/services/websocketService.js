@@ -36,23 +36,25 @@ class WebSocketService {
       // Pre-authenticate admin identity from the upgrade request cookie.
       // This avoids transmitting the JWT in plaintext WebSocket messages.
       ws._adminIdentity = null;
-      try {
-        const cookieHeader = req.headers?.cookie || '';
-        const cookies = parseCookie(cookieHeader);
-        const token = cookies.token;
-        if (token) {
-          const secret = process.env.JWT_SECRET;
-          if (secret) {
-            const decoded = jwt.verify(token, secret);
-            const admin = await Admin.findById(decoded.id).select('-passwordHash');
-            if (admin && admin.isActive && (admin.role === 'admin' || admin.role === 'owner')) {
-              ws._adminIdentity = admin;
+      ws._authPromise = (async () => {
+        try {
+          const cookieHeader = req.headers?.cookie || '';
+          const cookies = parseCookie(cookieHeader);
+          const token = cookies.token;
+          if (token) {
+            const secret = process.env.JWT_SECRET;
+            if (secret) {
+              const decoded = jwt.verify(token, secret);
+              const admin = await Admin.findById(decoded.id).select('-passwordHash');
+              if (admin && admin.isActive && (admin.role === 'admin' || admin.role === 'owner')) {
+                ws._adminIdentity = admin;
+              }
             }
           }
+        } catch {
+          // Not authenticated as admin — cookie absent, expired, or invalid. This is not an error.
         }
-      } catch {
-        // Not authenticated as admin — cookie absent, expired, or invalid. This is not an error.
-      }
+      })();
 
       ws.on('pong', () => {
         ws.isAlive = true;
@@ -121,6 +123,10 @@ class WebSocketService {
 
 
   async handleMessage(ws, message) {
+    if (ws._authPromise) {
+      await ws._authPromise;
+    }
+
     const { action, orderCode, phone, token } = message;
 
     // 1. ADMIN SUBSCRIPTION — Authenticated via HttpOnly cookie at connection time

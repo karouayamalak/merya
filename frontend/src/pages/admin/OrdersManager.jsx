@@ -67,6 +67,8 @@ export default function OrdersManager() {
   const [editAddress, setEditAddress] = useState('');
   const [editAgencyName, setEditAgencyName] = useState('');
   const [editDeliveryFee, setEditDeliveryFee] = useState(0);
+  const [isFeeOverridden, setIsFeeOverridden] = useState(false);
+  const [editOverrideReason, setEditOverrideReason] = useState('');
   const [editNotes, setEditNotes] = useState('');
 
   // Load orders
@@ -121,6 +123,8 @@ export default function OrdersManager() {
     setEditAgencyName(order.customer.agencyName || '');
     setEditDeliveryFee(order.deliveryFee !== undefined ? order.deliveryFee : 800);
     setEditNotes(order.customer.notes || '');
+    setIsFeeOverridden(false);
+    setEditOverrideReason('');
   };
 
   const openOrderDetails = async (orderId) => {
@@ -193,7 +197,7 @@ export default function OrdersManager() {
     setEditWilayaCode(newWilayaCode);
     setEditDeliveryMethod(newMethod);
 
-    if (deliverySettings && wilayasList.length > 0) {
+    if (!isFeeOverridden && deliverySettings && wilayasList.length > 0) {
       const wObj = wilayasList.find(w => (w.code === Number(newWilayaCode) || w.wilayaCode === Number(newWilayaCode)));
       if (wObj) {
         const fee = newMethod === 'agency'
@@ -209,22 +213,34 @@ export default function OrdersManager() {
     e.preventDefault();
     if (!activeOrder) return;
 
+    if (isFeeOverridden && !editOverrideReason.trim()) {
+      alert('Please provide an override reason when manually setting a custom delivery fee.');
+      return;
+    }
+
     setActionLoading(true);
     setFeedback('');
     try {
       const selectedW = wilayasList.find(w => (w.code === Number(editWilayaCode) || w.wilayaCode === Number(editWilayaCode)));
       const wilayaPayload = selectedW ? { code: selectedW.code || selectedW.wilayaCode, name: selectedW.name || selectedW.wilayaName } : { code: editWilayaCode, name: `Wilaya ${editWilayaCode}` };
 
-      const res = await adminUpdateCustomerDetails(activeOrder._id, {
+      const updateData = {
         fullName: editFullName.trim(),
         phone: editPhone.trim(),
         wilaya: wilayaPayload,
         deliveryMethod: editDeliveryMethod,
         address: editDeliveryMethod === 'home' ? editAddress.trim() : '',
         agencyName: editDeliveryMethod === 'agency' ? editAgencyName.trim() : '',
-        deliveryFee: Number(editDeliveryFee),
-        notes: editNotes.trim()
-      });
+        notes: editNotes.trim(),
+        expectedVersion: activeOrder.__v
+      };
+
+      if (isFeeOverridden) {
+        updateData.deliveryFee = Number(editDeliveryFee);
+        updateData.overrideReason = editOverrideReason.trim();
+      }
+
+      const res = await adminUpdateCustomerDetails(activeOrder._id, updateData);
 
       if (res.success) {
         setActiveOrder(res.order);
@@ -671,15 +687,40 @@ export default function OrdersManager() {
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                     <div>
-                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.3rem' }}>Delivery Fee (DZD)</label>
+                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.3rem' }}>
+                        Delivery Fee (DZD) {isFeeOverridden && <span style={{ color: '#E65100' }}>(Manual Override)</span>}
+                      </label>
                       <input
                         type="number"
                         min="0"
+                        disabled={!isFeeOverridden}
                         value={editDeliveryFee}
                         onChange={(e) => setEditDeliveryFee(e.target.value)}
-                        style={{ width: '100%', padding: '0.55rem', borderRadius: '6px', border: '1px solid var(--color-border)' }}
+                        style={{
+                          width: '100%',
+                          padding: '0.55rem',
+                          borderRadius: '6px',
+                          border: '1px solid var(--color-border)',
+                          backgroundColor: isFeeOverridden ? '#FFF' : '#F5F5F5',
+                          cursor: isFeeOverridden ? 'text' : 'not-allowed'
+                        }}
                       />
-                      <span style={{ fontSize: '0.72rem', color: '#666' }}>Auto-calculated by wilaya or manually override.</span>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.35rem', fontSize: '0.75rem', cursor: 'pointer', userSelect: 'none' }}>
+                        <input
+                          type="checkbox"
+                          checked={isFeeOverridden}
+                          onChange={(e) => {
+                            setIsFeeOverridden(e.target.checked);
+                            if (!e.target.checked) {
+                              setEditOverrideReason('');
+                              handleWilayaOrMethodChange(editWilayaCode, editDeliveryMethod);
+                            }
+                          }}
+                        />
+                        <span style={{ fontWeight: isFeeOverridden ? '700' : 'normal', color: isFeeOverridden ? '#E65100' : '#666' }}>
+                          Override fee manually
+                        </span>
+                      </label>
                     </div>
 
                     <div>
@@ -687,8 +728,27 @@ export default function OrdersManager() {
                       <div style={{ padding: '0.55rem', backgroundColor: '#FFF', borderRadius: '6px', border: '1px solid var(--color-border)', fontWeight: '800' }}>
                         {(activeOrder.subtotal + Number(editDeliveryFee || 0)).toLocaleString()} DZD
                       </div>
+                      <span style={{ fontSize: '0.72rem', color: '#666' }}>
+                        {isFeeOverridden ? 'Using overridden fee' : 'Authoritative fee calculated by backend'}
+                      </span>
                     </div>
                   </div>
+
+                  {isFeeOverridden && (
+                    <div style={{ backgroundColor: '#FFF3E0', padding: '0.65rem', borderRadius: '6px', border: '1px solid #FFE0B2' }}>
+                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.3rem', color: '#E65100' }}>
+                        Override Reason * (Required for audit trail)
+                      </label>
+                      <input
+                        type="text"
+                        required={isFeeOverridden}
+                        value={editOverrideReason}
+                        onChange={(e) => setEditOverrideReason(e.target.value)}
+                        placeholder="e.g. VIP discount, damaged item goodwill, custom rate..."
+                        style={{ width: '100%', padding: '0.55rem', borderRadius: '6px', border: '1px solid #FFB74D', backgroundColor: '#FFF' }}
+                      />
+                    </div>
+                  )}
 
                   <div>
                     <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.3rem' }}>Customer Notes / Instructions</label>
