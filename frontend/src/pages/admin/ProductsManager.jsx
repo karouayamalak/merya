@@ -24,6 +24,8 @@ export default function ProductsManager() {
   const [costPrice, setCostPrice] = useState(3500);
   const [isBestSeller, setIsBestSeller] = useState(false);
   const [isActive, setIsActive] = useState(true);
+  const [isPromotionActive, setIsPromotionActive] = useState(false);
+  const [promotionalPrice, setPromotionalPrice] = useState('');
 
   // Color variants array
   const [colors, setColors] = useState([
@@ -70,6 +72,8 @@ export default function ProductsManager() {
     setCostPrice(4000);
     setIsBestSeller(false);
     setIsActive(true);
+    setIsPromotionActive(false);
+    setPromotionalPrice('');
     setColors([
       {
         colorName: 'Champagne Taupe',
@@ -95,6 +99,8 @@ export default function ProductsManager() {
     setCostPrice(prod.costPrice);
     setIsBestSeller(!!prod.isBestSeller);
     setIsActive(prod.isActive);
+    setIsPromotionActive(!!(prod.promotion && prod.promotion.active));
+    setPromotionalPrice(prod.promotion?.promotionalPrice || '');
     setColors(prod.colors || []);
     setModalError('');
     setModalOpen(true);
@@ -164,6 +170,15 @@ export default function ProductsManager() {
     if (sellingPrice <= 0) return setModalError('Selling price must be greater than 0');
     if (costPrice < 0) return setModalError('Cost price cannot be negative');
 
+    if (isPromotionActive) {
+      if (!promotionalPrice || Number(promotionalPrice) <= 0) {
+        return setModalError('Promotional price must be a positive integer in DZD');
+      }
+      if (Number(promotionalPrice) >= Number(sellingPrice)) {
+        return setModalError('Promotional price must be strictly lower than selling price');
+      }
+    }
+
     setModalLoading(true);
     try {
       const payload = {
@@ -172,6 +187,10 @@ export default function ProductsManager() {
         category: categoryId,
         sellingPrice: Number(sellingPrice),
         costPrice: Number(costPrice),
+        promotion: {
+          active: isPromotionActive,
+          promotionalPrice: isPromotionActive ? Number(promotionalPrice) : null
+        },
         isActive,
         isBestSeller,
         colors
@@ -292,7 +311,32 @@ export default function ProductsManager() {
                     </div>
                   </td>
                   <td style={{ padding: '1rem' }}>{p.category?.name || 'Uncategorized'}</td>
-                  <td style={{ padding: '1rem', fontWeight: '700' }}>{p.sellingPrice.toLocaleString()} DZD</td>
+                  <td style={{ padding: '1rem' }}>
+                    {p.promotion && p.promotion.active && p.promotion.promotionalPrice ? (
+                      <div>
+                        <div style={{ fontWeight: '700', color: '#DC2626' }}>
+                          {p.promotion.promotionalPrice.toLocaleString()} DZD
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: '#888', textDecoration: 'line-through' }}>
+                          {p.sellingPrice.toLocaleString()} DZD
+                        </div>
+                        <span style={{
+                          fontSize: '0.65rem',
+                          fontWeight: '700',
+                          backgroundColor: '#FEE2E2',
+                          color: '#DC2626',
+                          padding: '0.1rem 0.35rem',
+                          borderRadius: '3px',
+                          display: 'inline-block',
+                          marginTop: '2px'
+                        }}>
+                          PROMO -{Math.round(((p.sellingPrice - p.promotion.promotionalPrice) / p.sellingPrice) * 100)}%
+                        </span>
+                      </div>
+                    ) : (
+                      <div style={{ fontWeight: '700' }}>{p.sellingPrice.toLocaleString()} DZD</div>
+                    )}
+                  </td>
                   <td style={{ padding: '1rem', color: '#666' }}>{p.costPrice.toLocaleString()} DZD</td>
                   <td style={{ padding: '1rem' }}>
                     <div style={{ fontWeight: '700' }}>{p.totalStock} units in stock</div>
@@ -450,6 +494,75 @@ export default function ProductsManager() {
                   />
                   <label htmlFor="activeCheck" style={{ fontSize: '0.85rem', fontWeight: '600' }}>Active in Store</label>
                 </div>
+              </div>
+
+              {/* Promotion / Sale Price Section */}
+              <div style={{
+                backgroundColor: isPromotionActive ? '#FEF2F2' : 'var(--color-bg-card)',
+                border: isPromotionActive ? '1px solid #FECACA' : '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-md)',
+                padding: '1rem',
+                transition: 'var(--transition-fast)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: isPromotionActive ? '0.75rem' : '0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <input
+                      type="checkbox"
+                      id="promoToggle"
+                      checked={isPromotionActive}
+                      onChange={(e) => setIsPromotionActive(e.target.checked)}
+                      style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                    />
+                    <label htmlFor="promoToggle" style={{ fontSize: '0.88rem', fontWeight: '700', cursor: 'pointer', color: isPromotionActive ? '#B91C1C' : 'inherit' }}>
+                      🔥 Product on Promotion / Sale Price
+                    </label>
+                  </div>
+                  {isPromotionActive && promotionalPrice && Number(promotionalPrice) > 0 && Number(promotionalPrice) < Number(sellingPrice) && (
+                    <span style={{
+                      backgroundColor: '#DC2626',
+                      color: '#FFF',
+                      fontSize: '0.72rem',
+                      fontWeight: '800',
+                      padding: '0.2rem 0.6rem',
+                      borderRadius: '4px'
+                    }}>
+                      -{Math.round(((Number(sellingPrice) - Number(promotionalPrice)) / Number(sellingPrice)) * 100)}% DISCOUNT
+                    </span>
+                  )}
+                </div>
+
+                {isPromotionActive && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', alignItems: 'center', paddingTop: '0.5rem' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', color: '#991B1B', marginBottom: '0.3rem' }}>
+                        Promotional Price (DZD) *
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max={Number(sellingPrice) > 0 ? Number(sellingPrice) - 1 : undefined}
+                        placeholder={`e.g. ${Math.round(Number(sellingPrice) * 0.75)}`}
+                        value={promotionalPrice}
+                        onChange={(e) => setPromotionalPrice(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '0.65rem',
+                          borderRadius: '6px',
+                          border: '1.5px solid #F87171',
+                          backgroundColor: '#FFF'
+                        }}
+                      />
+                    </div>
+                    <div style={{ fontSize: '0.82rem', color: '#7F1D1D', lineHeight: 1.4 }}>
+                      <div>Normal Price: <strong>{Number(sellingPrice).toLocaleString()} DZD</strong></div>
+                      {promotionalPrice && Number(promotionalPrice) > 0 ? (
+                        <div>Customer Pays: <strong style={{ color: '#DC2626' }}>{Number(promotionalPrice).toLocaleString()} DZD</strong></div>
+                      ) : (
+                        <div style={{ color: '#991B1B' }}>Enter promotional price lower than normal price</div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Color Variants Section */}

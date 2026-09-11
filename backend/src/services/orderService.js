@@ -90,14 +90,16 @@ export async function placeOrder({ customer, items, idempotencyKey }) {
 
   const canonicalWilaya = ALGERIA_WILAYAS.find(w => w.code === codeNum);
   if (!canonicalWilaya) {
-    throw new Error(`Invalid Wilaya code: ${code}. Must be between 1 and 58.`);
+    throw new Error(`Invalid Wilaya code: ${code}. Must be between 1 and 69.`);
   }
 
   if (name && typeof name === 'string' && name.trim()) {
-    const normName = name.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    const canonicalNorm = canonicalWilaya.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    const matchesEn = canonicalNorm === normName || (codeNum === 16 && (normName === 'alger' || normName === 'algiers'));
-    const matchesAr = canonicalWilaya.nameAr === name.trim();
+    const normEn = (s) => s.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const normAr = (s) => s.trim().replace(/[إأآا]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي');
+    const normNameEn = normEn(name);
+    const normCanonEn = normEn(canonicalWilaya.name);
+    const matchesEn = normCanonEn === normNameEn || (codeNum === 16 && (normNameEn === 'alger' || normNameEn === 'algiers'));
+    const matchesAr = canonicalWilaya.nameAr === name.trim() || normAr(canonicalWilaya.nameAr) === normAr(name);
     if (!matchesEn && !matchesAr) {
       throw new Error(`Wilaya mismatch: code ${codeNum} is "${canonicalWilaya.name}", but received "${name}".`);
     }
@@ -228,7 +230,12 @@ export async function placeOrder({ customer, items, idempotencyKey }) {
           throw new Error(`Only ${sizeVariant.stock} items remaining for ${product.name} (${colorName}, ${size})`);
         }
 
-        const itemTotal = product.sellingPrice * quantity;
+        // Effective selling price: promotion price takes precedence if active and valid
+        const itemPrice = (product.promotion && product.promotion.active && typeof product.promotion.promotionalPrice === 'number' && product.promotion.promotionalPrice > 0 && product.promotion.promotionalPrice < product.sellingPrice)
+          ? product.promotion.promotionalPrice
+          : product.sellingPrice;
+
+        const itemTotal = itemPrice * quantity;
         subtotal += itemTotal;
 
         itemSnapshots.push({
@@ -238,7 +245,7 @@ export async function placeOrder({ customer, items, idempotencyKey }) {
           colorCode: colorVariant.colorCode,
           size: sizeVariant.size,
           quantity,
-          unitPrice: product.sellingPrice,
+          unitPrice: itemPrice,
           unitCost: product.costPrice,
           image: colorVariant.images[0] || ''
         });
@@ -879,6 +886,9 @@ export async function updateOrderItemsService({
     const snapshotItems = consolidatedItems.map(it => {
       const prod = productMap.get(it.productId);
       const colorObj = prod.colors.find(c => c.colorName.toLowerCase() === it.colorName.toLowerCase());
+      const effectiveUnitPrice = (prod.promotion && prod.promotion.active && typeof prod.promotion.promotionalPrice === 'number' && prod.promotion.promotionalPrice > 0 && prod.promotion.promotionalPrice < prod.sellingPrice)
+        ? prod.promotion.promotionalPrice
+        : prod.sellingPrice;
       return {
         productId: prod._id,
         productName: prod.name,
@@ -886,7 +896,7 @@ export async function updateOrderItemsService({
         colorCode: colorObj.colorCode,
         size: it.size,
         quantity: it.quantity,
-        unitPrice: prod.sellingPrice,
+        unitPrice: effectiveUnitPrice,
         unitCost: prod.costPrice,
         image: colorObj.images?.[0] || ''
       };

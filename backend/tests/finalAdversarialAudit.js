@@ -632,17 +632,17 @@ async function runAdversarialAudit() {
   }
 
   // ============================================================================
-  // AUDIT 11: 58 CANONICAL ALGERIAN WILAYAS
+  // AUDIT 11: 69 CANONICAL ALGERIAN WILAYAS
   // ============================================================================
-  console.log('\n[AUDIT 11] Testing 58 Algerian Wilayas...');
+  console.log('\n[AUDIT 11] Testing 69 Algerian Wilayas...');
   {
-    assert.strictEqual(ALGERIA_WILAYAS.length, 58);
+    assert.strictEqual(ALGERIA_WILAYAS.length, 69);
     const baseValid = {
       customer: { fullName: 'Wilaya Tester', phone: '0555123456', deliveryMethod: DELIVERY_METHODS.HOME, address: 'Valid address here' },
       items: [{ productId: '507f1f77bcf86cd799439011', colorName: 'Noir', size: 'M', quantity: 1 }]
     };
 
-    for (const code of [0, 59, -1, 3.14, 'fake', 99]) {
+    for (const code of [0, 70, -1, 3.14, 'fake', 99]) {
       let failed = false;
       try {
         checkoutOrderSchema.parse({ ...baseValid, customer: { ...baseValid.customer, wilaya: { code, name: 'Test' } } });
@@ -651,7 +651,7 @@ async function runAdversarialAudit() {
       }
       assert(failed, `Wilaya ${code} must fail validation`);
     }
-    console.log('  ✓ 58 Wilayas verified; invalid codes (0, 59, -1, floats, strings) rejected.');
+    console.log('  ✓ 69 Wilayas verified; invalid codes (0, 70, -1, floats, strings) rejected.');
   }
 
   // ============================================================================

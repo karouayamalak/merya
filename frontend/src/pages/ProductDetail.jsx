@@ -34,6 +34,18 @@ export default function ProductDetail({ product, onBack, onSelectRelated }) {
 
   const mainImage = currentImages[selectedImageIndex] || currentImages[0];
 
+  const isPromotionActive = !!(
+    product.promotion &&
+    product.promotion.active &&
+    typeof product.promotion.promotionalPrice === 'number' &&
+    product.promotion.promotionalPrice > 0 &&
+    product.promotion.promotionalPrice < product.sellingPrice
+  );
+  const effectivePrice = isPromotionActive ? product.promotion.promotionalPrice : product.sellingPrice;
+  const discountPercent = isPromotionActive
+    ? Math.round(((product.sellingPrice - product.promotion.promotionalPrice) / product.sellingPrice) * 100)
+    : 0;
+
   const handleAddToCart = () => {
     if (!selectedSize || isOutOfStock) return;
 
@@ -45,7 +57,8 @@ export default function ProductDetail({ product, onBack, onSelectRelated }) {
       colorCode: activeColor.colorCode,
       size: selectedSize,
       quantity,
-      unitPrice: product.sellingPrice,
+      unitPrice: effectivePrice,
+      originalPrice: product.sellingPrice,
       image: mainImage
     });
 
@@ -97,21 +110,22 @@ export default function ProductDetail({ product, onBack, onSelectRelated }) {
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
               />
 
-              {product.isBestSeller && (
+              {isPromotionActive && (
                 <span style={{
                   position: 'absolute',
                   top: '16px',
-                  left: '16px',
-                  backgroundColor: 'var(--color-espresso)',
+                  right: '16px',
+                  backgroundColor: '#DC2626',
                   color: '#FFF',
-                  fontSize: '0.72rem',
+                  fontSize: '0.8rem',
                   fontWeight: '700',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.08em',
-                  padding: '0.35rem 0.85rem',
-                  borderRadius: 'var(--radius-full)'
+                  letterSpacing: '0.04em',
+                  padding: '0.4rem 0.85rem',
+                  borderRadius: 'var(--radius-full)',
+                  boxShadow: '0 2px 8px rgba(220, 38, 38, 0.4)',
+                  zIndex: 2
                 }}>
-                  Best Seller
+                  -{discountPercent}% OFF
                 </span>
               )}
             </div>
@@ -163,14 +177,45 @@ export default function ProductDetail({ product, onBack, onSelectRelated }) {
                 {product.name}
               </h1>
 
-              <div style={{
-                fontSize: '1.6rem',
-                fontWeight: '800',
-                color: 'var(--color-espresso)',
-                marginTop: '0.75rem'
-              }}>
-                {product.sellingPrice.toLocaleString()} DZD
-              </div>
+              {isPromotionActive ? (
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.85rem', marginTop: '0.75rem', flexWrap: 'wrap' }}>
+                  <span style={{
+                    fontSize: '1.8rem',
+                    fontWeight: '800',
+                    color: '#DC2626',
+                    letterSpacing: '-0.02em'
+                  }}>
+                    {effectivePrice.toLocaleString()} DZD
+                  </span>
+                  <span style={{
+                    fontSize: '1.2rem',
+                    color: '#888',
+                    textDecoration: 'line-through',
+                    fontWeight: '500'
+                  }}>
+                    {product.sellingPrice.toLocaleString()} DZD
+                  </span>
+                  <span style={{
+                    fontSize: '0.85rem',
+                    fontWeight: '700',
+                    color: '#DC2626',
+                    backgroundColor: '#FEE2E2',
+                    padding: '0.2rem 0.6rem',
+                    borderRadius: '6px'
+                  }}>
+                    Save {(product.sellingPrice - effectivePrice).toLocaleString()} DZD (-{discountPercent}%)
+                  </span>
+                </div>
+              ) : (
+                <div style={{
+                  fontSize: '1.6rem',
+                  fontWeight: '800',
+                  color: 'var(--color-espresso)',
+                  marginTop: '0.75rem'
+                }}>
+                  {product.sellingPrice.toLocaleString()} DZD
+                </div>
+              )}
             </div>
 
             {/* 1. COLOR SELECTION */}
@@ -312,7 +357,7 @@ export default function ProductDetail({ product, onBack, onSelectRelated }) {
                 ) : (
                   <>
                     <ShoppingBag size={18} />
-                    <span>Add to Bag • {(product.sellingPrice * quantity).toLocaleString()} DZD</span>
+                    <span>Add to Bag • {(effectivePrice * quantity).toLocaleString()} DZD</span>
                   </>
                 )}
               </button>
@@ -330,7 +375,7 @@ export default function ProductDetail({ product, onBack, onSelectRelated }) {
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.85rem' }}>
                 <Truck size={18} color="var(--color-primary-dark)" />
-                <span>Paiement à la livraison (Cash on Delivery) across all 58 Wilayas.</span>
+                <span>Paiement à la livraison (Cash on Delivery) across all 69 Wilayas.</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.85rem' }}>
                 <ShieldCheck size={18} color="var(--color-primary-dark)" />

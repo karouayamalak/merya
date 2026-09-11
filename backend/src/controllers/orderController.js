@@ -264,14 +264,17 @@ export const updateOrderCustomerDetails = async (req, res, next) => {
       if (!canonicalWilaya) {
         return res.status(400).json({
           success: false,
-          message: `Invalid Wilaya code: ${code}. Must be a canonical Algerian Wilaya between 1 and 58.`
+          message: `Invalid Wilaya code: ${code}. Must be a canonical Algerian Wilaya between 1 and 69.`
         });
       }
 
       if (name && typeof name === 'string' && name.trim()) {
-        const normName = name.trim().toLowerCase();
-        const matchesEn = canonicalWilaya.name.toLowerCase() === normName;
-        const matchesAr = canonicalWilaya.nameAr === normName;
+        const normEn = (s) => s.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const normAr = (s) => s.trim().replace(/[إأآا]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي');
+        const normNameEn = normEn(name);
+        const normCanonEn = normEn(canonicalWilaya.name);
+        const matchesEn = normCanonEn === normNameEn || (codeNum === 16 && (normNameEn === 'alger' || normNameEn === 'algiers'));
+        const matchesAr = canonicalWilaya.nameAr === name.trim() || normAr(canonicalWilaya.nameAr) === normAr(name);
         if (!matchesEn && !matchesAr) {
           return res.status(400).json({
             success: false,

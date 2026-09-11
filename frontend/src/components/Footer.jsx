@@ -71,7 +71,7 @@ export default function Footer({ setCurrentView }) {
                   Track Your Order
                 </button>
               </li>
-              <li>Delivery to all 58 Wilayas</li>
+              <li>Delivery to all 69 Wilayas</li>
               <li>Care Guide for Medina Silk</li>
               <li>Direct WhatsApp / Phone Support</li>
             </ul>

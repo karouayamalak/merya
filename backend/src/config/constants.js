@@ -29,7 +29,7 @@ export const ROLES = {
   STAFF: 'staff'
 };
 
-// 58 Wilayas of Algeria
+// 69 Wilayas of Algeria (Territorial organization)
 export const ALGERIA_WILAYAS = [
   { code: 1, name: 'Adrar', nameAr: 'أدرار' },
   { code: 2, name: 'Chlef', nameAr: 'الشلف' },
@@ -88,5 +88,16 @@ export const ALGERIA_WILAYAS = [
   { code: 55, name: 'Touggourt', nameAr: 'تقرت' },
   { code: 56, name: 'Djanet', nameAr: 'جانت' },
   { code: 57, name: 'El M\'Ghair', nameAr: 'المغير' },
-  { code: 58, name: 'El Meniaa', nameAr: 'المنيعة' }
+  { code: 58, name: 'El Meniaa', nameAr: 'المنيعة' },
+  { code: 59, name: 'Aflou', nameAr: 'آفلو' },
+  { code: 60, name: 'Barika', nameAr: 'بريكة' },
+  { code: 61, name: 'Ksar Chellala', nameAr: 'قصر الشلالة' },
+  { code: 62, name: 'Aïn Oussera', nameAr: 'عين وسارة' },
+  { code: 63, name: 'Messaad', nameAr: 'مسعد' },
+  { code: 64, name: 'Ksar El Boukhari', nameAr: 'قصر البخاري' },
+  { code: 65, name: 'Bou Saâda', nameAr: 'بوسعادة' },
+  { code: 66, name: 'El Bayadh Sidi Cheikh', nameAr: 'الأبيض سيدي الشيخ' },
+  { code: 67, name: 'El Kantara', nameAr: 'القنطرة' },
+  { code: 68, name: 'Bir El Ater', nameAr: 'بئر العاتر' },
+  { code: 69, name: 'El Aricha', nameAr: 'العريشة' }
 ];

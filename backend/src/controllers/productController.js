@@ -54,6 +54,7 @@ export const getProducts = async (req, res, next) => {
       Product.countDocuments(filter)
     ]);
 
+    res.setHeader('Cache-Control', 'no-cache, must-revalidate');
     res.json({
       success: true,
       products,
@@ -81,6 +82,8 @@ export const getProductBySlug = async (req, res, next) => {
     if (!product) {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
+
+    res.setHeader('Cache-Control', 'no-cache, must-revalidate');
 
     // Related products in the same category
     const relatedProducts = await Product.find({
@@ -167,7 +170,8 @@ export const getProductByIdAdmin = async (req, res, next) => {
 // Admin: Create product
 export const createProduct = async (req, res, next) => {
   try {
-    const { name, description, category, sellingPrice, costPrice, isActive, isBestSeller, colors } = req.body;
+    const { name, description, category, sellingPrice, basePrice, costPrice, promotion, isActive, isBestSeller, colors } = req.body;
+    const effectiveBasePrice = sellingPrice ?? basePrice;
 
     const baseSlug = name
       .toLowerCase()
@@ -196,11 +200,23 @@ export const createProduct = async (req, res, next) => {
       }))
     }));
 
-    if (typeof sellingPrice !== 'number' || !Number.isInteger(sellingPrice) || sellingPrice <= 0) {
+    if (typeof effectiveBasePrice !== 'number' || !Number.isInteger(effectiveBasePrice) || effectiveBasePrice <= 0) {
       return res.status(400).json({ success: false, message: 'sellingPrice must be a positive integer in DZD.' });
     }
     if (typeof costPrice !== 'number' || !Number.isInteger(costPrice) || costPrice < 0) {
       return res.status(400).json({ success: false, message: 'costPrice must be a non-negative integer in DZD.' });
+    }
+
+    let parsedPromotion = { active: false, promotionalPrice: null };
+    if (promotion && promotion.active === true) {
+      const pPrice = promotion.promotionalPrice;
+      if (typeof pPrice !== 'number' || !Number.isInteger(pPrice) || pPrice <= 0) {
+        return res.status(400).json({ success: false, message: 'promotionalPrice must be a positive integer in DZD when promotion is active.' });
+      }
+      if (pPrice >= effectiveBasePrice) {
+        return res.status(400).json({ success: false, message: 'Promotional price must be strictly lower than base price.' });
+      }
+      parsedPromotion = { active: true, promotionalPrice: pPrice };
     }
 
     const product = new Product({
@@ -208,8 +224,9 @@ export const createProduct = async (req, res, next) => {
       slug,
       description,
       category,
-      sellingPrice,
+      sellingPrice: effectiveBasePrice,
       costPrice,
+      promotion: parsedPromotion,
       isActive: isActive !== undefined ? isActive : true,
       isBestSeller: !!isBestSeller,
       colors: sanitizedColors
@@ -233,7 +250,7 @@ export const createProduct = async (req, res, next) => {
 export const updateProduct = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { name, description, category, sellingPrice, costPrice, isActive, isBestSeller, isArchived, colors } = req.body;
+    const { name, description, category, sellingPrice, basePrice, costPrice, promotion, isActive, isBestSeller, isArchived, colors } = req.body;
 
     const product = await Product.findById(id);
     if (!product) {
@@ -261,12 +278,35 @@ export const updateProduct = async (req, res, next) => {
 
     if (description !== undefined) product.description = description;
     if (category !== undefined) product.category = category;
-    if (sellingPrice !== undefined) {
-      if (typeof sellingPrice !== 'number' || !Number.isInteger(sellingPrice) || sellingPrice <= 0) {
+
+    const incomingPrice = sellingPrice ?? basePrice;
+    if (incomingPrice !== undefined) {
+      if (typeof incomingPrice !== 'number' || !Number.isInteger(incomingPrice) || incomingPrice <= 0) {
         return res.status(400).json({ success: false, message: 'sellingPrice must be a positive integer in DZD.' });
       }
-      product.sellingPrice = sellingPrice;
+      product.sellingPrice = incomingPrice;
     }
+
+    if (promotion !== undefined) {
+      if (promotion.active === true) {
+        const promoPrice = promotion.promotionalPrice !== undefined ? promotion.promotionalPrice : product.promotion?.promotionalPrice;
+        if (typeof promoPrice !== 'number' || !Number.isInteger(promoPrice) || promoPrice <= 0) {
+          return res.status(400).json({ success: false, message: 'promotionalPrice must be a positive integer in DZD when promotion is active.' });
+        }
+        if (promoPrice >= product.sellingPrice) {
+          return res.status(400).json({ success: false, message: 'Promotional price must be strictly lower than base price.' });
+        }
+        product.promotion = { active: true, promotionalPrice: promoPrice };
+      } else {
+        // Deactivate promotion: restore regular price and clear promotionalPrice
+        product.promotion = { active: false, promotionalPrice: null };
+      }
+    } else if (incomingPrice !== undefined && product.promotion && product.promotion.active) {
+      if (product.promotion.promotionalPrice >= product.sellingPrice) {
+        return res.status(400).json({ success: false, message: 'Base price cannot be reduced below or equal to the active promotional price. Update or deactivate promotion first.' });
+      }
+    }
+
     if (costPrice !== undefined) {
       if (typeof costPrice !== 'number' || !Number.isInteger(costPrice) || costPrice < 0) {
         return res.status(400).json({ success: false, message: 'costPrice must be a non-negative integer in DZD.' });

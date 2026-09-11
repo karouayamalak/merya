@@ -479,8 +479,19 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                       {item.colorName} • Size {item.size} • Qty {item.quantity}
                     </div>
                   </div>
-                  <div style={{ fontSize: '0.9rem', fontWeight: '700' }}>
-                    {(item.unitPrice * item.quantity).toLocaleString()} DZD
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{
+                      fontSize: '0.9rem',
+                      fontWeight: '700',
+                      color: (item.originalPrice && item.originalPrice > item.unitPrice) ? '#DC2626' : 'inherit'
+                    }}>
+                      {(item.unitPrice * item.quantity).toLocaleString()} DZD
+                    </div>
+                    {item.originalPrice && item.originalPrice > item.unitPrice && (
+                      <div style={{ fontSize: '0.75rem', color: '#888', textDecoration: 'line-through' }}>
+                        {(item.originalPrice * item.quantity).toLocaleString()} DZD
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

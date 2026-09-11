@@ -103,7 +103,7 @@ async function runCheckoutTransactionTests() {
 
   // Ensure default delivery settings exist
   let ds = await DeliverySetting.findOne();
-  if (!ds || !ds.wilayaRates || ds.wilayaRates.length < 58) {
+  if (!ds || !ds.wilayaRates || ds.wilayaRates.length < 69) {
     const rates = ALGERIA_WILAYAS.map(w => ({
       wilayaCode: w.code,
       wilayaName: w.name,

@@ -15,8 +15,8 @@ function getDefaultWilayaRates(code) {
   if ([31, 25, 19, 15, 6, 23, 13, 27, 2, 5, 18, 21, 22, 24, 26, 29, 34, 43, 44, 46, 48].includes(code)) {
     return { homeFee: 750, agencyFee: 450 };
   }
-  // Hauts Plateaux & Intermediate Interior Wilayas
-  if ([3, 4, 7, 10, 12, 14, 17, 20, 28, 38, 40, 41, 45, 51].includes(code)) {
+  // Hauts Plateaux & Intermediate Interior Wilayas + Promoted Wilayas (59-69)
+  if ([3, 4, 7, 10, 12, 14, 17, 20, 28, 38, 40, 41, 45, 51, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69].includes(code)) {
     return { homeFee: 850, agencyFee: 500 };
   }
   // Near South Wilayas
@@ -30,10 +30,10 @@ function getDefaultWilayaRates(code) {
 export const getDeliverySettings = async (req, res, next) => {
   try {
     const settings = await DeliverySetting.findOne();
-    if (!settings || !Array.isArray(settings.wilayaRates) || settings.wilayaRates.length < 58) {
+    if (!settings || !Array.isArray(settings.wilayaRates) || settings.wilayaRates.length < 69) {
       return res.status(503).json({
         success: false,
-        message: 'Delivery settings configuration is incomplete or uninitialized (expected 58 Algerian wilayas). Run database seed or configure delivery settings in admin.'
+        message: 'Delivery settings configuration is incomplete or uninitialized (expected 69 Algerian wilayas). Run database seed or configure delivery settings in admin.'
       });
     }
 
@@ -62,10 +62,10 @@ export const updateDeliverySettings = async (req, res, next) => {
         return res.status(400).json({ success: false, message: 'wilayaRates must be an array.' });
       }
 
-      if (wilayaRates.length !== 58) {
+      if (wilayaRates.length !== 69) {
         return res.status(400).json({
           success: false,
-          message: `wilayaRates must contain exactly 58 entries (one per Algerian Wilaya). Received ${wilayaRates.length}.`
+          message: `wilayaRates must contain exactly 69 entries (one per Algerian Wilaya). Received ${wilayaRates.length}.`
         });
       }
 
@@ -76,11 +76,11 @@ export const updateDeliverySettings = async (req, res, next) => {
       for (let i = 0; i < wilayaRates.length; i++) {
         const r = wilayaRates[i];
 
-        // Valid canonical code 1–58 strictly as integer number
-        if (typeof r.wilayaCode !== 'number' || !Number.isInteger(r.wilayaCode) || r.wilayaCode < 1 || r.wilayaCode > 58) {
+        // Valid canonical code 1–69 strictly as integer number
+        if (typeof r.wilayaCode !== 'number' || !Number.isInteger(r.wilayaCode) || r.wilayaCode < 1 || r.wilayaCode > 69) {
           return res.status(400).json({
             success: false,
-            message: `wilayaRates[${i}]: wilayaCode must be an integer between 1 and 58. Received: ${JSON.stringify(r.wilayaCode)}`
+            message: `wilayaRates[${i}]: wilayaCode must be an integer between 1 and 69. Received: ${JSON.stringify(r.wilayaCode)}`
           });
         }
         const code = r.wilayaCode;
@@ -149,7 +149,7 @@ export const updateDeliverySettings = async (req, res, next) => {
         }
       }
 
-      // Ensure all 58 canonical codes are present
+      // Ensure all 69 canonical codes are present
       for (const w of ALGERIA_WILAYAS) {
         if (!seenCodes.has(w.code)) {
           return res.status(400).json({

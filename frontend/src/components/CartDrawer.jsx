@@ -171,8 +171,23 @@ export default function CartDrawer({ onProceedToCheckout, onContinueShopping }) 
                       </button>
                     </div>
 
-                    <div style={{ fontSize: '0.95rem', fontWeight: '700', color: 'var(--color-espresso)' }}>
-                      {(item.unitPrice * item.quantity).toLocaleString()} DZD
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{
+                        fontSize: '0.95rem',
+                        fontWeight: '700',
+                        color: (item.originalPrice && item.originalPrice > item.unitPrice) ? '#DC2626' : 'var(--color-espresso)'
+                      }}>
+                        {(item.unitPrice * item.quantity).toLocaleString()} DZD
+                      </div>
+                      {item.originalPrice && item.originalPrice > item.unitPrice && (
+                        <div style={{
+                          fontSize: '0.78rem',
+                          color: '#888',
+                          textDecoration: 'line-through'
+                        }}>
+                          {(item.originalPrice * item.quantity).toLocaleString()} DZD
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

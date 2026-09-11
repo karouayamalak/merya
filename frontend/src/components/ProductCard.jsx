@@ -8,6 +8,18 @@ export default function ProductCard({ product, onSelect }) {
   const activeColor = product.colors?.[selectedColorIndex] || product.colors?.[0] || {};
   const currentImage = getImageUrl(activeColor.images?.[0] || 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?q=80&w=800&auto=format&fit=crop');
 
+  const isPromotionActive = !!(
+    product.promotion &&
+    product.promotion.active &&
+    typeof product.promotion.promotionalPrice === 'number' &&
+    product.promotion.promotionalPrice > 0 &&
+    product.promotion.promotionalPrice < product.sellingPrice
+  );
+  const effectivePrice = isPromotionActive ? product.promotion.promotionalPrice : product.sellingPrice;
+  const discountPercent = isPromotionActive
+    ? Math.round(((product.sellingPrice - product.promotion.promotionalPrice) / product.sellingPrice) * 100)
+    : 0;
+
   return (
     <div
       onClick={() => onSelect(product)}
@@ -35,6 +47,26 @@ export default function ProductCard({ product, onSelect }) {
       }}
       className="product-image-box"
       >
+        {/* Sale / Promotion Badge */}
+        {isPromotionActive && (
+          <span style={{
+            position: 'absolute',
+            top: '14px',
+            right: '14px',
+            backgroundColor: '#DC2626',
+            color: '#FFFFFF',
+            fontSize: '0.72rem',
+            fontWeight: '700',
+            letterSpacing: '0.04em',
+            padding: '0.35rem 0.65rem',
+            borderRadius: 'var(--radius-full)',
+            zIndex: 2,
+            boxShadow: '0 2px 6px rgba(220, 38, 38, 0.35)'
+          }}>
+            -{discountPercent}%
+          </span>
+        )}
+
         {/* Best seller / Tag badge */}
         {product.isBestSeller && (
           <span style={{
@@ -132,14 +164,36 @@ export default function ProductCard({ product, onSelect }) {
           {product.name}
         </h3>
 
-        <div style={{
-          fontSize: '1rem',
-          fontWeight: '700',
-          color: 'var(--color-espresso)',
-          letterSpacing: '-0.01em'
-        }}>
-          {product.sellingPrice.toLocaleString()} DZD
-        </div>
+        {/* Price Section */}
+        {isPromotionActive ? (
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <span style={{
+              fontSize: '1.05rem',
+              fontWeight: '700',
+              color: '#DC2626',
+              letterSpacing: '-0.01em'
+            }}>
+              {effectivePrice.toLocaleString()} DZD
+            </span>
+            <span style={{
+              fontSize: '0.85rem',
+              color: '#888888',
+              textDecoration: 'line-through',
+              fontWeight: '500'
+            }}>
+              {product.sellingPrice.toLocaleString()} DZD
+            </span>
+          </div>
+        ) : (
+          <div style={{
+            fontSize: '1rem',
+            fontWeight: '700',
+            color: 'var(--color-espresso)',
+            letterSpacing: '-0.01em'
+          }}>
+            {product.sellingPrice.toLocaleString()} DZD
+          </div>
+        )}
       </div>
 
       <style>{`

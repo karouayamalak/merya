@@ -51,7 +51,7 @@ export default function OrdersManager() {
   const [loading, setLoading] = useState(true);
   const [updatingOrderId, setUpdatingOrderId] = useState(null);
 
-  // Delivery settings & all 58 Wilayas for editing
+  // Delivery settings & all 69 Wilayas for editing
   const [wilayasList, setWilayasList] = useState([]);
   const [deliverySettings, setDeliverySettings] = useState(null);
 
@@ -719,7 +719,7 @@ export default function OrdersManager() {
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                     <div>
-                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.3rem' }}>Wilaya (58 Wilayas) *</label>
+                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.3rem' }}>Wilaya (69 Wilayas) *</label>
                       <select
                         value={editWilayaCode}
                         onChange={(e) => handleWilayaOrMethodChange(e.target.value, editDeliveryMethod)}
@@ -932,14 +932,19 @@ export default function OrdersManager() {
                                       productName: pObj?.name || '',
                                       colorName: firstColor?.colorName || '',
                                       size: firstSize?.size || 'M',
-                                      unitPrice: pObj?.sellingPrice || 0
+                                      unitPrice: (pObj?.promotion?.active && pObj?.promotion?.promotionalPrice) ? pObj.promotion.promotionalPrice : (pObj?.sellingPrice || 0)
                                     } : it));
                                   }}
                                   style={{ width: '100%', padding: '0.45rem', fontSize: '0.8rem', borderRadius: '4px', border: '1px solid var(--color-border)' }}
                                 >
-                                  {availableProducts.filter(p => p.isActive && !p.isArchived).map(p => (
-                                    <option key={p._id} value={p._id}>{p.name} ({p.sellingPrice.toLocaleString()} DZD)</option>
-                                  ))}
+                                  {availableProducts.filter(p => p.isActive && !p.isArchived).map(p => {
+                                    const effPrice = (p.promotion?.active && p.promotion?.promotionalPrice) ? p.promotion.promotionalPrice : p.sellingPrice;
+                                    return (
+                                      <option key={p._id} value={p._id}>
+                                        {p.name} ({effPrice.toLocaleString()} DZD{p.promotion?.active ? ' - PROMO' : ''})
+                                      </option>
+                                    );
+                                  })}
                                 </select>
                               </div>
 
@@ -1022,7 +1027,7 @@ export default function OrdersManager() {
                                   colorName: c?.colorName || '',
                                   size: s?.size || 'M',
                                   quantity: 1,
-                                  unitPrice: p.sellingPrice || 0
+                                  unitPrice: (p.promotion?.active && p.promotion?.promotionalPrice) ? p.promotion.promotionalPrice : (p.sellingPrice || 0)
                                 }
                               ]);
                             }

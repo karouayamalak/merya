@@ -26,7 +26,7 @@ export const checkoutOrderSchema = z.object({
     fullName: z.string().min(2, 'Full name is required (min 2 characters)').max(100),
     phone: z.string().min(8, 'Phone number must be at least 8 digits').max(20),
     wilaya: z.object({
-      code: z.number().int().min(1).max(58),
+      code: z.number().int().min(1).max(69),
       name: z.string().min(2)
     }),
     deliveryMethod: z.enum([DELIVERY_METHODS.AGENCY, DELIVERY_METHODS.HOME]),
@@ -101,8 +101,13 @@ export const productSchema = z.object({
   name: z.string().min(3).max(150),
   description: z.string().min(5),
   category: z.string().min(1),
-  sellingPrice: z.number().int({ message: 'Selling price must be an integer in DZD' }).positive({ message: 'Selling price must be positive' }),
+  sellingPrice: z.number().int({ message: 'Selling price must be an integer in DZD' }).positive({ message: 'Selling price must be positive' }).optional(),
+  basePrice: z.number().int({ message: 'Base price must be an integer in DZD' }).positive({ message: 'Base price must be positive' }).optional(),
   costPrice: z.number().int({ message: 'Cost price must be an integer in DZD' }).nonnegative({ message: 'Cost price cannot be negative' }),
+  promotion: z.object({
+    active: z.boolean().default(false),
+    promotionalPrice: z.number().int({ message: 'Promotional price must be an integer in DZD' }).positive({ message: 'Promotional price must be positive' }).nullable().optional()
+  }).optional(),
   isActive: z.boolean().optional(),
   isBestSeller: z.boolean().optional(),
   colors: z.array(z.object({
@@ -115,6 +120,30 @@ export const productSchema = z.object({
       // Use the inventory adjustment endpoint (POST /admin/inventory/adjust) to set stock.
     })).min(1, 'At least one size is required')
   })).min(1, 'At least one color variant is required')
+}).superRefine((data, ctx) => {
+  const effectiveBase = data.sellingPrice ?? data.basePrice;
+  if (!effectiveBase) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['sellingPrice'],
+      message: 'Selling price is required'
+    });
+  }
+  if (data.promotion && data.promotion.active) {
+    if (data.promotion.promotionalPrice === null || data.promotion.promotionalPrice === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['promotion', 'promotionalPrice'],
+        message: 'Promotional price is required when promotion is active'
+      });
+    } else if (effectiveBase && data.promotion.promotionalPrice >= effectiveBase) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['promotion', 'promotionalPrice'],
+        message: 'Promotional price must be strictly lower than base price'
+      });
+    }
+  }
 });
 
 // Update product validation schema
@@ -123,7 +152,12 @@ export const updateProductSchema = z.object({
   description: z.string().min(5).optional(),
   category: z.string().min(1).optional(),
   sellingPrice: z.number().int({ message: 'Selling price must be an integer in DZD' }).positive({ message: 'Selling price must be positive' }).optional(),
+  basePrice: z.number().int({ message: 'Base price must be an integer in DZD' }).positive({ message: 'Base price must be positive' }).optional(),
   costPrice: z.number().int({ message: 'Cost price must be an integer in DZD' }).nonnegative({ message: 'Cost price cannot be negative' }).optional(),
+  promotion: z.object({
+    active: z.boolean(),
+    promotionalPrice: z.number().int({ message: 'Promotional price must be an integer in DZD' }).positive({ message: 'Promotional price must be positive' }).nullable().optional()
+  }).optional(),
   isActive: z.boolean().optional(),
   isBestSeller: z.boolean().optional(),
   isArchived: z.boolean().optional(),
@@ -136,6 +170,23 @@ export const updateProductSchema = z.object({
       stock: z.number().int().nonnegative().optional()
     })).optional()
   })).optional()
+}).superRefine((data, ctx) => {
+  const effectiveBase = data.sellingPrice ?? data.basePrice;
+  if (data.promotion && data.promotion.active) {
+    if (data.promotion.promotionalPrice === null || data.promotion.promotionalPrice === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['promotion', 'promotionalPrice'],
+        message: 'Promotional price is required when promotion is active'
+      });
+    } else if (effectiveBase && data.promotion.promotionalPrice >= effectiveBase) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['promotion', 'promotionalPrice'],
+        message: 'Promotional price must be strictly lower than base price'
+      });
+    }
+  }
 });
 
 // Status change schema
