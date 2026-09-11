@@ -194,8 +194,13 @@ export const createProduct = async (req, res, next) => {
     });
 
     await product.save();
-    res.status(201).json({ success: true, product });
   } catch (error) {
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: 'A product with this name or slug already exists. Please choose a distinct name.'
+      });
+    }
     next(error);
   }
 };

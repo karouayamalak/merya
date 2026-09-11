@@ -77,7 +77,14 @@ export const processAndSaveImage = async (buffer) => {
     });
   }
 
-  // Local filesystem fallback
+  // In production, NEVER silently fall back to ephemeral disk on platforms like Render or Railway
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'Image upload rejected: Cloudinary cloud storage (CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET) is required in production to ensure image persistence. Ephemeral local disk storage is disabled.'
+    );
+  }
+
+  // Local filesystem fallback ONLY for local development / offline testing
   const filename = `${uuidv4()}.webp`;
   const filepath = path.join(uploadDir, filename);
   await fs.promises.writeFile(filepath, optimizedBuffer);

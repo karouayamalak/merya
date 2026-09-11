@@ -1,4 +1,5 @@
 import { Order } from '../models/Order.js';
+import { normalizeAlgerianPhone } from '../utils/phone.js';
 
 export const trackOrder = async (req, res, next) => {
   try {
@@ -8,13 +9,22 @@ export const trackOrder = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Please provide both phone number and order code' });
     }
 
-    const cleanCode = orderCode.trim().toUpperCase();
-    const cleanPhone = phone.trim().replace(/[\s-]/g, '');
+    const cleanCode = String(orderCode).trim().toUpperCase();
+    let normalizedSubmittedPhone;
+    try {
+      normalizedSubmittedPhone = normalizeAlgerianPhone(String(phone));
+    } catch (err) {
+      // Return generic not found message to prevent phone validation enumeration
+      return res.status(404).json({
+        success: false,
+        message: 'No order found matching this tracking code and phone number combination'
+      });
+    }
 
     // Search order by orderCode
     const order = await Order.findOne({ orderCode: cleanCode });
 
-    // Anti-enumeration protection: return unified generic message if order not found OR phone doesn't match
+    // Anti-enumeration protection: return unified generic message if order not found OR phone doesn't match exactly
     if (!order) {
       return res.status(404).json({
         success: false,
@@ -22,25 +32,31 @@ export const trackOrder = async (req, res, next) => {
       });
     }
 
-    const orderPhoneClean = order.customer.phone.replace(/[\s-]/g, '');
-    if (orderPhoneClean !== cleanPhone && !orderPhoneClean.endsWith(cleanPhone) && !cleanPhone.endsWith(orderPhoneClean)) {
+    let normalizedStoredPhone;
+    try {
+      normalizedStoredPhone = normalizeAlgerianPhone(order.customer.phone);
+    } catch {
+      normalizedStoredPhone = order.customer.phone.replace(/[\s-]/g, '');
+    }
+
+    // STRICT EXACT EQUALITY MATCH ONLY — No partial matching, no endsWith
+    if (normalizedStoredPhone !== normalizedSubmittedPhone) {
       return res.status(404).json({
         success: false,
         message: 'No order found matching this tracking code and phone number combination'
       });
     }
 
-    // Build customer-safe timeline
-    const timeline = order.auditHistory
+    // Build customer-safe timeline (excluding admin identities, cost prices, internal notes)
+    const timeline = (order.auditHistory || [])
       .filter(entry => entry.action === 'ORDER_PLACED' || entry.action === 'STATUS_CHANGED')
       .map(entry => ({
         action: entry.action,
         timestamp: entry.timestamp,
-        status: entry.details?.newStatus || 'Pending',
-        note: entry.note
+        status: entry.details?.newStatus || 'Pending'
       }));
 
-    // Customer safe tracking response (no cost prices, no admin identities)
+    // Customer safe tracking response (no cost prices, no profit margins, no admin identities)
     res.json({
       success: true,
       order: {

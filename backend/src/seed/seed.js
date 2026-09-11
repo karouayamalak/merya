@@ -54,24 +54,34 @@ async function seedDatabase() {
       console.log('[Seed] Updated existing delivery settings with all 58 Wilaya rates.');
     }
 
-    // 2. Seed Default Admin User
-    const existingAdmin = await Admin.findOne({ email: 'admin@meryadz.com' });
-    let adminUser;
-    if (!existingAdmin) {
-      const salt = await bcrypt.genSalt(12);
-      const passwordHash = await bcrypt.hash('MeryaAdmin2026!', salt);
+    // 2. Seed Initial Admin User (Credentials strictly sourced from environment)
+    const adminEmail = process.env.INITIAL_ADMIN_EMAIL || process.env.ADMIN_EMAIL;
+    const adminPassword = process.env.INITIAL_ADMIN_PASSWORD || process.env.ADMIN_PASSWORD;
 
-      adminUser = await Admin.create({
-        username: 'Merya Owner',
-        email: 'admin@meryadz.com',
-        passwordHash,
-        role: ROLES.OWNER,
-        isActive: true
-      });
-      console.log('[Seed] Admin user created: admin@meryadz.com / MeryaAdmin2026!');
+    if (adminEmail && adminPassword) {
+      const existingAdmin = await Admin.findOne({ email: adminEmail.toLowerCase() });
+      if (!existingAdmin) {
+        const salt = await bcrypt.genSalt(12);
+        const passwordHash = await bcrypt.hash(adminPassword, salt);
+
+        await Admin.create({
+          username: process.env.INITIAL_ADMIN_USERNAME || 'Store Owner',
+          email: adminEmail.toLowerCase(),
+          passwordHash,
+          role: ROLES.OWNER,
+          isActive: true
+        });
+        console.log(`[Seed] Initial admin user created successfully for: ${adminEmail.toLowerCase()}`);
+      } else {
+        console.log(`[Seed] Admin user already exists for: ${adminEmail.toLowerCase()}`);
+      }
     } else {
-      adminUser = existingAdmin;
-      console.log('[Seed] Admin user already exists.');
+      const adminCount = await Admin.countDocuments();
+      if (adminCount === 0) {
+        console.log('[Seed] Notice: No INITIAL_ADMIN_EMAIL / INITIAL_ADMIN_PASSWORD provided. Skipping initial admin creation.');
+      } else {
+        console.log(`[Seed] ${adminCount} administrator account(s) already exist in database.`);
+      }
     }
 
     // 3. Seed Categories if empty

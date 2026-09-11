@@ -13,7 +13,12 @@ export const authenticateAdmin = async (req, res, next) => {
       return res.status(401).json({ success: false, message: 'Authentication required' });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'merya_dz_super_secure_jwt_secret_key_prod_2026_algeria_taupe');
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      return res.status(500).json({ success: false, message: 'Server authentication configuration error' });
+    }
+
+    const decoded = jwt.verify(token, secret);
     const admin = await Admin.findById(decoded.id).select('-passwordHash');
 
     if (!admin || !admin.isActive) {

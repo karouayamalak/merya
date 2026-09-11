@@ -39,7 +39,7 @@ export default function OrderTracking({ initialPhone = '', initialOrderCode = ''
   useEffect(() => {
     if (!orderData?.orderCode) return;
 
-    const unsubscribe = subscribeOrder(orderData.orderCode, (event) => {
+    const unsubscribe = subscribeOrder(orderData.orderCode, phone, (event) => {
       console.log('[WebSocket Tracking] Received status update:', event);
       setOrderData((prev) => prev ? { ...prev, status: event.status } : null);
       setLiveFlash(true);
@@ -47,7 +47,7 @@ export default function OrderTracking({ initialPhone = '', initialOrderCode = ''
     });
 
     return () => unsubscribe();
-  }, [orderData?.orderCode, subscribeOrder]);
+  }, [orderData?.orderCode, phone, subscribeOrder]);
 
   const handleLookup = async (phoneVal = phone, codeVal = orderCode) => {
     if (!phoneVal.trim() || !codeVal.trim()) {

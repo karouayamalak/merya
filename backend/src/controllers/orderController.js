@@ -41,7 +41,24 @@ export const checkout = async (req, res, next) => {
       createdAt: result.order.createdAt
     });
   } catch (error) {
-    res.status(400).json({ success: false, message: error.message });
+    // Business logic errors (insufficient stock, invalid product, bad delivery method)
+    // are surfaced as 400/409. Infrastructure errors (DB down, unexpected) go to next().
+    const businessErrors = [
+      'insufficient stock',
+      'product not found',
+      'no longer available',
+      'not available',
+      'invalid item',
+      'invalid delivery method',
+      'at least one item'
+    ];
+    const isBusinessError = businessErrors.some(phrase =>
+      error.message?.toLowerCase().includes(phrase)
+    );
+    if (isBusinessError) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
+    next(error);
   }
 };
 
@@ -126,7 +143,13 @@ export const changeOrderStatus = async (req, res, next) => {
     const updatedOrder = await updateOrderStatus(id, status, adminUsername, note, true);
     res.json({ success: true, order: updatedOrder });
   } catch (error) {
-    res.status(400).json({ success: false, message: error.message });
+    if (error.message?.includes('Order not found')) {
+      return res.status(404).json({ success: false, message: error.message });
+    }
+    if (error.message?.includes('Cannot transition') || error.message?.includes('Invalid order status') || error.message?.includes('Insufficient stock')) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
+    next(error);
   }
 };
 
@@ -249,6 +272,9 @@ export const adjustVariantStock = async (req, res, next) => {
     const updatedProduct = await setStockAtomic(productId, colorName, size, parseInt(newStock, 10));
     res.json({ success: true, product: updatedProduct });
   } catch (error) {
-    res.status(400).json({ success: false, message: error.message });
+    if (error.message?.includes('not found') || error.message?.includes('negative')) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
+    next(error);
   }
 };

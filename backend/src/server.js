@@ -23,6 +23,20 @@ import uploadRoutes from './routes/uploadRoutes.js';
 
 dotenv.config();
 
+// Strict Production Preflight Checks — Fails fast if security keys or configurations are missing
+if (process.env.NODE_ENV === 'production') {
+  const missingCriticalEnv = [];
+  if (!process.env.JWT_SECRET) missingCriticalEnv.push('JWT_SECRET');
+  if (!process.env.COOKIE_SECRET) missingCriticalEnv.push('COOKIE_SECRET');
+  if (!process.env.MONGODB_URI) missingCriticalEnv.push('MONGODB_URI');
+
+  if (missingCriticalEnv.length > 0) {
+    console.error(`[MERYA DZ FATAL ERROR] Missing critical production environment variables: ${missingCriticalEnv.join(', ')}`);
+    console.error('[MERYA DZ FATAL ERROR] The server has aborted startup safely to prevent insecure execution.');
+    process.exit(1);
+  }
+}
+
 const app = express();
 const server = http.createServer(app);
 
@@ -55,10 +69,16 @@ app.use(cors({
 // Request Parsers
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-app.use(cookieParser(process.env.COOKIE_SECRET || 'merya_cookie_secret_994182419_secure'));
 
-// HTTP Logger
-if (process.env.NODE_ENV !== 'test') {
+const cookieSecret = process.env.COOKIE_SECRET || (process.env.NODE_ENV === 'production' ? null : 'merya_dev_cookie_secret_2026');
+app.use(cookieParser(cookieSecret));
+
+// Production-Safe HTTP Logger — Never logs authorization headers, cookies, passwords, or customer PII
+if (process.env.NODE_ENV === 'production') {
+  app.use(morgan(':date[iso] :remote-addr :method :url :status :res[content-length] - :response-time ms', {
+    skip: (req) => req.url === '/health'
+  }));
+} else if (process.env.NODE_ENV !== 'test') {
   app.use(morgan('dev'));
 }
 

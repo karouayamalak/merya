@@ -18,17 +18,26 @@ export const login = async (req, res, next) => {
     admin.lastLoginAt = new Date();
     await admin.save();
 
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      throw new Error('JWT_SECRET environment variable is missing on server');
+    }
+
     const token = jwt.sign(
       { id: admin._id, role: admin.role, username: admin.username },
-      process.env.JWT_SECRET || 'merya_dz_super_secure_jwt_secret_key_prod_2026_algeria_taupe',
+      secret,
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
     const isProduction = process.env.NODE_ENV === 'production';
+    // Cross-domain SPA (e.g. Vercel frontend + Render/Railway backend) requires sameSite: 'none' and secure: true.
+    // If running on identical domain/subdomain, can be overridden with COOKIE_SAME_SITE=lax or strict.
+    const sameSite = isProduction ? (process.env.COOKIE_SAME_SITE || 'none') : 'lax';
+
     res.cookie('token', token, {
       httpOnly: true,
       secure: isProduction,
-      sameSite: isProduction ? 'strict' : 'lax',
+      sameSite,
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
 
@@ -48,7 +57,13 @@ export const login = async (req, res, next) => {
 };
 
 export const logout = (req, res) => {
-  res.clearCookie('token');
+  const isProduction = process.env.NODE_ENV === 'production';
+  const sameSite = isProduction ? (process.env.COOKIE_SAME_SITE || 'none') : 'lax';
+  res.clearCookie('token', {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite
+  });
   res.json({ success: true, message: 'Logged out successfully' });
 };
 

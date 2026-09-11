@@ -105,41 +105,59 @@ export async function placeOrder({ customer, items, idempotencyKey }) {
 
   const totalPrice = subtotal + deliveryFee;
 
-  // 4. Atomic Inventory Deduction
+  // 4. Atomic Inventory Deduction with Order Creation Rollback
   await deductStockAtomic(items);
 
-  // 5. Generate secure order tracking code
-  let orderCode;
-  let codeExists = true;
-  while (codeExists) {
-    orderCode = generateOrderCode();
-    const found = await Order.findOne({ orderCode });
-    if (!found) codeExists = false;
-  }
+  let order;
+  try {
+    // 5. Generate secure order tracking code
+    let orderCode;
+    let codeExists = true;
+    while (codeExists) {
+      orderCode = generateOrderCode();
+      const found = await Order.findOne({ orderCode });
+      if (!found) codeExists = false;
+    }
 
-  // 6. Create Order Document
-  const order = new Order({
-    orderCode,
-    idempotencyKey,
-    customer,
-    items: itemSnapshots,
-    subtotal,
-    deliveryFee,
-    totalPrice,
-    status: ORDER_STATUS.PENDING,
-    stockRestored: false,
-    auditHistory: [
-      {
-        action: 'ORDER_PLACED',
-        timestamp: new Date(),
-        performedBy: 'Customer',
-        note: `Order placed via Cash on Delivery (${customer.deliveryMethod})`,
-        details: { subtotal, deliveryFee, totalPrice }
+    // 6. Create Order Document
+    order = new Order({
+      orderCode,
+      idempotencyKey,
+      customer,
+      items: itemSnapshots,
+      subtotal,
+      deliveryFee,
+      totalPrice,
+      status: ORDER_STATUS.PENDING,
+      stockRestored: false,
+      auditHistory: [
+        {
+          action: 'ORDER_PLACED',
+          timestamp: new Date(),
+          performedBy: 'Customer',
+          note: `Order placed via Cash on Delivery (${customer.deliveryMethod})`,
+          details: { subtotal, deliveryFee, totalPrice }
+        }
+      ]
+    });
+
+    await order.save();
+  } catch (saveError) {
+    // Roll back deducted stock immediately if order persistence fails for any reason
+    console.error(`[OrderService] Order save failed: ${saveError.message}. Rolling back inventory deduction.`);
+    await restoreStockAtomic(items);
+
+    // Handle race condition where another concurrent request with the same idempotency key saved first
+    if (saveError.code === 11000 && idempotencyKey) {
+      const existingOrder = await Order.findOne({ idempotencyKey });
+      if (existingOrder) {
+        console.log(`[OrderService] Concurrent duplicate order caught via unique idempotencyKey index: ${idempotencyKey}`);
+        return { order: existingOrder, isDuplicate: true };
       }
-    ]
-  });
+    }
 
-  await order.save();
+    throw saveError;
+  }
 
   // 7. Real-time WebSocket Broadcast to Admin
   wsService.broadcastNewOrder(order);
@@ -185,13 +203,10 @@ export async function updateOrderStatus(orderId, newStatus, adminUsername = 'Adm
   // 2. Moving from CANCELLED to active status: re-deduct stock if previously restored
   else if (currentStatus === ORDER_STATUS.CANCELLED && newStatus !== ORDER_STATUS.CANCELLED && order.stockRestored) {
     console.log(`[OrderService] Re-deducting stock for reactivated order ${order.orderCode}`);
-    try {
-      await deductStockAtomic(order.items);
-      order.stockRestored = false;
-    } catch (err) {
-      console.warn(`[OrderService] Re-deducting stock note: ${err.message}`);
-      order.stockRestored = false;
-    }
+    // STRICT INVARIANT: If stock cannot be deducted (insufficient stock), this throws an Error!
+    // order.status and order.stockRestored are NOT modified. Order remains CANCELLED.
+    await deductStockAtomic(order.items);
+    order.stockRestored = false;
   }
 
   order.status = newStatus;

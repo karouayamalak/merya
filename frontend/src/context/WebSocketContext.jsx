@@ -74,20 +74,28 @@ export function WebSocketProvider({ children }) {
     };
   }, []);
 
-  const subscribeOrder = (orderCode, callback) => {
+  const subscribeOrder = (orderCode, phone, callback) => {
+    let actualPhone = phone;
+    let actualCallback = callback;
+    if (typeof phone === 'function') {
+      actualCallback = phone;
+      actualPhone = '';
+    }
+
     const code = orderCode.trim().toUpperCase();
     const channel = `order:${code}`;
 
     if (!listenersRef.current.has(channel)) {
       listenersRef.current.set(channel, new Set());
     }
-    listenersRef.current.get(channel).add(callback);
+    listenersRef.current.get(channel).add(actualCallback);
 
     if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
       socketRef.current.send(
         JSON.stringify({
           action: 'SUBSCRIBE_ORDER',
-          orderCode: code
+          orderCode: code,
+          phone: actualPhone
         })
       );
     }
@@ -95,7 +103,7 @@ export function WebSocketProvider({ children }) {
     return () => {
       const set = listenersRef.current.get(channel);
       if (set) {
-        set.delete(callback);
+        set.delete(actualCallback);
         if (set.size === 0) listenersRef.current.delete(channel);
       }
     };
@@ -109,7 +117,8 @@ export function WebSocketProvider({ children }) {
     listenersRef.current.get(channel).add(callback);
 
     if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-      socketRef.current.send(JSON.stringify({ action: 'SUBSCRIBE_ADMIN' }));
+      const token = typeof window !== 'undefined' ? localStorage.getItem('merya_admin_token') : null;
+      socketRef.current.send(JSON.stringify({ action: 'SUBSCRIBE_ADMIN', token }));
     }
 
     return () => {

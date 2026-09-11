@@ -16,9 +16,10 @@ export default function App() {
   const { isAuthenticated } = useAdminAuth();
 
   const getViewFromPath = () => {
-    const path = window.location.pathname.toLowerCase();
+    const rawPath = window.location.pathname.toLowerCase();
+    const path = rawPath.replace(/\/+$/, '') || '/';
     if (path.startsWith('/admin')) {
-      return 'admin-login';
+      return isAuthenticated ? 'admin-portal' : 'admin-login';
     }
     if (path === '/tracking') return 'tracking';
     if (path === '/shop') return 'shop';
