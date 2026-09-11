@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ArrowLeft, ShoppingBag, ShieldCheck, Truck, RotateCcw, Check, AlertCircle } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import ProductCard from '../components/ProductCard';
+import { getImageUrl } from '../services/api';
 
 export default function ProductDetail({ product, onBack, onSelectRelated }) {
   const { addToCart } = useCart();
@@ -91,7 +92,7 @@ export default function ProductDetail({ product, onBack, onSelectRelated }) {
               position: 'relative'
             }}>
               <img
-                src={mainImage}
+                src={getImageUrl(mainImage)}
                 alt={`${product.name} - ${activeColor.colorName}`}
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
               />
@@ -133,7 +134,7 @@ export default function ProductDetail({ product, onBack, onSelectRelated }) {
                       flexShrink: 0
                     }}
                   >
-                    <img src={img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <img src={getImageUrl(img)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   </button>
                 ))}
               </div>

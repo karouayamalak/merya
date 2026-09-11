@@ -5,7 +5,10 @@ export const connectDB = async () => {
 
   try {
     const conn = await mongoose.connect(uri, {
-      autoIndex: true // Ensure indexes are created in development/setup
+      maxPoolSize: 50,
+      minPoolSize: 5,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000
     });
     console.log(`[Database] MongoDB Connected: ${conn.connection.host}/${conn.connection.name}`);
     return conn;

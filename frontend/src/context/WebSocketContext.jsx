@@ -8,10 +8,17 @@ export function WebSocketProvider({ children }) {
   const listenersRef = useRef(new Map()); // channel -> Set<callback>
 
   const connect = () => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host;
-    // In dev, Vite proxies /ws to ws://localhost:5000/ws
-    const wsUrl = `${protocol}//${host}/ws`;
+    let wsUrl = import.meta.env.VITE_WS_URL;
+    if (!wsUrl) {
+      if (import.meta.env.VITE_BACKEND_URL) {
+        const backend = import.meta.env.VITE_BACKEND_URL.replace(/^http/, 'ws');
+        wsUrl = `${backend}/ws`;
+      } else {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const host = window.location.host;
+        wsUrl = `${protocol}//${host}/ws`;
+      }
+    }
 
     try {
       const ws = new WebSocket(wsUrl);

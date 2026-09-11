@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
+import { getImageUrl } from '../services/api';
 
 export default function ProductCard({ product, onSelect }) {
   // Active selected color for preview
   const [selectedColorIndex, setSelectedColorIndex] = useState(0);
 
   const activeColor = product.colors?.[selectedColorIndex] || product.colors?.[0] || {};
-  const currentImage = activeColor.images?.[0] || 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?q=80&w=800&auto=format&fit=crop';
+  const currentImage = getImageUrl(activeColor.images?.[0] || 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?q=80&w=800&auto=format&fit=crop');
 
   return (
     <div

@@ -114,8 +114,11 @@ describe('MERYA DZ Core Business Logic & Inventory Integrity', () => {
 
     assert.ok(result.order, 'Order must be created');
     assert.strictEqual(result.order.subtotal, 10000, 'Subtotal must be 5000 * 2 = 10000 DZD');
-    assert.strictEqual(result.order.deliveryFee, 500, 'Agency delivery fee should be 500 DZD');
-    assert.strictEqual(result.order.totalPrice, 10500, 'Total should be 10500 DZD');
+    const setting = await DeliverySetting.findOne();
+    const algiersRate = setting?.wilayaRates?.find(r => r.wilayaCode === 16);
+    const expectedFee = algiersRate ? algiersRate.agencyFee : 500;
+    assert.strictEqual(result.order.deliveryFee, expectedFee, `Agency delivery fee should match database rate (${expectedFee} DZD)`);
+    assert.strictEqual(result.order.totalPrice, 10000 + expectedFee, `Total should be subtotal + deliveryFee (${10000 + expectedFee} DZD)`);
     assert.match(result.order.orderCode, /^MD-[A-Z0-9]{6}$/, 'Order code must follow secure MD-XXXXXX pattern');
 
     // Verify stock deducted atomically (5 - 2 = 3)

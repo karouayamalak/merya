@@ -1,9 +1,23 @@
-const API_BASE = '/api/v1';
+const API_BASE = (import.meta.env.VITE_API_URL || '') + '/api/v1';
+
+export function getImageUrl(imagePath) {
+  if (!imagePath) return '';
+  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+    return imagePath;
+  }
+  const backendBase = import.meta.env.VITE_BACKEND_URL || '';
+  return `${backendBase}${imagePath}`;
+}
 
 async function request(endpoint, options = {}) {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('merya_admin_token') : null;
+  const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+
   const config = {
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
+      ...authHeaders,
       ...options.headers
     },
     ...options
@@ -18,6 +32,9 @@ async function request(endpoint, options = {}) {
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
+    if (res.status === 401 && token) {
+      localStorage.removeItem('merya_admin_token');
+    }
     throw new Error(data.message || (data.errors ? data.errors.join(', ') : 'Request failed'));
   }
 

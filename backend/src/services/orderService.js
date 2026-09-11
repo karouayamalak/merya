@@ -77,12 +77,15 @@ export async function placeOrder({ customer, items, idempotencyKey }) {
 
   let wilayaRate = null;
   if (customer.wilaya) {
-    const wStr = String(customer.wilaya).trim().toLowerCase();
+    const code = typeof customer.wilaya === 'object' ? customer.wilaya.code : customer.wilaya;
+    const name = typeof customer.wilaya === 'object' ? (customer.wilaya.name || '') : String(customer.wilaya);
+    const codeNum = Number(code);
+    const nameStr = String(name).trim().toLowerCase();
+
     wilayaRate = deliverySetting.wilayaRates?.find(r => 
-      String(r.wilayaCode) === wStr ||
-      r.wilayaName.toLowerCase() === wStr ||
-      (r.wilayaNameAr && r.wilayaNameAr === wStr) ||
-      wStr.includes(r.wilayaName.toLowerCase())
+      (!isNaN(codeNum) && r.wilayaCode === codeNum) ||
+      (nameStr && r.wilayaName.toLowerCase() === nameStr) ||
+      (nameStr && r.wilayaNameAr && r.wilayaNameAr === nameStr)
     );
   }
 

@@ -1,4 +1,5 @@
 import React from 'react';
+import { getImageUrl } from '../services/api';
 
 export default function CategoryTile({ category, onClick }) {
   return (
@@ -22,7 +23,7 @@ export default function CategoryTile({ category, onClick }) {
     >
       {/* Background Image */}
       <img
-        src={category.image}
+        src={getImageUrl(category.image)}
         alt={category.name}
         loading="lazy"
         style={{

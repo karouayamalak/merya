@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, Trash2, Plus, Minus, ArrowRight, ShoppingBag } from 'lucide-react';
 import { useCart } from '../context/CartContext';
+import { getImageUrl } from '../services/api';
 
 export default function CartDrawer({ onProceedToCheckout, onContinueShopping }) {
   const { items, isDrawerOpen, setIsDrawerOpen, updateQuantity, removeFromCart, subtotal, totalQuantity } = useCart();
@@ -114,7 +115,7 @@ export default function CartDrawer({ onProceedToCheckout, onContinueShopping }) 
                   flexShrink: 0
                 }}>
                   <img
-                    src={item.image || 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?q=80&w=300&auto=format&fit=crop'}
+                    src={getImageUrl(item.image) || 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?q=80&w=300&auto=format&fit=crop'}
                     alt={item.productName}
                     style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                   />
