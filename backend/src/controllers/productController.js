@@ -1,5 +1,7 @@
 import { Product } from '../models/Product.js';
 import { Category } from '../models/Category.js';
+import { Order } from '../models/Order.js';
+import { ORDER_STATUS } from '../config/constants.js';
 
 // Public: Get active products with filtering, search, and pagination
 export const getProducts = async (req, res, next) => {
@@ -242,8 +244,78 @@ export const updateProduct = async (req, res, next) => {
     if (costPrice !== undefined) product.costPrice = costPrice;
     if (isActive !== undefined) product.isActive = isActive;
     if (isBestSeller !== undefined) product.isBestSeller = isBestSeller;
-    if (isArchived !== undefined) product.isArchived = isArchived;
-    if (colors !== undefined) product.colors = colors;
+    if (isArchived === true && !product.isArchived) {
+      const activeOrders = await Order.find({
+        "items.productId": product._id,
+        status: {
+          $in: [
+            ORDER_STATUS.PENDING,
+            ORDER_STATUS.CONFIRMED,
+            ORDER_STATUS.ON_THE_WAY,
+            ORDER_STATUS.AT_AGENCY
+          ]
+        }
+      }).lean();
+
+      if (activeOrders.length > 0) {
+        return res.status(409).json({
+          success: false,
+          message: 'Cannot archive product: There are active undelivered orders referencing this product.'
+        });
+      }
+      product.isArchived = true;
+    } else if (isArchived !== undefined) {
+      product.isArchived = isArchived;
+    }
+
+    if (colors !== undefined) {
+      // 1. Protect active orders from destructive variant removal or rename
+      const activeOrders = await Order.find({
+        "items.productId": product._id,
+        status: {
+          $in: [
+            ORDER_STATUS.PENDING,
+            ORDER_STATUS.CONFIRMED,
+            ORDER_STATUS.ON_THE_WAY,
+            ORDER_STATUS.AT_AGENCY
+          ]
+        }
+      }).lean();
+
+      for (const order of activeOrders) {
+        for (const item of order.items) {
+          if (item.productId.toString() === product._id.toString()) {
+            const incomingColor = colors.find(c => c.colorName === item.colorName);
+            const incomingSize = incomingColor?.sizes?.find(s => s.size === item.size);
+            if (!incomingColor || !incomingSize) {
+              return res.status(409).json({
+                success: false,
+                message: `Cannot remove variant: ${item.colorName} / ${item.size}. There are active orders referencing this variant.`
+              });
+            }
+          }
+        }
+      }
+
+      // 2. Prevent stock mutation through product update endpoint:
+      // Authoritative stock MUST be preserved from the database for existing variants.
+      // Brand new variants default to 0 stock until set via adjustVariantStock / setStockAtomic.
+      product.colors = colors.map(incomingColor => {
+        const existingColor = product.colors.find(c => c.colorName === incomingColor.colorName);
+        return {
+          colorName: incomingColor.colorName,
+          colorCode: incomingColor.colorCode,
+          images: incomingColor.images || [],
+          sizes: (incomingColor.sizes || []).map(incomingSize => {
+            const existingSize = existingColor?.sizes?.find(s => s.size === incomingSize.size);
+            return {
+              size: incomingSize.size,
+              stock: existingSize ? existingSize.stock : 0
+            };
+          })
+        };
+      });
+    }
 
     await product.save();
     res.json({ success: true, product });
@@ -264,6 +336,25 @@ export const archiveProduct = async (req, res, next) => {
     const product = await Product.findById(req.params.id);
     if (!product) {
       return res.status(404).json({ success: false, message: 'Product not found' });
+    }
+
+    const activeOrders = await Order.find({
+      "items.productId": product._id,
+      status: {
+        $in: [
+          ORDER_STATUS.PENDING,
+          ORDER_STATUS.CONFIRMED,
+          ORDER_STATUS.ON_THE_WAY,
+          ORDER_STATUS.AT_AGENCY
+        ]
+      }
+    }).lean();
+
+    if (activeOrders.length > 0) {
+      return res.status(409).json({
+        success: false,
+        message: 'Cannot delete product: There are active undelivered orders referencing this product.'
+      });
     }
 
     await Product.findByIdAndDelete(req.params.id);

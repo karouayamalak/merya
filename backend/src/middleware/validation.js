@@ -85,5 +85,17 @@ export const productSchema = z.object({
 // Status change schema
 export const statusChangeSchema = z.object({
   status: z.enum(Object.values(ORDER_STATUS)),
-  note: z.string().max(200).optional()
+  note: z.string().max(200).optional(),
+  override: z.boolean().optional().default(false),
+  overrideReason: z.string().max(500).optional()
+}).superRefine((data, ctx) => {
+  if (data.override === true) {
+    if (!data.overrideReason || data.overrideReason.trim().length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['overrideReason'],
+        message: 'overrideReason is required when override is true'
+      });
+    }
+  }
 });

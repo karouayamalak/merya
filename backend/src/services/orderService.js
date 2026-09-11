@@ -117,6 +117,7 @@ export async function placeOrder({ customer, items, idempotencyKey }) {
   // 2. Check idempotency with deterministic fingerprint
   const currentFingerprint = computeOrderFingerprint({ customer, items });
 
+  // Early idempotency check outside session (fast path)
   if (idempotencyKey) {
     const existingOrder = await Order.findOne({ idempotencyKey });
     if (existingOrder) {
@@ -128,85 +129,105 @@ export async function placeOrder({ customer, items, idempotencyKey }) {
     }
   }
 
-  // 3. Authoritative Database Item Verification & Snapshots
-  const itemSnapshots = [];
-  let subtotal = 0;
+  // ─── CHECKOUT TRANSACTION ──────────────────────────────────────────────────
+  // Order creation and all inventory deductions occur within a single session.
+  // Either ALL commit or ALL abort. No manual inventory compensation is used.
+  const session = await mongoose.startSession();
+  let createdOrder = null;
 
-  for (const item of items) {
-    const { productId, colorName, size, quantity } = item;
-
-    if (!productId || !colorName || !size || !quantity || quantity <= 0) {
-      throw new Error('Invalid item parameters');
-    }
-
-    const product = await Product.findOne({ _id: productId, isActive: true, isArchived: false });
-    if (!product) {
-      throw new Error(`Product not found or is currently inactive: ${productId}`);
-    }
-
-    const colorVariant = product.colors.find(c => c.colorName === colorName);
-    if (!colorVariant) {
-      throw new Error(`Color "${colorName}" is no longer available for ${product.name}`);
-    }
-
-    const sizeVariant = colorVariant.sizes.find(s => s.size === size);
-    if (!sizeVariant) {
-      throw new Error(`Size "${size}" is not available for ${product.name} in ${colorName}`);
-    }
-
-    if (sizeVariant.stock < quantity) {
-      throw new Error(`Only ${sizeVariant.stock} items remaining for ${product.name} (${colorName}, ${size})`);
-    }
-
-    const itemTotal = product.sellingPrice * quantity;
-    subtotal += itemTotal;
-
-    itemSnapshots.push({
-      productId: product._id,
-      productName: product.name,
-      colorName: colorVariant.colorName,
-      colorCode: colorVariant.colorCode,
-      size: sizeVariant.size,
-      quantity,
-      unitPrice: product.sellingPrice,
-      unitCost: product.costPrice,
-      image: colorVariant.images[0] || ''
-    });
-  }
-
-  // 4. Dynamic Delivery Fee calculation from database
-  let deliveryFee = 0;
-  if (customer.deliveryMethod === DELIVERY_METHODS.AGENCY) {
-    deliveryFee = wilayaRate ? wilayaRate.agencyFee : deliverySetting.agencyDeliveryFee;
-  } else if (customer.deliveryMethod === DELIVERY_METHODS.HOME) {
-    deliveryFee = wilayaRate ? wilayaRate.homeFee : deliverySetting.homeDeliveryFee;
-  } else {
-    throw new Error('Invalid delivery method');
-  }
-
-  // Free delivery threshold check if active
-  if (deliverySetting.freeDeliveryThreshold && deliverySetting.freeDeliveryThreshold > 0 && subtotal >= deliverySetting.freeDeliveryThreshold) {
-    deliveryFee = 0;
-  }
-
-  const totalPrice = subtotal + deliveryFee;
-
-  // 5. Atomic Inventory Deduction with Order Creation Rollback
-  await deductStockAtomic(items);
-
-  let order;
   try {
-    // Generate secure order tracking code
+    session.startTransaction();
+
+    // Re-check idempotency inside transaction for concurrency safety
+    if (idempotencyKey) {
+      const existingInTx = await Order.findOne({ idempotencyKey }).session(session);
+      if (existingInTx) {
+        if (existingInTx.idempotencyFingerprint && existingInTx.idempotencyFingerprint !== currentFingerprint) {
+          throw new Error('IDEMPOTENCY_CONFLICT: Idempotency key reused with different request payload');
+        }
+        await session.abortTransaction();
+        console.log(`[OrderService] Duplicate submission caught inside transaction via idempotency key: ${idempotencyKey}`);
+        return { order: existingInTx, isDuplicate: true };
+      }
+    }
+
+    // 3. Authoritative Database Item Verification & Snapshots inside session
+    const itemSnapshots = [];
+    let subtotal = 0;
+
+    for (const item of items) {
+      const { productId, colorName, size, quantity } = item;
+
+      if (!productId || !colorName || !size || !quantity || quantity <= 0) {
+        throw new Error('Invalid item parameters');
+      }
+
+      const product = await Product.findOne({ _id: productId, isActive: true, isArchived: false }).session(session);
+      if (!product) {
+        throw new Error(`Product not found or is currently inactive: ${productId}`);
+      }
+
+      const colorVariant = product.colors.find(c => c.colorName === colorName);
+      if (!colorVariant) {
+        throw new Error(`Color "${colorName}" is no longer available for ${product.name}`);
+      }
+
+      const sizeVariant = colorVariant.sizes.find(s => s.size === size);
+      if (!sizeVariant) {
+        throw new Error(`Size "${size}" is not available for ${product.name} in ${colorName}`);
+      }
+
+      if (sizeVariant.stock < quantity) {
+        throw new Error(`Only ${sizeVariant.stock} items remaining for ${product.name} (${colorName}, ${size})`);
+      }
+
+      const itemTotal = product.sellingPrice * quantity;
+      subtotal += itemTotal;
+
+      itemSnapshots.push({
+        productId: product._id,
+        productName: product.name,
+        colorName: colorVariant.colorName,
+        colorCode: colorVariant.colorCode,
+        size: sizeVariant.size,
+        quantity,
+        unitPrice: product.sellingPrice,
+        unitCost: product.costPrice,
+        image: colorVariant.images[0] || ''
+      });
+    }
+
+    // 4. Dynamic Delivery Fee calculation from database
+    let deliveryFee = 0;
+    if (customer.deliveryMethod === DELIVERY_METHODS.AGENCY) {
+      deliveryFee = wilayaRate ? wilayaRate.agencyFee : deliverySetting.agencyDeliveryFee;
+    } else if (customer.deliveryMethod === DELIVERY_METHODS.HOME) {
+      deliveryFee = wilayaRate ? wilayaRate.homeFee : deliverySetting.homeDeliveryFee;
+    } else {
+      throw new Error('Invalid delivery method');
+    }
+
+    // Free delivery threshold check if active
+    if (deliverySetting.freeDeliveryThreshold && deliverySetting.freeDeliveryThreshold > 0 && subtotal >= deliverySetting.freeDeliveryThreshold) {
+      deliveryFee = 0;
+    }
+
+    const totalPrice = subtotal + deliveryFee;
+
+    // 5. Deduct all inventory atomically within the session
+    await deductStockAtomic(items, session);
+
+    // 6. Generate secure unique order tracking code
     let orderCode;
     let codeExists = true;
     while (codeExists) {
       orderCode = generateOrderCode();
-      const found = await Order.findOne({ orderCode });
+      const found = await Order.findOne({ orderCode }).session(session);
       if (!found) codeExists = false;
     }
 
-    // Create Order Document with snapshot and fingerprint
-    order = new Order({
+    // 7. Create Order Document with snapshot and fingerprint inside session
+    createdOrder = new Order({
       orderCode,
       idempotencyKey,
       idempotencyFingerprint: currentFingerprint,
@@ -228,31 +249,49 @@ export async function placeOrder({ customer, items, idempotencyKey }) {
       ]
     });
 
-    await order.save();
-  } catch (saveError) {
-    // Roll back deducted stock immediately if order persistence fails for any reason
-    console.error(`[OrderService] Order save failed: ${saveError.message}. Rolling back inventory deduction.`);
-    await restoreStockAtomic(items);
+    await createdOrder.save({ session });
 
-    // Handle race condition where another concurrent request with the same idempotency key saved first
-    if (saveError.code === 11000 && idempotencyKey) {
-      const existingOrder = await Order.findOne({ idempotencyKey });
+    await session.commitTransaction();
+    console.log(`[OrderService] [TX] Checkout committed successfully: order ${createdOrder.orderCode}`);
+
+  } catch (err) {
+    try {
+      await session.abortTransaction();
+    } catch (abortErr) {
+      console.error(`[OrderService] [TX] Checkout abortTransaction failed: ${abortErr.message}`);
+    }
+
+    // Handle race condition where another concurrent transaction with the same idempotency key won/committed
+    if (idempotencyKey) {
+      let existingOrder = await Order.findOne({ idempotencyKey });
+      if (!existingOrder) {
+        // Brief pause in case the winner is in the middle of commitTransaction
+        await new Promise(resolve => setTimeout(resolve, 100));
+        existingOrder = await Order.findOne({ idempotencyKey });
+      }
+
       if (existingOrder) {
         if (existingOrder.idempotencyFingerprint && existingOrder.idempotencyFingerprint !== currentFingerprint) {
           throw new Error('IDEMPOTENCY_CONFLICT: Idempotency key reused with different request payload');
         }
-        console.log(`[OrderService] Concurrent duplicate order caught via unique idempotencyKey index: ${idempotencyKey}`);
+        console.log(`[OrderService] Concurrent duplicate order caught via idempotencyKey: ${idempotencyKey}`);
         return { order: existingOrder, isDuplicate: true };
       }
     }
 
-    throw saveError;
+    throw err;
+  } finally {
+    session.endSession();
   }
 
-  // 6. Real-time WebSocket Broadcast to Admin (safe, non-fatal)
-  wsService.broadcastNewOrder(order);
+  // 8. Real-time WebSocket Broadcast to Admin (only after successful commit)
+  try {
+    wsService.broadcastNewOrder(createdOrder);
+  } catch (wsErr) {
+    console.warn(`[OrderService] WebSocket broadcastNewOrder failed (non-fatal): ${wsErr.message}`);
+  }
 
-  return { order, isDuplicate: false };
+  return { order: createdOrder, isDuplicate: false };
 }
 
 /**

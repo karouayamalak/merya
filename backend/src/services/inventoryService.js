@@ -136,11 +136,37 @@ export async function restoreStockAtomic(items, session = null) {
 
 /**
  * Adjust stock to a specific number (Admin function, not part of order lifecycle).
+ * Authoritative point for manual inventory adjustments.
+ *
+ * @param {string} productId
+ * @param {string} colorName
+ * @param {string} size
+ * @param {number} newStock
+ * @param {string} [admin='Admin']
+ * @param {string} [reason='']
+ * @returns {Promise<Product>} Updated product document with _adjustment metadata
  */
-export async function setStockAtomic(productId, colorName, size, newStock) {
+export async function setStockAtomic(productId, colorName, size, newStock, admin = 'Admin', reason = '') {
   if (newStock < 0) {
     throw new Error('Stock cannot be negative');
   }
+
+  const existingProduct = await Product.findById(productId);
+  if (!existingProduct) {
+    throw new Error('Product not found');
+  }
+
+  const colorObj = existingProduct.colors?.find(c => c.colorName === colorName);
+  if (!colorObj) {
+    throw new Error(`Color "${colorName}" not found on product`);
+  }
+
+  const sizeObj = colorObj.sizes?.find(s => s.size === size);
+  if (!sizeObj) {
+    throw new Error(`Size "${size}" not found in color "${colorName}"`);
+  }
+
+  const previousStock = sizeObj.stock;
 
   const updated = await Product.findOneAndUpdate(
     {
@@ -166,5 +192,19 @@ export async function setStockAtomic(productId, colorName, size, newStock) {
     throw new Error('Product or variant not found');
   }
 
+  const adjustment = {
+    productId: productId.toString(),
+    colorName,
+    size,
+    previousStock,
+    newStock,
+    admin,
+    timestamp: new Date(),
+    reason: reason || 'Manual adjustment'
+  };
+
+  console.log(`[Inventory Adjustment] ${productId} (${colorName}/${size}): ${previousStock} → ${newStock} by ${admin} (Reason: ${adjustment.reason})`);
+
+  updated._adjustment = adjustment;
   return updated;
 }

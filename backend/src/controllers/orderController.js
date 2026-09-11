@@ -385,13 +385,31 @@ export const updateOrderCustomerDetails = async (req, res, next) => {
 // Admin: Adjust stock directly for inventory management
 export const adjustVariantStock = async (req, res, next) => {
   try {
-    const { productId, colorName, size, newStock } = req.body;
+    const { productId, colorName, size, newStock, reason } = req.body;
+    const adminUsername = req.admin?.username || 'Admin';
+
     if (!productId || !colorName || !size || newStock === undefined) {
       return res.status(400).json({ success: false, message: 'Missing required inventory parameters' });
     }
 
-    const updatedProduct = await setStockAtomic(productId, colorName, size, parseInt(newStock, 10));
-    res.json({ success: true, product: updatedProduct });
+    const stockNum = parseInt(newStock, 10);
+    if (isNaN(stockNum) || stockNum < 0) {
+      return res.status(400).json({ success: false, message: 'Stock must be a non-negative integer' });
+    }
+
+    const updatedProduct = await setStockAtomic(
+      productId,
+      colorName,
+      size,
+      stockNum,
+      adminUsername,
+      reason || 'Manual inventory adjustment'
+    );
+    res.json({
+      success: true,
+      product: updatedProduct,
+      adjustment: updatedProduct._adjustment
+    });
   } catch (error) {
     if (error.message?.includes('not found') || error.message?.includes('negative')) {
       return res.status(400).json({ success: false, message: error.message });

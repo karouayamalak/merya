@@ -28,12 +28,12 @@ async function runE2EVerification() {
   const prodRes = await fetch('http://localhost:5000/api/v1/products');
   const prodData = await prodRes.json();
   console.log(`Products retrieved: ${prodData.products.length}`);
-  const targetProduct = prodData.products[0];
+  const targetProduct = prodData.products.find(p => p.colors?.some(c => c.sizes?.some(s => s.stock > 0))) || prodData.products[0];
   console.log(`Testing with product: "${targetProduct.name}" (Price: ${targetProduct.sellingPrice} DZD)`);
   console.log(`Available colors: ${targetProduct.colors.map(c => `${c.colorName} [Sizes: ${c.sizes.map(s => `${s.size}:${s.stock}`).join(', ')}]`).join(' | ')}`);
 
-  const chosenColor = targetProduct.colors[0];
-  const chosenSizeObj = chosenColor.sizes.find(s => s.stock > 0);
+  const chosenColor = targetProduct.colors.find(c => c.sizes?.some(s => s.stock > 0)) || targetProduct.colors[0];
+  const chosenSizeObj = chosenColor.sizes.find(s => s.stock > 0) || chosenColor.sizes[0];
   console.log(`Selected for checkout: Color "${chosenColor.colorName}", Size "${chosenSizeObj.size}" (Current Stock: ${chosenSizeObj.stock})`);
 
   // 5. Test Live WebSocket Connection
