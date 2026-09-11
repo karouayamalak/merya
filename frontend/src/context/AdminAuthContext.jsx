@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { adminGetMe, adminLogin as apiLogin, adminLogout as apiLogout } from '../services/api';
+import { adminGetMe, adminLogin as apiLogin, adminLogout as apiLogout, getCsrfToken, clearCsrfToken } from '../services/api';
 
 const AdminAuthContext = createContext();
 
@@ -16,11 +16,14 @@ export function AdminAuthProvider({ children }) {
       const res = await adminGetMe();
       if (res.success && res.admin) {
         setAdmin(res.admin);
+        getCsrfToken().catch(() => {});
       } else {
         setAdmin(null);
+        clearCsrfToken();
       }
     } catch {
       setAdmin(null);
+      clearCsrfToken();
     } finally {
       setLoading(false);
     }
@@ -30,6 +33,7 @@ export function AdminAuthProvider({ children }) {
     const res = await apiLogin(email, password);
     if (res.success && res.admin) {
       setAdmin(res.admin);
+      getCsrfToken().catch(() => {});
       return res.admin;
     }
   };
@@ -40,6 +44,7 @@ export function AdminAuthProvider({ children }) {
     } catch (e) {
       console.error(e);
     } finally {
+      clearCsrfToken();
       setAdmin(null);
     }
   };

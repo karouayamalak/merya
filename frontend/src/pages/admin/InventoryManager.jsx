@@ -27,11 +27,17 @@ export default function InventoryManager() {
   }, []);
 
   const handleStockUpdate = async (productId, colorName, size, newStock) => {
+    const num = Number(newStock);
+    if (!Number.isInteger(num) || !Number.isSafeInteger(num) || num < 0) {
+      alert('Stock must be a non-negative whole integer');
+      return;
+    }
+
     const key = `${productId}-${colorName}-${size}`;
     setSavingKey(key);
 
     try {
-      const res = await adminAdjustStock(productId, colorName, size, parseInt(newStock, 10));
+      const res = await adminAdjustStock(productId, colorName, size, num);
       if (res.success) {
         // Update local state
         setProducts(prev => prev.map(p => {
@@ -61,9 +67,19 @@ export default function InventoryManager() {
   const handleDirectSave = (productId, colorName, size) => {
     const key = `${productId}-${colorName}-${size}`;
     const rawVal = stockInputs[key];
-    const num = parseInt(rawVal, 10);
-    if (isNaN(num) || num < 0) {
-      alert('Please enter a valid non-negative number');
+    const rawStr = String(rawVal ?? '').trim();
+    if (rawStr === '') {
+      alert('Please enter a stock value');
+      return;
+    }
+    // Reject invalid strings (e.g. 50abc, 1.5, 1e3, -5)
+    if (!/^\d+$/.test(rawStr)) {
+      alert('Stock must be a non-negative whole number (digits only, no decimals or characters)');
+      return;
+    }
+    const num = Number(rawStr);
+    if (!Number.isInteger(num) || num < 0 || !Number.isSafeInteger(num)) {
+      alert('Stock must be a valid non-negative integer');
       return;
     }
     handleStockUpdate(productId, colorName, size, num);

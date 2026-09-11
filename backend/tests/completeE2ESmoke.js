@@ -97,7 +97,7 @@ async function runCompleteSmokeTest() {
   // -------------------------------------------------------------
   console.log('\n--- [PHASE 3: ADMIN MANAGEMENT & DELIVERY EDITING] ---');
 
-  // 1. Admin Login
+  // 1. Admin Login (Sets HttpOnly token cookie, no token in JSON body)
   console.log('Step 3.1: Admin Authenticating...');
   const loginRes = await fetch(`${API_BASE}/auth/login`, {
     method: 'POST',
@@ -109,14 +109,31 @@ async function runCompleteSmokeTest() {
   });
   const loginData = await loginRes.json();
   assert(loginData.success, `Admin login failed: ${loginData.message}`);
-  const adminToken = loginData.token;
-  assert(adminToken, 'Admin token missing');
-  console.log(`  ✓ Authenticated as ${loginData.admin.username} (${loginData.admin.role})`);
+  assert.strictEqual(loginData.token, undefined, 'JWT token must NOT be returned in JSON response body');
+  
+  // Extract session cookie
+  const rawSetCookie = loginRes.headers.get('set-cookie') || '';
+  const tokenMatch = rawSetCookie.match(/token=([^;]+)/);
+  assert(tokenMatch, 'HttpOnly session token cookie was not set in response headers');
+  const tokenCookie = tokenMatch[0];
+
+  // Fetch CSRF token
+  const csrfRes = await fetch(`${API_BASE}/auth/csrf-token`, {
+    headers: { Cookie: tokenCookie }
+  });
+  const csrfData = await csrfRes.json();
+  assert(csrfData.success && csrfData.csrfToken, 'Failed to obtain CSRF token');
+  const csrfToken = csrfData.csrfToken;
+  const csrfCookieMatch = (csrfRes.headers.get('set-cookie') || '').match(/csrf_token=([^;]+)/);
+  const csrfCookie = csrfCookieMatch ? csrfCookieMatch[0] : `csrf_token=${csrfToken}`;
+
+  const adminCookies = `${tokenCookie}; ${csrfCookie}`;
+  console.log(`  ✓ Authenticated as ${loginData.admin.username} (${loginData.admin.role}) via HttpOnly cookie & CSRF primed`);
 
   // 2. Locate order in Admin List
   console.log('Step 3.2: Searching for order in Admin Dashboard...');
   const adminOrderListRes = await fetch(`${API_BASE}/orders/admin?search=${createdOrderCode}`, {
-    headers: { 'Authorization': `Bearer ${adminToken}` }
+    headers: { Cookie: adminCookies }
   });
   const adminOrderListData = await adminOrderListRes.json();
   assert(adminOrderListData.orders.length > 0, 'Admin could not find newly placed order');
@@ -129,7 +146,8 @@ async function runCompleteSmokeTest() {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${adminToken}`
+      'Cookie': adminCookies,
+      'X-CSRF-Token': csrfToken
     },
     body: JSON.stringify({
       status: 'Confirmed',
@@ -146,7 +164,8 @@ async function runCompleteSmokeTest() {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${adminToken}`
+      'Cookie': adminCookies,
+      'X-CSRF-Token': csrfToken
     },
     body: JSON.stringify({
       wilaya: { code: 31, name: 'Oran' },
@@ -170,7 +189,8 @@ async function runCompleteSmokeTest() {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${adminToken}`
+      'Cookie': adminCookies,
+      'X-CSRF-Token': csrfToken
     },
     body: JSON.stringify({ status: 'On the way', note: 'Shipped via carrier' })
   });
@@ -179,7 +199,8 @@ async function runCompleteSmokeTest() {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${adminToken}`
+      'Cookie': adminCookies,
+      'X-CSRF-Token': csrfToken
     },
     body: JSON.stringify({ status: 'Delivered', note: 'Customer collected & paid cash' })
   });
@@ -250,7 +271,7 @@ async function runCompleteSmokeTest() {
 
   // Fetch admin order ID for second order
   const secondAdminOrder = (await (await fetch(`${API_BASE}/orders/admin?search=${secondOrder.orderCode}`, {
-    headers: { 'Authorization': `Bearer ${adminToken}` }
+    headers: { Cookie: adminCookies }
   })).json()).orders[0];
 
   // Cancel Order -> Verify stock restores exactly once
@@ -259,7 +280,8 @@ async function runCompleteSmokeTest() {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${adminToken}`
+      'Cookie': adminCookies,
+      'X-CSRF-Token': csrfToken
     },
     body: JSON.stringify({ status: 'Cancelled', note: 'Customer cancelled before dispatch' })
   });
@@ -276,7 +298,8 @@ async function runCompleteSmokeTest() {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${adminToken}`
+      'Cookie': adminCookies,
+      'X-CSRF-Token': csrfToken
     },
     body: JSON.stringify({ status: 'Cancelled', note: 'Duplicate cancel call' })
   });
@@ -292,7 +315,8 @@ async function runCompleteSmokeTest() {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${adminToken}`
+      'Cookie': adminCookies,
+      'X-CSRF-Token': csrfToken
     },
     body: JSON.stringify({ status: 'Confirmed', note: 'Customer changed mind and re-opened order' })
   });

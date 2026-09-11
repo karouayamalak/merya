@@ -106,6 +106,11 @@ app.get('/health', (req, res) => {
 // Apply API rate limiting
 app.use('/api', apiLimiter);
 
+// CSRF protection is applied per-route in admin route files (see orderRoutes, productRoutes, etc.)
+// Public mutation endpoints (checkout, tracking, login) bypass CSRF intentionally:
+//   - they carry no admin cookie, so CSRF is not the threat vector
+//   - verifyCsrf is injected alongside authenticateAdmin on all admin mutation routes
+
 // Mount API Routes under /api/v1
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/categories', categoryRoutes);
@@ -119,8 +124,8 @@ app.use('/api/v1/upload', uploadRoutes);
 // Centralized Error Handling
 app.use(errorHandler);
 
-// Initialize WebSockets on HTTP server
-wsService.init(server);
+// Initialize WebSockets on HTTP server — pass allowed origins for Origin validation
+wsService.init(server, allowedOrigins);
 
 const PORT = process.env.PORT || 5000;
 

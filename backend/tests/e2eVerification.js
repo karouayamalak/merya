@@ -91,8 +91,8 @@ async function runE2EVerification() {
   console.log(`  - Delivery Fee (Home): ${orderData.deliveryFee} DZD`);
   console.log(`  - Final Total: ${orderData.totalPrice} DZD`);
 
-  // Subscribe WebSocket to this specific order tracking channel
-  ws.send(JSON.stringify({ action: 'SUBSCRIBE_ORDER', orderCode: orderData.orderCode }));
+  // Subscribe WebSocket to this specific order tracking channel (requires orderCode and customer phone)
+  ws.send(JSON.stringify({ action: 'SUBSCRIBE_ORDER', orderCode: orderData.orderCode, phone: '0555123456' }));
 
   // 7. Track Order Publicly
   console.log('\n[7/9] Verifying Public Order Tracking (Phone + Code)...');
@@ -114,8 +114,21 @@ async function runE2EVerification() {
   });
   const loginData = await loginRes.json();
   if (!loginData.success) throw new Error('Admin login failed');
-  console.log(`Logged in as: ${loginData.admin.username} (${loginData.admin.role})`);
-  const adminToken = loginData.token;
+  console.log(`Logged in as: ${loginData.admin.username} (${loginData.admin.role}) via Cookie`);
+
+  const setCookieHeader = loginRes.headers.get('set-cookie') || '';
+  const tokenCookieMatch = setCookieHeader.match(/token=([^;]+)/);
+  if (!tokenCookieMatch) throw new Error('HttpOnly token cookie missing from login response');
+  const tokenCookie = tokenCookieMatch[0];
+
+  // Fetch CSRF token for mutations
+  const csrfRes = await fetch('http://localhost:5000/api/v1/auth/csrf-token', {
+    headers: { Cookie: tokenCookie }
+  });
+  const csrfData = await csrfRes.json();
+  const csrfToken = csrfData.csrfToken;
+  const csrfCookie = (csrfRes.headers.get('set-cookie') || '').match(/csrf_token=([^;]+)/)?.[0] || `csrf_token=${csrfToken}`;
+  const adminCookies = `${tokenCookie}; ${csrfCookie}`;
 
   // 9. Status Transitions & Real-Time WebSocket Event Verification
   console.log('\n[9/9] Testing Real-Time Status Advancement in Admin Dashboard...');
@@ -132,7 +145,7 @@ async function runE2EVerification() {
 
   // Fetch admin orders list to get the internal ID
   const adminOrdersRes = await fetch(`http://localhost:5000/api/v1/orders/admin?search=${orderData.orderCode}`, {
-    headers: { 'Authorization': `Bearer ${adminToken}` }
+    headers: { Cookie: adminCookies }
   });
   const adminOrdersData = await adminOrdersRes.json();
   const dbOrder = adminOrdersData.orders[0];
@@ -143,7 +156,8 @@ async function runE2EVerification() {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${adminToken}`
+      'Cookie': adminCookies,
+      'X-CSRF-Token': csrfToken
     },
     body: JSON.stringify({ status: 'Confirmed', note: 'Customer confirmed via phone call' })
   });
@@ -154,7 +168,8 @@ async function runE2EVerification() {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${adminToken}`
+      'Cookie': adminCookies,
+      'X-CSRF-Token': csrfToken
     },
     body: JSON.stringify({ status: 'On the way', note: 'Handed to Yalidine courier' })
   });
@@ -165,7 +180,8 @@ async function runE2EVerification() {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${adminToken}`
+      'Cookie': adminCookies,
+      'X-CSRF-Token': csrfToken
     },
     body: JSON.stringify({ status: 'Delivered', note: 'Customer received package and paid courier in cash' })
   });
@@ -175,7 +191,7 @@ async function runE2EVerification() {
 
   // Check financial analytics to prove profit realized
   const analyticsRes = await fetch('http://localhost:5000/api/v1/analytics/dashboard', {
-    headers: { 'Authorization': `Bearer ${adminToken}` }
+    headers: { Cookie: adminCookies }
   });
   const analyticsData = await analyticsRes.json();
   console.log('\n=== REALIZED FINANCIAL METRICS AUDIT ===');

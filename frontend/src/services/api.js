@@ -9,6 +9,30 @@ export function getImageUrl(imagePath) {
   return `${backendBase}${imagePath}`;
 }
 
+let _csrfToken = null;
+
+export function clearCsrfToken() {
+  _csrfToken = null;
+}
+
+export async function getCsrfToken() {
+  if (_csrfToken) return _csrfToken;
+  try {
+    const res = await fetch(`${API_BASE}/auth/csrf-token`, {
+      credentials: 'include'
+    });
+    if (!res.ok) throw new Error('Failed to fetch CSRF token');
+    const data = await res.json();
+    if (data && data.csrfToken) {
+      _csrfToken = data.csrfToken;
+      return _csrfToken;
+    }
+  } catch (err) {
+    console.warn('[CSRF] Could not retrieve CSRF token:', err.message);
+  }
+  return null;
+}
+
 async function request(endpoint, options = {}) {
   const config = {
     credentials: 'include', // HttpOnly cookie is sent automatically by the browser
@@ -24,8 +48,32 @@ async function request(endpoint, options = {}) {
     delete config.headers['Content-Type'];
   }
 
-  const res = await fetch(`${API_BASE}${endpoint}`, config);
-  const data = await res.json().catch(() => ({}));
+  const method = (options.method || 'GET').toUpperCase();
+  const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+  const PUBLIC_ENDPOINTS = ['/orders/checkout', '/tracking', '/auth/login'];
+  const isPublic = PUBLIC_ENDPOINTS.some(p => endpoint.startsWith(p));
+
+  // Attach CSRF token on mutating requests to protected endpoints
+  if (!SAFE_METHODS.has(method) && !isPublic) {
+    const token = await getCsrfToken();
+    if (token) {
+      config.headers['X-CSRF-Token'] = token;
+    }
+  }
+
+  let res = await fetch(`${API_BASE}${endpoint}`, config);
+  let data = await res.json().catch(() => ({}));
+
+  // Automatic retry once if CSRF token expired
+  if (res.status === 403 && data.code === 'CSRF_INVALID' && !options._isRetry) {
+    _csrfToken = null;
+    const freshToken = await getCsrfToken();
+    if (freshToken) {
+      config.headers['X-CSRF-Token'] = freshToken;
+      res = await fetch(`${API_BASE}${endpoint}`, { ...config, _isRetry: true });
+      data = await res.json().catch(() => ({}));
+    }
+  }
 
   if (!res.ok) {
     throw new Error(data.message || (data.errors ? data.errors.join(', ') : 'Request failed'));

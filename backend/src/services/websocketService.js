@@ -12,10 +12,24 @@ class WebSocketService {
     this.adminClients = new Set();
   }
 
-  init(server) {
+  init(server, allowedOrigins = []) {
     this.wss = new WebSocketServer({ server, path: '/ws' });
+    this._allowedOrigins = allowedOrigins;
 
     this.wss.on('connection', async (ws, req) => {
+      // ── Origin Validation ────────────────────────────────────────────────────
+      // WebSocket connections are NOT protected by CORS. Browsers send the Origin
+      // header on WS upgrades; validate it explicitly.
+      const isProduction = process.env.NODE_ENV === 'production';
+      if (isProduction && this._allowedOrigins.length > 0) {
+        const origin = req.headers?.origin || '';
+        if (!this._allowedOrigins.includes(origin)) {
+          console.warn(`[WebSocket] Rejected connection from unauthorized origin: "${origin}"`);
+          ws.close(1008, 'Origin not allowed');
+          return;
+        }
+      }
+
       ws.isAlive = true;
       ws.subscribedOrders = new Set();
       ws.isAdmin = false;
@@ -85,6 +99,7 @@ class WebSocketService {
 
     console.log('[WebSocket] Server initialized on /ws');
   }
+
 
   async handleMessage(ws, message) {
     const { action, orderCode, phone, token } = message;

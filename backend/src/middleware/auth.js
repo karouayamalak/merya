@@ -3,11 +3,9 @@ import { Admin } from '../models/Admin.js';
 
 export const authenticateAdmin = async (req, res, next) => {
   try {
-    let token = req.cookies?.token;
-
-    if (!token && req.headers.authorization?.startsWith('Bearer ')) {
-      token = req.headers.authorization.split(' ')[1];
-    }
+    // COOKIE-ONLY authentication. The Bearer Authorization header fallback
+    // has been removed to prevent JWT leakage via XSS or header inspection.
+    const token = req.cookies?.token;
 
     if (!token) {
       return res.status(401).json({ success: false, message: 'Authentication required' });

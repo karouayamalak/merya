@@ -9,6 +9,7 @@ import {
   archiveProduct
 } from '../controllers/productController.js';
 import { authenticateAdmin, requireRoles } from '../middleware/auth.js';
+import { verifyCsrf } from '../middleware/csrf.js';
 import { ROLES } from '../config/constants.js';
 import { validate, productSchema } from '../middleware/validation.js';
 
@@ -18,11 +19,11 @@ const router = express.Router();
 router.get('/', getProducts);
 router.get('/slug/:slug', getProductBySlug);
 
-// Admin routes
+// Admin routes — mutations require auth cookie + valid CSRF token
 router.get('/admin/all', authenticateAdmin, getAllProductsAdmin);
 router.get('/admin/:id', authenticateAdmin, getProductByIdAdmin);
-router.post('/', authenticateAdmin, requireRoles(ROLES.OWNER, ROLES.ADMIN), validate(productSchema), createProduct);
-router.put('/:id', authenticateAdmin, requireRoles(ROLES.OWNER, ROLES.ADMIN), updateProduct);
-router.delete('/:id', authenticateAdmin, requireRoles(ROLES.OWNER, ROLES.ADMIN), archiveProduct);
+router.post('/', authenticateAdmin, verifyCsrf, requireRoles(ROLES.OWNER, ROLES.ADMIN), validate(productSchema), createProduct);
+router.put('/:id', authenticateAdmin, verifyCsrf, requireRoles(ROLES.OWNER, ROLES.ADMIN), updateProduct);
+router.delete('/:id', authenticateAdmin, verifyCsrf, requireRoles(ROLES.OWNER, ROLES.ADMIN), archiveProduct);
 
 export default router;

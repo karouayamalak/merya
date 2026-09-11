@@ -556,15 +556,18 @@ if (!order.stockRestored) {
 
 | Layer | Mechanism |
 |-------|-----------|
-| **Authentication** | JWT stored in `HttpOnly; Secure; SameSite=Strict` signed cookies — never accessible to JavaScript |
-| **Authorization** | RBAC middleware: `owner` vs `manager` roles with per-route guards |
-| **Password Storage** | `bcryptjs` with 12 salt rounds |
-| **Input Validation** | All request bodies validated against Zod schemas before reaching controllers |
-| **Rate Limiting** | `express-rate-limit` — 100 requests per 15-minute window per IP |
-| **Security Headers** | `helmet` sets CSP, HSTS, X-Frame-Options, X-XSS-Protection, and more |
-| **CORS** | Strict allowlist — only known origins (`localhost:5173` + `CLIENT_ORIGIN`) permitted |
-| **File Uploads** | Multer validates MIME type + enforces 10 MB limit; Sharp re-encodes to WebP stripping EXIF |
-| **Admin Route** | `/admin` — no link from the public storefront; accessible only by direct URL |
+| **Authentication** | Cookie-only: JWT stored strictly in `HttpOnly; Secure; SameSite` cookies. Bearer header fallback and localStorage storage are completely removed. JSON login responses never contain the JWT. |
+| **CSRF Protection** | Double-submit signed cookie pattern (`X-CSRF-Token` header + `csrf_token` cookie). HMAC-SHA256 signed with 1-hour expiry, verified using constant-time comparison (`crypto.timingSafeEqual`). Required on all admin mutations (POST/PUT/PATCH/DELETE). Public checkout/tracking bypass intentionally. |
+| **WebSocket Security** | Strict `Origin` header validation enforced in production (close code `1008` on untrusted origin). Admin clients authenticated via upgrade cookie — no plaintext JWT in WS messages. |
+| **Database Transactions** | MongoDB multi-document transactions mandatory in production for checkout, cancellations, returns, reactivations, and inventory adjustments. Fails closed (`503 TRANSACTION_UNAVAILABLE`) if replica set transactions are absent. |
+| **Authorization** | RBAC middleware: `owner` vs `admin` roles with per-route guards. |
+| **Password Storage** | `bcryptjs` with 12 salt rounds. |
+| **Input Validation** | All request bodies validated against Zod schemas before reaching controllers; strict integer stock validation on both frontend and backend. |
+| **Rate Limiting** | `express-rate-limit` — separate limiters for API endpoints (100 req/15min) and auth login (5 req/15min). |
+| **Security Headers** | `helmet` sets CSP, HSTS, X-Frame-Options, X-Content-Type-Options, and more. |
+| **CORS** | Strict allowlist — restricted to `CLIENT_ORIGIN` in production with credentials support. |
+| **File Uploads** | Multer validates MIME type + enforces 10 MB limit; Sharp re-encodes to WebP stripping EXIF metadata. |
+| **Admin Route** | `/admin` — no link from the public storefront; accessible only by direct URL. |
 
 ---
 
