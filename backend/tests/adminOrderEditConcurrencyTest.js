@@ -179,7 +179,7 @@ async function runConcurrencyTests() {
     );
 
     assert.strictEqual(resFee.statusCode, 400, 'Modifying deliveryFee on Delivered order must be rejected with 400');
-    assert.ok(resFee.body.message.includes('Historical financial values'), 'Error must specify historical financial values protection');
+    assert.ok(resFee.body.message.includes('Delivered orders'), 'Error must indicate delivered order lock');
 
     // Attempt 2: Try to modify wilaya / delivery destination on Delivered order
     const resWilaya = mockRes();
@@ -196,7 +196,7 @@ async function runConcurrencyTests() {
     );
 
     assert.strictEqual(resWilaya.statusCode, 400, 'Modifying destination on Delivered order must be rejected with 400');
-    assert.ok(resWilaya.body.message.includes('Delivery destination cannot be modified'), 'Error must specify destination protection');
+    assert.ok(resWilaya.body.message.includes('Delivered orders'), 'Error must indicate delivered order lock');
 
     // Attempt 3: Concurrent attempt where one marks Delivered while other tries financial edit
     const unmodDeliv = await Order.findById(delivOrder._id);

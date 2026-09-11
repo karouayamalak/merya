@@ -501,8 +501,8 @@ async function runAdversarialAudit() {
       () => {}
     );
     assert.strictEqual(res3.statusCode, 400, 'Modifying delivery fee on Delivered order must return 400');
-    assert(res3.body.message.includes('Delivered orders'));
-    console.log('  ✓ Delivered order historical values protected against modification with 400');
+    assert(res3.body.message.includes('Delivered orders'), `Expected "Delivered orders" in message, got: ${res3.body?.message}`);
+    console.log('  ✓ Delivered order fully locked — all edits rejected with 400');
   }
 
   // ============================================================================

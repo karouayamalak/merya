@@ -206,27 +206,23 @@ export const changeOrderStatus = async (req, res, next) => {
 export const updateOrderCustomerDetails = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { fullName, phone, wilaya, address, agencyName, deliveryMethod, notes, deliveryFee, overrideReason } = req.body;
+    // NOTE: deliveryFee is intentionally NOT accepted from req.body.
+    // The server derives it exclusively from the authoritative DeliverySetting document.
+    const { fullName, phone, wilaya, address, agencyName, deliveryMethod, notes } = req.body;
 
     const order = await Order.findById(id);
     if (!order) {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
 
-    // Historical protection: Delivered orders cannot have their financial values modified
+    // Historical immutability: DELIVERED orders are fully locked.
+    // No customer fields, delivery destination, or financial values may be changed
+    // after an order reaches the Delivered state. Any attempt is rejected immediately.
     if (order.status === ORDER_STATUS.DELIVERED) {
-      if (deliveryFee !== undefined && deliveryFee !== order.deliveryFee) {
-        return res.status(400).json({
-          success: false,
-          message: 'Historical financial values (delivery fee, subtotal, total) cannot be modified on Delivered orders.'
-        });
-      }
-      if (wilaya || deliveryMethod) {
-        return res.status(400).json({
-          success: false,
-          message: 'Delivery destination cannot be modified on Delivered orders.'
-        });
-      }
+      return res.status(400).json({
+        success: false,
+        message: 'Delivered orders are fully locked. Historical financial values and customer details cannot be modified on Delivered orders.'
+      });
     }
 
     const previousCustomer = { ...order.customer.toObject() };
@@ -400,15 +396,16 @@ export const updateOrderCustomerDetails = async (req, res, next) => {
       ? Number(req.body.expectedVersion)
       : order.__v;
 
-    const financialsOrDeliveryAttempted = deliveryFee !== undefined || wilaya !== undefined || deliveryMethod !== undefined;
-
+    // CAS: add status guard if admin is changing delivery destination/method,
+    // which is the only operation that can alter financial values.
     const casQuery = {
       _id: order._id,
       __v: expectedVersion
     };
 
-    // Historical financial protection: Under concurrent requests, Delivered orders must never be modified
-    if (financialsOrDeliveryAttempted) {
+    // Historical financial protection: Under concurrent requests, Delivered orders must never be modified.
+    // Triggered by actual wilaya/method change, not a client-supplied deliveryFee field.
+    if (wilayaOrMethodChanged) {
       casQuery.status = { $ne: ORDER_STATUS.DELIVERED };
     }
 

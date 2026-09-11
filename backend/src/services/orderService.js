@@ -895,13 +895,23 @@ export async function updateOrderItemsService({
     const newSubtotal = snapshotItems.reduce((acc, it) => acc + (it.unitPrice * it.quantity), 0);
 
     // 8. Authoritative delivery fee check (e.g. Free Delivery Threshold)
-    let newDeliveryFee = order.deliveryFee;
+    // FAIL-CLOSED: DeliverySetting must exist. If it is missing we cannot safely
+    // determine whether the fee should change (e.g. free-threshold crossed), so we
+    // reject the operation rather than silently keeping a potentially incorrect fee.
     const deliverySetting = await DeliverySetting.findOne(null, null, sessionOpt);
-    if (deliverySetting?.freeDeliveryThreshold && deliverySetting.freeDeliveryThreshold > 0) {
+    if (!deliverySetting) {
+      const err = new Error('Delivery configuration is not initialized. Cannot safely recalculate delivery fee for line-item edit.');
+      err.statusCode = 400;
+      err.code = 'DELIVERY_CONFIGURATION_MISSING';
+      throw err;
+    }
+
+    let newDeliveryFee = order.deliveryFee;
+    if (deliverySetting.freeDeliveryThreshold && deliverySetting.freeDeliveryThreshold > 0) {
       if (newSubtotal >= deliverySetting.freeDeliveryThreshold) {
         newDeliveryFee = 0;
       } else if (order.deliveryFee === 0 && previousSubtotal >= deliverySetting.freeDeliveryThreshold) {
-        // Subtotal dropped below free threshold: recalculate authoritative fee
+        // Subtotal dropped below free threshold: recalculate authoritative fee from DB
         const targetCode = Number(order.customer.wilaya?.code);
         const wilayaRate = deliverySetting.wilayaRates?.find(r => r.wilayaCode === targetCode);
         if (!wilayaRate || wilayaRate.isAvailable === false) {
