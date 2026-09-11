@@ -81,17 +81,21 @@ The platform is built around these core principles:
 │                   BACKEND (Node.js + Express)                │
 │                                                             │
 │   API Routes: /api/v1/*                                     │
-│   ├── /auth          → Login, logout, session verify        │
+│   ├── /auth          → Login, logout (CSRF), session verify │
 │   ├── /categories    → CRUD + display order management      │
 │   ├── /products      → CRUD + variant matrix management     │
-│   ├── /orders        → Place COD, status state machine      │
-│   ├── /tracking      → Public order lookup (no auth)        │
+│   ├── /orders        → Place COD, state machine mutations   │
+│   ├── /tracking      → Public order lookup (rate limited)   │
 │   ├── /settings      → Delivery fee config per wilaya       │
 │   ├── /analytics     → Revenue, profit, KPI aggregations    │
 │   └── /upload        → Multipart → Sharp → WebP pipeline    │
 │                                                             │
+│   System & Health Probes                                    │
+│   ├── /health        → Process liveness probe               │
+│   └── /ready         → MongoDB replica set readiness probe  │
+│                                                             │
 │   WebSocket (/ws)                                           │
-│   └── Pub/Sub channels: order:<orderCode>                   │
+│   └── Pub/Sub: order:<orderCode>, admin (auto-reconnect)    │
 │                                                             │
 │   Middleware Stack                                          │
 │   ├── Helmet (CSP, HSTS, XSS protection)                   │
@@ -209,14 +213,15 @@ merya_dz/
 │   │   │   └── uploadController.js   # Sharp WebP pipeline
 │   │   │
 │   │   ├── middleware/
-│   │   │   ├── auth.js               # JWT verify + RBAC guard
-│   │   │   ├── rateLimiter.js        # express-rate-limit config
+│   │   │   ├── auth.js               # Cookie-only JWT verify + RBAC guard
+│   │   │   ├── csrf.js               # Double-submit HMAC-SHA256 CSRF protection
+│   │   │   ├── rateLimiter.js        # express-rate-limit config (IP-aware)
 │   │   │   ├── upload.js             # Multer + file type validation
 │   │   │   ├── validation.js         # Zod schema validators
 │   │   │   └── errorHandler.js       # Centralized error response
 │   │   │
 │   │   ├── routes/
-│   │   │   ├── authRoutes.js
+│   │   │   ├── authRoutes.js         # Admin auth + CSRF token endpoints
 │   │   │   ├── categoryRoutes.js
 │   │   │   ├── productRoutes.js
 │   │   │   ├── orderRoutes.js
@@ -226,18 +231,20 @@ merya_dz/
 │   │   │   └── uploadRoutes.js
 │   │   │
 │   │   ├── services/
-│   │   │   ├── inventoryService.js   # Atomic MongoDB stock operations
-│   │   │   ├── orderService.js       # Order state machine transitions
-│   │   │   └── websocketService.js   # WS pub/sub channel manager
+│   │   │   ├── inventoryService.js   # Server-authoritative atomic stock operations
+│   │   │   ├── orderService.js       # Transactions, order mutations, authoritative fees
+│   │   │   └── websocketService.js   # WS pub/sub channel manager, origin & cookie auth
 │   │   │
 │   │   ├── utils/
 │   │   │   ├── orderCode.js          # Crypto-random MD-XXXXXX generator
+│   │   │   ├── phone.js              # Algerian phone normalization
+│   │   │   ├── transactionRetry.js   # Replica set transaction retry with backoff
 │   │   │   └── process_logo.js       # Logo processing utility
 │   │   │
 │   │   ├── seed/
-│   │   │   └── seed.js               # DB seeder (admin, categories, products, delivery)
+│   │   │   └── seed.js               # DB seeder (reads credentials from env)
 │   │   │
-│   │   └── server.js                 # Entry — Express + HTTP + WebSocket bootstrap
+│   │   └── server.js                 # Entry — Express + HTTP + WebSocket + /ready probe
 │   │
 │   ├── tests/
 │   │   ├── businessLogic.test.js     # Unit tests (Node built-in test runner)
@@ -347,11 +354,13 @@ cd backend
 npm run seed
 ```
 
-> **Default admin credentials created by the seeder:**
-> - Email: `admin@meryadz.com`
-> - Password: `MeryaAdmin2026!`
-> 
-> ⚠️ **Change these immediately** after first login in a production environment.
+> **Admin Account Provisioning:**
+> Admin credentials are **never hardcoded**. The seeder reads the initial administrator credentials directly from environment variables:
+> - `INITIAL_ADMIN_EMAIL`: Administrator login email
+> - `INITIAL_ADMIN_PASSWORD`: Administrator password (hashed using bcrypt with 12 salt rounds)
+> - `INITIAL_ADMIN_USERNAME`: Display name (defaults to "Store Owner")
+>
+> In production, set these variables via your cloud host's secret store (e.g. Render, AWS Secrets Manager) before running migrations or seeding.
 
 ### 5. Start Development Servers
 
@@ -575,14 +584,17 @@ if (!order.stockRestored) {
 
 Access at **`/admin`** — direct URL only, no public link.
 
-### Default Credentials (from seeder)
+### Admin Authentication & Provisioning
 
-```
-Email:    admin@meryadz.com
-Password: MeryaAdmin2026!
+Admin credentials are never stored in code or repository files. The system provisions the initial owner account during seeding (`npm run seed`) using environment variables:
+
+```bash
+INITIAL_ADMIN_EMAIL=your_admin_email@example.com
+INITIAL_ADMIN_PASSWORD=YourStrongPasswordHere!
+INITIAL_ADMIN_USERNAME="Store Owner"
 ```
 
-> ⚠️ Change the password immediately after first deployment using the admin profile settings.
+> 🔒 **Security Notice:** Production deployments must always supply these values via secure platform secret managers. In production, password complexity is strictly enforced, and passwords are encrypted with 12 bcrypt salt rounds. Sessions are tracked with server-side `sessionVersion` for instantaneous session revocation across all devices on logout.
 
 ### Dashboard Modules
 
@@ -765,14 +777,16 @@ server {
 
 ### Important Production Checklist
 
-- [ ] Change `admin@meryadz.com` password after first login
+- [ ] Configure `INITIAL_ADMIN_EMAIL` and strong `INITIAL_ADMIN_PASSWORD` in production secrets before running `npm run seed`
 - [ ] Set strong random `JWT_SECRET` (min 64 chars)
 - [ ] Set strong random `COOKIE_SECRET`
 - [ ] Set `NODE_ENV=production`
-- [ ] Point `CLIENT_ORIGIN` to your real domain
+- [ ] Point `CLIENT_ORIGIN` to your real domain (e.g. `https://meryadz.com`)
+- [ ] Ensure `TRUST_PROXY=1` is configured for reverse proxy (Render edge load balancer)
+- [ ] Confirm `/health` (liveness) and `/ready` (database readiness) probes respond successfully
 - [ ] Enable HTTPS — JWT cookies require `Secure` flag in production
 - [ ] Set up MongoDB Atlas backups
-- [ ] Configure PM2 to auto-restart on crash
+- [ ] Configure PM2 / cloud runner to auto-restart on crash
 - [ ] Set up log rotation
 
 ---

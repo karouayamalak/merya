@@ -36,6 +36,7 @@ const testSuite = [
   { name: 'rollbackRaceTest.js', isNodeTest: false, desc: 'Rollback race condition & partial state prevention' },
   { name: 'securityVerification.js', isNodeTest: false, desc: 'Security guards, JWT secrets, environment startup' },
   { name: 'statusConcurrencyTest.js', isNodeTest: false, desc: 'Simultaneous status transitions & return/deduct concurrency' },
+  { name: 'websocketReconnectResubscriptionTest.js', isNodeTest: false, desc: 'WebSocket reconnect, auto-resubscription & timer deduplication' },
   { name: 'e2eVerification.js', isNodeTest: false, desc: 'E2E verification with WebSocket push notification' }
 ];
 

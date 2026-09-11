@@ -6,6 +6,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
+import mongoose from 'mongoose';
 
 import { connectDB } from './config/db.js';
 import { wsService } from './services/websocketService.js';
@@ -42,6 +43,15 @@ if (process.env.NODE_ENV === 'production') {
 
 const app = express();
 const server = http.createServer(app);
+
+// Render / Reverse Proxy Trust Setting
+// Render sits behind an edge reverse proxy load balancer (1 hop).
+// Setting 'trust proxy' to 1 enables Express and express-rate-limit to read
+// the real client IP from the right-most X-Forwarded-For header without risking
+// spoofing attacks from untrusted upstream headers.
+if (process.env.NODE_ENV === 'production' || process.env.TRUST_PROXY) {
+  app.set('trust proxy', 1);
+}
 
 // Connect to Database
 connectDB();
@@ -93,7 +103,7 @@ if (process.env.NODE_ENV === 'production') {
 const uploadsPath = path.resolve('uploads');
 app.use('/uploads', express.static(uploadsPath));
 
-// Health Check Endpoint
+// Health Check Endpoint (Liveness)
 app.get('/health', (req, res) => {
   res.json({
     status: 'healthy',
@@ -101,6 +111,38 @@ app.get('/health', (req, res) => {
     service: 'MERYA DZ E-Commerce API',
     uptime: process.uptime()
   });
+});
+
+// Readiness Check Endpoint (Database Connectivity)
+// Verifies MongoDB replica set connection and responsiveness separately from process liveness
+app.get(['/ready', '/health/ready'], async (req, res) => {
+  const isConnected = mongoose.connection.readyState === 1;
+  if (!isConnected) {
+    return res.status(503).json({
+      status: 'not_ready',
+      timestamp: new Date().toISOString(),
+      database: 'disconnected',
+      error: 'MongoDB connection is not established'
+    });
+  }
+
+  try {
+    await mongoose.connection.db.admin().ping();
+    res.json({
+      status: 'ready',
+      timestamp: new Date().toISOString(),
+      database: 'connected',
+      service: 'MERYA DZ E-Commerce API',
+      uptime: process.uptime()
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: 'not_ready',
+      timestamp: new Date().toISOString(),
+      database: 'unresponsive',
+      error: err.message
+    });
+  }
 });
 
 // Apply API rate limiting

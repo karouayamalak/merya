@@ -1,13 +1,20 @@
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
 
 const WebSocketContext = createContext();
 
 export function WebSocketProvider({ children }) {
   const [isConnected, setIsConnected] = useState(false);
   const socketRef = useRef(null);
-  const listenersRef = useRef(new Map()); // channel -> Set<callback>
+  const reconnectTimerRef = useRef(null);
+  const isMountedRef = useRef(true);
 
-  const connect = () => {
+  // Active in-memory subscriptions:
+  // orderSubscriptionsRef: Map<orderCode, { phone: string, callbacks: Set<Function> }>
+  // adminSubscriptionsRef: Set<Function>
+  const orderSubscriptionsRef = useRef(new Map());
+  const adminSubscriptionsRef = useRef(new Set());
+
+  const getWsUrl = () => {
     let wsUrl = import.meta.env.VITE_WS_URL;
     if (!wsUrl) {
       if (import.meta.env.VITE_BACKEND_URL) {
@@ -19,14 +26,88 @@ export function WebSocketProvider({ children }) {
         wsUrl = `${protocol}//${host}/ws`;
       }
     }
+    return wsUrl;
+  };
+
+  const scheduleReconnect = (delay = 3000) => {
+    if (!isMountedRef.current) return;
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+    reconnectTimerRef.current = setTimeout(() => {
+      reconnectTimerRef.current = null;
+      connect();
+    }, delay);
+  };
+
+  const connect = () => {
+    if (!isMountedRef.current) return;
+
+    // Prevent duplicate sockets if one is already connecting or open
+    if (
+      socketRef.current &&
+      (socketRef.current.readyState === WebSocket.CONNECTING ||
+        socketRef.current.readyState === WebSocket.OPEN)
+    ) {
+      return;
+    }
+
+    // Clean up any stale closed socket instance
+    if (socketRef.current) {
+      socketRef.current.onopen = null;
+      socketRef.current.onmessage = null;
+      socketRef.current.onclose = null;
+      socketRef.current.onerror = null;
+      socketRef.current = null;
+    }
 
     try {
+      const wsUrl = getWsUrl();
       const ws = new WebSocket(wsUrl);
       socketRef.current = ws;
 
       ws.onopen = () => {
+        if (!isMountedRef.current) {
+          ws.close();
+          return;
+        }
+
         setIsConnected(true);
         console.log('[WebSocket Client] Connected to', wsUrl);
+
+        // Clear any pending reconnect timers
+        if (reconnectTimerRef.current) {
+          clearTimeout(reconnectTimerRef.current);
+          reconnectTimerRef.current = null;
+        }
+
+        // Automatic Re-Subscription on Reconnect:
+        // 1. Resubscribe admin channel if active
+        if (adminSubscriptionsRef.current.size > 0) {
+          try {
+            ws.send(JSON.stringify({ action: 'SUBSCRIBE_ADMIN' }));
+          } catch (err) {
+            console.error('[WebSocket] Failed to resubscribe admin:', err);
+          }
+        }
+
+        // 2. Resubscribe all active order channels with retained orderCode + phone
+        for (const [code, entry] of orderSubscriptionsRef.current.entries()) {
+          if (entry.callbacks && entry.callbacks.size > 0) {
+            try {
+              ws.send(
+                JSON.stringify({
+                  action: 'SUBSCRIBE_ORDER',
+                  orderCode: code,
+                  phone: entry.phone || ''
+                })
+              );
+            } catch (err) {
+              console.error(`[WebSocket] Failed to resubscribe order ${code}:`, err);
+            }
+          }
+        }
       };
 
       ws.onmessage = (event) => {
@@ -34,18 +115,30 @@ export function WebSocketProvider({ children }) {
           const data = JSON.parse(event.data);
           const { type, orderCode } = data;
 
-          // Dispatch to matching listeners
+          // Dispatch to order subscribers
           if (type === 'ORDER_STATUS_UPDATED' && orderCode) {
-            const callbacks = listenersRef.current.get(`order:${orderCode}`);
-            if (callbacks) {
-              callbacks.forEach((cb) => cb(data));
+            const code = String(orderCode).trim().toUpperCase();
+            const entry = orderSubscriptionsRef.current.get(code);
+            if (entry && entry.callbacks) {
+              entry.callbacks.forEach((cb) => {
+                try {
+                  cb(data);
+                } catch (cbErr) {
+                  console.error('[WebSocket] Order callback error:', cbErr);
+                }
+              });
             }
           }
 
-          // Dispatch to admin listeners
-          const adminCallbacks = listenersRef.current.get('admin');
-          if (adminCallbacks) {
-            adminCallbacks.forEach((cb) => cb(data));
+          // Dispatch to admin subscribers
+          if (adminSubscriptionsRef.current.size > 0) {
+            adminSubscriptionsRef.current.forEach((cb) => {
+              try {
+                cb(data);
+              } catch (cbErr) {
+                console.error('[WebSocket] Admin callback error:', cbErr);
+              }
+            });
           }
         } catch (e) {
           console.error('[WebSocket] Failed to parse message', e);
@@ -54,27 +147,48 @@ export function WebSocketProvider({ children }) {
 
       ws.onclose = () => {
         setIsConnected(false);
-        // Reconnect after 3s delay
-        setTimeout(connect, 3000);
+        if (socketRef.current === ws) {
+          socketRef.current = null;
+        }
+        scheduleReconnect(3000);
       };
 
       ws.onerror = () => {
-        ws.close();
+        // Let onclose handle scheduling reconnect cleanly
+        try {
+          ws.close();
+        } catch {
+          // Socket already closed
+        }
       };
     } catch (e) {
-      console.error('[WebSocket] Connection error:', e);
-      setTimeout(connect, 4000);
+      console.error('[WebSocket] Connection initialization error:', e);
+      scheduleReconnect(4000);
     }
   };
 
   useEffect(() => {
+    isMountedRef.current = true;
     connect();
+
     return () => {
-      if (socketRef.current) socketRef.current.close();
+      isMountedRef.current = false;
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+      if (socketRef.current) {
+        socketRef.current.onopen = null;
+        socketRef.current.onmessage = null;
+        socketRef.current.onclose = null;
+        socketRef.current.onerror = null;
+        socketRef.current.close();
+        socketRef.current = null;
+      }
     };
   }, []);
 
-  const subscribeOrder = (orderCode, phone, callback) => {
+  const subscribeOrder = useCallback((orderCode, phone, callback) => {
     let actualPhone = phone;
     let actualCallback = callback;
     if (typeof phone === 'function') {
@@ -82,54 +196,69 @@ export function WebSocketProvider({ children }) {
       actualPhone = '';
     }
 
-    const code = orderCode.trim().toUpperCase();
-    const channel = `order:${code}`;
-
-    if (!listenersRef.current.has(channel)) {
-      listenersRef.current.set(channel, new Set());
+    if (!orderCode || typeof actualCallback !== 'function') {
+      return () => {};
     }
-    listenersRef.current.get(channel).add(actualCallback);
 
+    const code = String(orderCode).trim().toUpperCase();
+    const cleanPhone = actualPhone ? String(actualPhone).trim() : '';
+
+    let entry = orderSubscriptionsRef.current.get(code);
+    if (!entry) {
+      entry = { phone: cleanPhone, callbacks: new Set() };
+      orderSubscriptionsRef.current.set(code, entry);
+    } else if (cleanPhone && !entry.phone) {
+      entry.phone = cleanPhone;
+    }
+
+    entry.callbacks.add(actualCallback);
+
+    // If socket is open, send subscription request immediately
     if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-      socketRef.current.send(
-        JSON.stringify({
-          action: 'SUBSCRIBE_ORDER',
-          orderCode: code,
-          phone: actualPhone
-        })
-      );
+      try {
+        socketRef.current.send(
+          JSON.stringify({
+            action: 'SUBSCRIBE_ORDER',
+            orderCode: code,
+            phone: entry.phone
+          })
+        );
+      } catch (err) {
+        console.error(`[WebSocket] Error sending SUBSCRIBE_ORDER for ${code}:`, err);
+      }
     }
 
     return () => {
-      const set = listenersRef.current.get(channel);
-      if (set) {
-        set.delete(actualCallback);
-        if (set.size === 0) listenersRef.current.delete(channel);
+      const currentEntry = orderSubscriptionsRef.current.get(code);
+      if (currentEntry) {
+        currentEntry.callbacks.delete(actualCallback);
+        if (currentEntry.callbacks.size === 0) {
+          orderSubscriptionsRef.current.delete(code);
+        }
       }
     };
-  };
+  }, []);
 
-  const subscribeAdmin = (callback) => {
-    const channel = 'admin';
-    if (!listenersRef.current.has(channel)) {
-      listenersRef.current.set(channel, new Set());
+  const subscribeAdmin = useCallback((callback) => {
+    if (typeof callback !== 'function') {
+      return () => {};
     }
-    listenersRef.current.get(channel).add(callback);
 
+    adminSubscriptionsRef.current.add(callback);
+
+    // If socket is open, send subscription request immediately
     if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-      // No token needed — the browser sends the HttpOnly cookie automatically
-      // during the WebSocket upgrade handshake. The backend authenticates there.
-      socketRef.current.send(JSON.stringify({ action: 'SUBSCRIBE_ADMIN' }));
+      try {
+        socketRef.current.send(JSON.stringify({ action: 'SUBSCRIBE_ADMIN' }));
+      } catch (err) {
+        console.error('[WebSocket] Error sending SUBSCRIBE_ADMIN:', err);
+      }
     }
 
     return () => {
-      const set = listenersRef.current.get(channel);
-      if (set) {
-        set.delete(callback);
-        if (set.size === 0) listenersRef.current.delete(channel);
-      }
+      adminSubscriptionsRef.current.delete(callback);
     };
-  };
+  }, []);
 
   return (
     <WebSocketContext.Provider value={{ isConnected, subscribeOrder, subscribeAdmin }}>
