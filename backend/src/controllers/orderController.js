@@ -153,6 +153,9 @@ export const changeOrderStatus = async (req, res, next) => {
     if (error.message?.includes('Order not found')) {
       return res.status(404).json({ success: false, message: error.message });
     }
+    if (error.message?.startsWith('CONCURRENT_CONFLICT')) {
+      return res.status(409).json({ success: false, message: 'Order was updated concurrently. Please refresh and retry.' });
+    }
     if (error.message?.includes('Cannot transition') || error.message?.includes('Invalid order status') || error.message?.includes('Insufficient stock')) {
       return res.status(400).json({ success: false, message: error.message });
     }
@@ -281,8 +284,15 @@ export const updateOrderCustomerDetails = async (req, res, next) => {
     let feeOverridden = false;
     if (deliveryFee !== undefined && !isNaN(Number(deliveryFee))) {
       const feeNum = Number(deliveryFee);
-      if (feeNum < 0) {
-        return res.status(400).json({ success: false, message: 'Delivery fee cannot be negative.' });
+      if (!Number.isFinite(feeNum) || feeNum < 0) {
+        return res.status(400).json({ success: false, message: 'Delivery fee must be a finite non-negative number.' });
+      }
+      // Require a non-empty override reason — silent fallback is not allowed
+      if (!overrideReason || typeof overrideReason !== 'string' || overrideReason.trim().length === 0) {
+        return res.status(400).json({ success: false, message: 'A non-empty overrideReason is required when manually setting the delivery fee.' });
+      }
+      if (overrideReason.trim().length > 500) {
+        return res.status(400).json({ success: false, message: 'overrideReason cannot exceed 500 characters.' });
       }
       order.deliveryFee = feeNum;
       order.totalPrice = order.subtotal + order.deliveryFee;
@@ -319,7 +329,7 @@ export const updateOrderCustomerDetails = async (req, res, next) => {
       timestamp: new Date(),
       performedBy: req.admin?.username || 'Admin',
       note: feeOverridden
-        ? `Owner/Admin manually adjusted delivery fee from ${previousDeliveryFee} to ${order.deliveryFee} DZD (Reason: ${overrideReason || 'Manual adjustment'}).`
+        ? `Owner/Admin manually adjusted delivery fee from ${previousDeliveryFee} to ${order.deliveryFee} DZD (Reason: ${overrideReason.trim()}).`
         : `Owner/Admin updated order customer info (Delivery: ${order.customer.deliveryMethod}, Wilaya: ${order.customer.wilaya?.name}, Fee: ${order.deliveryFee} DZD).`,
       details: {
         previousCustomer,
@@ -327,7 +337,7 @@ export const updateOrderCustomerDetails = async (req, res, next) => {
         previousDeliveryFee,
         updatedDeliveryFee: order.deliveryFee,
         feeOverridden,
-        overrideReason: feeOverridden ? (overrideReason || 'Manual adjustment') : null,
+        overrideReason: feeOverridden ? overrideReason.trim() : null,
         previousTotalPrice,
         updatedTotalPrice: order.totalPrice
       }

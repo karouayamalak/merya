@@ -10,6 +10,8 @@ import { wsService } from './websocketService.js';
 
 /**
  * Deterministic fingerprint of order payload for strict idempotency checking.
+ * Covers ALL fields that materially define the order so that the same
+ * idempotency key + different payload → HTTP 409 conflict.
  */
 export function computeOrderFingerprint({ customer, items }) {
   let normPhone = '';
@@ -19,8 +21,14 @@ export function computeOrderFingerprint({ customer, items }) {
     normPhone = String(customer?.phone || '').trim();
   }
 
-  const wilayaCode = Number(typeof customer?.wilaya === 'object' ? customer?.wilaya?.code : customer?.wilaya);
+  const wilayaCode = Number(
+    typeof customer?.wilaya === 'object' ? customer?.wilaya?.code : customer?.wilaya
+  );
   const deliveryMethod = String(customer?.deliveryMethod || '').trim().toLowerCase();
+  const fullName = String(customer?.fullName || '').trim().toLowerCase();
+  const address = String(customer?.address || '').trim().toLowerCase();
+  const agencyName = String(customer?.agencyName || '').trim().toLowerCase();
+  const notes = String(customer?.notes || '').trim().toLowerCase();
 
   const sortedItems = (items || []).map(i => ({
     productId: String(i.productId),
@@ -35,8 +43,12 @@ export function computeOrderFingerprint({ customer, items }) {
 
   const payload = {
     phone: normPhone,
+    fullName,
     wilayaCode,
     deliveryMethod,
+    address,
+    agencyName,
+    notes,
     items: sortedItems
   };
 
@@ -231,31 +243,45 @@ export async function placeOrder({ customer, items, idempotencyKey }) {
 }
 
 /**
- * Transition Order Status safely with validation and inventory management.
- * Admin/Owner has authoritative control to transition any order to any valid status.
+ * Atomically transition order status using optimistic concurrency control.
+ *
+ * INVARIANTS:
+ *   - Exactly ONE stock restoration per order when entering Cancelled/Returned.
+ *   - Exactly ONE stock deduction per order when leaving Cancelled/Returned.
+ *   - Concurrent duplicate requests: exactly one succeeds; others get a 409-style error.
+ *   - If the inventory op fails after the order CAS, the order CAS is rolled back.
+ *   - Delivered orders are TERMINAL — no transition possible, even with override.
+ *
+ * Strategy:
+ *   Phase 1: Atomic conditional findOneAndUpdate on the Order document.
+ *            Conditions: correct _id AND current status AND correct __v (version) AND correct stockRestored.
+ *            This is the CAS. Only ONE concurrent request can win.
+ *   Phase 2: Perform the inventory operation (restore/deduct).
+ *            If inventory op throws, roll back the order to its previous state.
  */
 export async function updateOrderStatus(orderId, newStatus, adminUsername = 'Admin', note = '', isOverride = false) {
-  const order = await Order.findById(orderId);
-  if (!order) {
-    throw new Error('Order not found');
-  }
-
   const validStatuses = Object.values(ORDER_STATUS);
   if (!validStatuses.includes(newStatus)) {
     throw new Error(`Invalid order status "${newStatus}". Must be one of: ${validStatuses.join(', ')}`);
   }
 
+  // Read current order state
+  const order = await Order.findById(orderId);
+  if (!order) {
+    throw new Error('Order not found');
+  }
+
   const currentStatus = order.status;
   if (currentStatus === newStatus) {
-    return order;
+    return order; // No-op, idempotent
   }
 
-  // CRITICAL INVARIANT: Delivered orders can NEVER be transitioned to Cancelled or Returned (even with override)
+  // HARD INVARIANT: Delivered is a terminal state — no override can change this
   if (currentStatus === ORDER_STATUS.DELIVERED) {
-    throw new Error('Cannot transition order: Terminal state violation: Delivered orders cannot be transitioned to Cancelled or Returned.');
+    throw new Error('Cannot transition order: Terminal state violation: Delivered orders cannot be transitioned.');
   }
 
-  // Validate state machine unless owner/admin override is enabled
+  // Validate state machine unless admin override
   if (!isOverride) {
     const allowedTransitions = VALID_STATUS_TRANSITIONS[currentStatus] || [];
     if (!allowedTransitions.includes(newStatus)) {
@@ -263,43 +289,113 @@ export async function updateOrderStatus(orderId, newStatus, adminUsername = 'Adm
     }
   }
 
-  // Stock inventory management on status changes:
-  // 1. Moving to CANCELLED or RETURNED: restore reserved stock (only if not already restored)
+  // Determine if this transition requires an inventory operation
   const isEnteringRestoredState = newStatus === ORDER_STATUS.CANCELLED || newStatus === ORDER_STATUS.RETURNED;
-  const isLeavingRestoredState = (currentStatus === ORDER_STATUS.CANCELLED || currentStatus === ORDER_STATUS.RETURNED) && !isEnteringRestoredState;
+  const isLeavingRestoredState = (
+    currentStatus === ORDER_STATUS.CANCELLED || currentStatus === ORDER_STATUS.RETURNED
+  ) && !isEnteringRestoredState;
 
-  if (isEnteringRestoredState && !order.stockRestored) {
-    console.log(`[OrderService] Restoring stock for ${newStatus.toLowerCase()} order ${order.orderCode}`);
-    await restoreStockAtomic(order.items);
-    order.stockRestored = true;
-  } 
-  // 2. Moving from CANCELLED/RETURNED to active status: re-deduct stock if previously restored
-  else if (isLeavingRestoredState && order.stockRestored) {
-    console.log(`[OrderService] Re-deducting stock for reactivated order ${order.orderCode}`);
-    // STRICT INVARIANT: If stock cannot be deducted (insufficient stock), this throws an Error!
-    // order.status and order.stockRestored are NOT modified. Order remains in previous state.
-    await deductStockAtomic(order.items);
-    order.stockRestored = false;
-  }
+  const needsRestore = isEnteringRestoredState && !order.stockRestored;
+  const needsDeduct = isLeavingRestoredState && order.stockRestored;
 
-  order.status = newStatus;
-  order.auditHistory.push({
+  const auditEntry = {
     action: 'STATUS_CHANGED',
     timestamp: new Date(),
     performedBy: adminUsername,
     note: note || `Owner/Admin updated status from ${currentStatus} to ${newStatus}`,
     details: { previousStatus: currentStatus, newStatus }
-  });
+  };
 
-  await order.save();
+  // ─── PHASE 1: Atomic Optimistic-Lock CAS on the Order ────────────────────────
+  // Build the conditional query. The __v check (version key) ensures that if
+  // two concurrent requests both read the same document, only one can win the
+  // update. The second sees a mismatched __v and gets null.
+  const casQuery = {
+    _id: order._id,
+    __v: order.__v,          // Optimistic lock — must match the version we read
+    status: currentStatus    // Must still be in the state we read
+  };
+
+  // Also lock on stockRestored when we care about it, for extra safety
+  if (needsRestore) {
+    casQuery.stockRestored = false; // Only win if stock has NOT been restored yet
+  } else if (needsDeduct) {
+    casQuery.stockRestored = true;  // Only win if stock HAS been restored
+  }
+
+  const casUpdate = {
+    $set: {
+      status: newStatus,
+      ...(needsRestore ? { stockRestored: true } : {}),
+      ...(needsDeduct  ? { stockRestored: false } : {})
+    },
+    $inc: { __v: 1 },      // Increment version to invalidate any concurrent CAS
+    $push: { auditHistory: auditEntry }
+  };
+
+  const updatedOrder = await Order.findOneAndUpdate(casQuery, casUpdate, { new: true });
+
+  if (!updatedOrder) {
+    // Another concurrent request won the race, or the document was modified.
+    // Return a specific error that the controller can surface as 409.
+    throw new Error('CONCURRENT_CONFLICT: Order was modified concurrently. Please retry.');
+  }
+
+  // ─── PHASE 2: Inventory operation (after successful CAS) ─────────────────────
+  // If this fails, we MUST roll back the order to its previous state.
+  if (needsRestore) {
+    try {
+      console.log(`[OrderService] Restoring stock for ${newStatus.toLowerCase()} order ${updatedOrder.orderCode}`);
+      await restoreStockAtomic(updatedOrder.items);
+    } catch (inventoryErr) {
+      // Roll back the order CAS
+      console.error(`[OrderService] Stock restoration failed for ${updatedOrder.orderCode}: ${inventoryErr.message}. Rolling back order status.`);
+      await Order.findByIdAndUpdate(updatedOrder._id, {
+        $set: { status: currentStatus, stockRestored: false },
+        $inc: { __v: 1 },
+        $push: {
+          auditHistory: {
+            action: 'STATUS_ROLLBACK',
+            timestamp: new Date(),
+            performedBy: 'SYSTEM',
+            note: `Automatic rollback: stock restoration failed — ${inventoryErr.message}`,
+            details: { attemptedStatus: newStatus, revertedTo: currentStatus }
+          }
+        }
+      });
+      throw inventoryErr;
+    }
+  } else if (needsDeduct) {
+    try {
+      console.log(`[OrderService] Re-deducting stock for reactivated order ${updatedOrder.orderCode}`);
+      await deductStockAtomic(updatedOrder.items);
+    } catch (inventoryErr) {
+      // Roll back the order CAS
+      console.error(`[OrderService] Stock deduction failed for ${updatedOrder.orderCode}: ${inventoryErr.message}. Rolling back order status.`);
+      await Order.findByIdAndUpdate(updatedOrder._id, {
+        $set: { status: currentStatus, stockRestored: true },
+        $inc: { __v: 1 },
+        $push: {
+          auditHistory: {
+            action: 'STATUS_ROLLBACK',
+            timestamp: new Date(),
+            performedBy: 'SYSTEM',
+            note: `Automatic rollback: stock deduction failed — ${inventoryErr.message}`,
+            details: { attemptedStatus: newStatus, revertedTo: currentStatus }
+          }
+        }
+      });
+      throw inventoryErr;
+    }
+  }
 
   // Broadcast to customer tracking page and admin
-  wsService.broadcastOrderStatus(order.orderCode, newStatus, {
-    customerName: order.customer.fullName,
-    updatedAt: order.updatedAt
+  wsService.broadcastOrderStatus(updatedOrder.orderCode, newStatus, {
+    customerName: updatedOrder.customer.fullName,
+    updatedAt: updatedOrder.updatedAt
   });
 
-  return order;
+  return updatedOrder;
 }
 
 /**
