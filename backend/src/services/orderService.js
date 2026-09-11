@@ -141,14 +141,27 @@ export async function placeOrder({ customer, items, idempotencyKey }) {
 
   let deliverySetting = await DeliverySetting.findOne();
   if (!deliverySetting) {
-    const defaultRates = ALGERIA_WILAYAS.map(w => ({
-      wilayaCode: w.code,
-      wilayaName: w.name,
-      wilayaNameAr: w.nameAr,
-      homeFee: 800,
-      agencyFee: 500,
-      isAvailable: true
-    }));
+    const getInitialFee = (c) => {
+      if (c === 16) return { homeFee: 500, agencyFee: 350 };
+      if ([9, 35, 42].includes(c)) return { homeFee: 600, agencyFee: 400 };
+      if ([31, 25, 19, 15, 6, 23, 13, 27, 2, 5, 18, 21, 22, 24, 26, 29, 34, 43, 44, 46, 48].includes(c)) return { homeFee: 750, agencyFee: 450 };
+      if ([3, 4, 7, 10, 12, 14, 17, 20, 28, 38, 40, 41, 45, 51].includes(c)) return { homeFee: 850, agencyFee: 500 };
+      if ([8, 30, 32, 39, 47, 55, 57, 58].includes(c)) return { homeFee: 1000, agencyFee: 700 };
+      return { homeFee: 1400, agencyFee: 900 };
+    };
+
+    const defaultRates = ALGERIA_WILAYAS.map(w => {
+      const fees = getInitialFee(w.code);
+      return {
+        wilayaCode: w.code,
+        wilayaName: w.name,
+        wilayaNameAr: w.nameAr,
+        homeFee: fees.homeFee,
+        agencyFee: fees.agencyFee,
+        isAvailable: true
+      };
+    });
+
     deliverySetting = await DeliverySetting.create({
       agencyDeliveryFee: 500,
       homeDeliveryFee: 800,

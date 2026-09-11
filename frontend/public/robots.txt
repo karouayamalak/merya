@@ -1,0 +1,14 @@
+# MERYA DZ — Robots.txt
+User-agent: *
+Allow: /
+Allow: /products
+Allow: /categories
+
+# Disallow admin back-office and private customer tracking lookups
+Disallow: /admin
+Disallow: /admin/
+Disallow: /tracking
+Disallow: /tracking/
+
+# Disallow API direct indexing
+Disallow: /api/

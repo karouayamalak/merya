@@ -58,7 +58,26 @@ class WebSocketService {
         ws.isAlive = true;
       });
 
+      ws._msgWindowStart = Date.now();
+      ws._msgCount = 0;
+
       ws.on('message', async (data) => {
+        const now = Date.now();
+        if (now - ws._msgWindowStart > 10000) {
+          ws._msgWindowStart = now;
+          ws._msgCount = 0;
+        }
+        ws._msgCount++;
+        if (ws._msgCount > 60) {
+          console.warn('[WebSocket] Terminating socket due to severe message flooding');
+          ws.terminate();
+          return;
+        }
+        if (ws._msgCount > 30) {
+          ws.send(JSON.stringify({ type: 'ERROR', message: 'Rate limit exceeded. Please slow down.' }));
+          return;
+        }
+
         try {
           const message = JSON.parse(data.toString());
           await this.handleMessage(ws, message);

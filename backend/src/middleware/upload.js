@@ -15,10 +15,13 @@ const storage = multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
   const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/avif'];
-  if (allowedMimes.includes(file.mimetype)) {
+  const allowedExts = ['.jpg', '.jpeg', '.png', '.webp', '.avif'];
+  const ext = path.extname(file.originalname || '').toLowerCase();
+
+  if (allowedMimes.includes(file.mimetype) && allowedExts.includes(ext)) {
     cb(null, true);
   } else {
-    cb(new Error('Only JPEG, PNG, WEBP, and AVIF image formats are allowed!'), false);
+    cb(new Error('Invalid file format. Only JPEG, PNG, WEBP, and AVIF images are permitted!'), false);
   }
 };
 

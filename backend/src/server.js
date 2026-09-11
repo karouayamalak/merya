@@ -106,6 +106,31 @@ app.get('/health', (req, res) => {
 // Apply API rate limiting
 app.use('/api', apiLimiter);
 
+// HTTP Caching Policy Middleware:
+// - Private & mutating endpoints: completely uncacheable (no-store, no-cache, must-revalidate, private)
+// - Public storefront GET catalog endpoints (categories, products, delivery settings): safe short-term cache (30s)
+app.use('/api', (req, res, next) => {
+  const method = req.method.toUpperCase();
+  const url = req.originalUrl.toLowerCase();
+
+  if (
+    method !== 'GET' ||
+    url.includes('/admin') ||
+    url.includes('/auth') ||
+    url.includes('/orders') ||
+    url.includes('/analytics') ||
+    url.includes('/tracking') ||
+    url.includes('/upload')
+  ) {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+  } else {
+    res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
+  }
+  next();
+});
+
 // CSRF protection is applied per-route in admin route files (see orderRoutes, productRoutes, etc.)
 // Public mutation endpoints (checkout, tracking, login) bypass CSRF intentionally:
 //   - they carry no admin cookie, so CSRF is not the threat vector
