@@ -1,4 +1,8 @@
 import { Product } from '../models/Product.js';
+import { InventoryAdjustment } from '../models/InventoryAdjustment.js';
+import { withTransactionRetry } from '../utils/transactionRetry.js';
+
+export { InventoryAdjustment };
 
 /**
  * Atomically deduct stock for multiple items.
@@ -155,12 +159,14 @@ export async function restoreStockAtomic(items, session = null) {
  * @throws  Error('CONCURRENT_CONFLICT') if the product was modified concurrently
  */
 export async function setStockAtomic(productId, colorName, size, newStock, admin = 'Admin', reason = '') {
-  if (newStock < 0) {
+  if (typeof newStock !== 'number' || !Number.isFinite(newStock) || newStock < 0) {
     throw new Error('Stock cannot be negative');
   }
 
-  // ── Read phase ──────────────────────────────────────────────────────────────
-  // Capture the current __v (optimistic concurrency token) and previousStock.
+  // ── Read phase (Optimistic Concurrency Baseline) ───────────────────────────
+  // Capture the current __v and previousStock BEFORE entering transaction.
+  // This ensures concurrent writes from different admins detect version drift (409)
+  // instead of silently re-reading and overwriting newer changes on retry.
   const existingProduct = await Product.findById(productId);
   if (!existingProduct) {
     throw new Error('Product not found');
@@ -176,56 +182,67 @@ export async function setStockAtomic(productId, colorName, size, newStock, admin
     throw new Error(`Size "${size}" not found in color "${colorName}"`);
   }
 
-  const previousStock  = sizeObj.stock;
+  const previousStock = sizeObj.stock;
   const expectedVersion = existingProduct.__v;
 
-  // ── Write phase (CAS on __v) ─────────────────────────────────────────────────
-  // The update only executes if __v still matches what we read.
-  // $inc: { __v: 1 } ensures the next concurrent caller will see a different
-  // version and must retry / receive a 409 instead of silently overwriting.
-  const updated = await Product.findOneAndUpdate(
-    {
-      _id: productId,
-      __v: expectedVersion,          // optimistic concurrency condition
-      'colors.colorName': colorName,
-      'colors.sizes.size': size
-    },
-    {
-      $set: {
-        'colors.$[c].sizes.$[s].stock': newStock
+  return await withTransactionRetry(async (session) => {
+    const sessionOpt = session ? { session } : {};
+
+    // ── Write phase (CAS on __v) ─────────────────────────────────────────────────
+    // The update only executes if __v still matches what we read.
+    // $inc: { __v: 1 } ensures the next concurrent caller will see a different
+    // version and must retry / receive a 409 instead of silently overwriting.
+    const updated = await Product.findOneAndUpdate(
+      {
+        _id: productId,
+        __v: expectedVersion,          // optimistic concurrency condition
+        'colors.colorName': colorName,
+        'colors.sizes.size': size
       },
-      $inc: { __v: 1 }
-    },
-    {
-      arrayFilters: [
-        { 'c.colorName': colorName },
-        { 's.size': size }
-      ],
-      new: true
-    }
-  );
-
-  if (!updated) {
-    // __v mismatch — another admin modified this product concurrently.
-    throw new Error(
-      `CONCURRENT_CONFLICT: Product was modified concurrently. ` +
-      `Please refresh and retry your inventory adjustment.`
+      {
+        $set: {
+          'colors.$[c].sizes.$[s].stock': newStock
+        },
+        $inc: { __v: 1 }
+      },
+      {
+        arrayFilters: [
+          { 'c.colorName': colorName },
+          { 's.size': size }
+        ],
+        new: true,
+        ...sessionOpt
+      }
     );
-  }
 
-  const adjustment = {
-    productId: productId.toString(),
-    colorName,
-    size,
-    previousStock,
-    newStock,
-    admin,
-    timestamp: new Date(),
-    reason: reason || 'Manual adjustment'
-  };
+    if (!updated) {
+      // __v mismatch — another admin modified this product concurrently.
+      throw new Error(
+        `CONCURRENT_CONFLICT: Product was modified concurrently. ` +
+        `Please refresh and retry your inventory adjustment.`
+      );
+    }
 
-  console.log(`[Inventory Adjustment] ${productId} (${colorName}/${size}): ${previousStock} → ${newStock} by ${admin} (Reason: ${adjustment.reason})`);
+    // ── Audit phase: Durably persist InventoryAdjustment document ────────────────
+    const [auditRecord] = await InventoryAdjustment.create(
+      [
+        {
+          productId: existingProduct._id,
+          colorName,
+          size,
+          previousStock,
+          newStock,
+          admin,
+          timestamp: new Date(),
+          reason: reason || 'Manual adjustment'
+        }
+      ],
+      sessionOpt
+    );
 
-  updated._adjustment = adjustment;
-  return updated;
+    console.log(`[Inventory Adjustment] ${productId} (${colorName}/${size}): ${previousStock} → ${newStock} by ${admin} (Reason: ${reason || 'Manual adjustment'})`);
+
+    updated._adjustment = auditRecord.toObject();
+    return updated;
+  });
 }

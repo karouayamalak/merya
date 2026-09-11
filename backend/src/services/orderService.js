@@ -8,6 +8,7 @@ import { generateOrderCode } from '../utils/orderCode.js';
 import { normalizeAlgerianPhone } from '../utils/phone.js';
 import { deductStockAtomic, restoreStockAtomic } from './inventoryService.js';
 import { wsService } from './websocketService.js';
+import { withTransactionRetry } from '../utils/transactionRetry.js';
 
 /**
  * Deterministic fingerprint of order payload for strict idempotency checking.
@@ -64,7 +65,21 @@ export async function placeOrder({ customer, items, idempotencyKey }) {
     throw new Error('Order must contain at least one item');
   }
 
-  // 1. Strict Canonical Wilaya Verification & Availability Check
+  // 1. Check idempotency with deterministic fingerprint (early fast path)
+  const currentFingerprint = computeOrderFingerprint({ customer, items });
+
+  if (idempotencyKey) {
+    const existingOrder = await Order.findOne({ idempotencyKey });
+    if (existingOrder) {
+      if (existingOrder.idempotencyFingerprint && existingOrder.idempotencyFingerprint !== currentFingerprint) {
+        throw new Error('IDEMPOTENCY_CONFLICT: Idempotency key reused with different request payload');
+      }
+      console.log(`[OrderService] Duplicate submission caught via idempotency key: ${idempotencyKey}`);
+      return { order: existingOrder, isDuplicate: true };
+    }
+  }
+
+  // 2. Strict Canonical Wilaya Verification & Availability Check
   if (!customer || !customer.wilaya) {
     throw new Error('Customer Wilaya is required');
   }
@@ -86,6 +101,42 @@ export async function placeOrder({ customer, items, idempotencyKey }) {
     if (!matchesEn && !matchesAr) {
       throw new Error(`Wilaya mismatch: code ${codeNum} is "${canonicalWilaya.name}", but received "${name}".`);
     }
+  }
+
+  // Strict Delivery Method Validation
+  if (!customer.deliveryMethod) {
+    throw new Error('Delivery method is required (agency or home)');
+  }
+
+  const deliveryMethodNorm = String(customer.deliveryMethod).toLowerCase().trim();
+  if (deliveryMethodNorm === DELIVERY_METHODS.AGENCY) {
+    if (!customer.agencyName || typeof customer.agencyName !== 'string' || customer.agencyName.trim().length === 0) {
+      throw new Error('Agency name is required for agency delivery');
+    }
+    const trimmedAgency = customer.agencyName.trim();
+    if (trimmedAgency.length < 2) {
+      throw new Error('Agency name must be at least 2 characters');
+    }
+    if (trimmedAgency.length > 100) {
+      throw new Error('Agency name cannot exceed 100 characters');
+    }
+    customer.agencyName = trimmedAgency;
+    customer.deliveryMethod = DELIVERY_METHODS.AGENCY;
+  } else if (deliveryMethodNorm === DELIVERY_METHODS.HOME) {
+    if (!customer.address || typeof customer.address !== 'string' || customer.address.trim().length === 0) {
+      throw new Error('Detailed delivery address is required for home delivery');
+    }
+    const trimmedAddress = customer.address.trim();
+    if (trimmedAddress.length < 4) {
+      throw new Error('Detailed delivery address is required for home delivery (min 4 characters)');
+    }
+    if (trimmedAddress.length > 300) {
+      throw new Error('Address cannot exceed 300 characters');
+    }
+    customer.address = trimmedAddress;
+    customer.deliveryMethod = DELIVERY_METHODS.HOME;
+  } else {
+    throw new Error(`Invalid delivery method "${customer.deliveryMethod}". Must be "agency" or "home".`);
   }
 
   let deliverySetting = await DeliverySetting.findOne();
@@ -114,158 +165,131 @@ export async function placeOrder({ customer, items, idempotencyKey }) {
     throw new Error(`Wilaya ${codeNum} (${canonicalWilaya.name}) is currently unavailable for delivery.`);
   }
 
-  // 2. Check idempotency with deterministic fingerprint
-  const currentFingerprint = computeOrderFingerprint({ customer, items });
-
-  // Early idempotency check outside session (fast path)
-  if (idempotencyKey) {
-    const existingOrder = await Order.findOne({ idempotencyKey });
-    if (existingOrder) {
-      if (existingOrder.idempotencyFingerprint && existingOrder.idempotencyFingerprint !== currentFingerprint) {
-        throw new Error('IDEMPOTENCY_CONFLICT: Idempotency key reused with different request payload');
-      }
-      console.log(`[OrderService] Duplicate submission caught via idempotency key: ${idempotencyKey}`);
-      return { order: existingOrder, isDuplicate: true };
-    }
-  }
-
-  // ─── CHECKOUT TRANSACTION ──────────────────────────────────────────────────
-  // Order creation and all inventory deductions occur within a single session.
-  // Either ALL commit or ALL abort. No manual inventory compensation is used.
-  const session = await mongoose.startSession();
-  let createdOrder = null;
-
+  // ─── CHECKOUT TRANSACTION (WITH BOUNDED RETRY SAFETY) ───────────────────────
+  let txResult;
   try {
-    session.startTransaction();
+    txResult = await withTransactionRetry(async (session, attempt) => {
+      const sessionOpt = session ? { session } : {};
 
-    // Re-check idempotency inside transaction for concurrency safety
-    if (idempotencyKey) {
-      const existingInTx = await Order.findOne({ idempotencyKey }).session(session);
-      if (existingInTx) {
-        if (existingInTx.idempotencyFingerprint && existingInTx.idempotencyFingerprint !== currentFingerprint) {
-          throw new Error('IDEMPOTENCY_CONFLICT: Idempotency key reused with different request payload');
+      // Re-check idempotency inside transaction for concurrency safety
+      if (idempotencyKey) {
+        const existingInTx = await Order.findOne({ idempotencyKey }, null, sessionOpt);
+        if (existingInTx) {
+          if (existingInTx.idempotencyFingerprint && existingInTx.idempotencyFingerprint !== currentFingerprint) {
+            throw new Error('IDEMPOTENCY_CONFLICT: Idempotency key reused with different request payload');
+          }
+          console.log(`[OrderService] Duplicate submission caught inside transaction via idempotency key: ${idempotencyKey}`);
+          return { order: existingInTx, isDuplicate: true };
         }
-        await session.abortTransaction();
-        console.log(`[OrderService] Duplicate submission caught inside transaction via idempotency key: ${idempotencyKey}`);
-        return { order: existingInTx, isDuplicate: true };
-      }
-    }
-
-    // 3. Authoritative Database Item Verification & Snapshots inside session
-    const itemSnapshots = [];
-    let subtotal = 0;
-
-    for (const item of items) {
-      const { productId, colorName, size, quantity } = item;
-
-      if (!productId || !colorName || !size || !quantity || quantity <= 0) {
-        throw new Error('Invalid item parameters');
       }
 
-      const product = await Product.findOne({ _id: productId, isActive: true, isArchived: false }).session(session);
-      if (!product) {
-        throw new Error(`Product not found or is currently inactive: ${productId}`);
+      // 3. Authoritative Database Item Verification & Snapshots inside session
+      const itemSnapshots = [];
+      let subtotal = 0;
+
+      for (const item of items) {
+        const { productId, colorName, size, quantity } = item;
+
+        if (!productId || !colorName || !size || !quantity || quantity <= 0) {
+          throw new Error('Invalid item parameters');
+        }
+
+        const product = await Product.findOne({ _id: productId, isActive: true, isArchived: false }, null, sessionOpt);
+        if (!product) {
+          throw new Error(`Product not found or is currently inactive: ${productId}`);
+        }
+
+        const colorVariant = product.colors.find(c => c.colorName === colorName);
+        if (!colorVariant) {
+          throw new Error(`Color "${colorName}" is no longer available for ${product.name}`);
+        }
+
+        const sizeVariant = colorVariant.sizes.find(s => s.size === size);
+        if (!sizeVariant) {
+          throw new Error(`Size "${size}" is not available for ${product.name} in ${colorName}`);
+        }
+
+        if (sizeVariant.stock < quantity) {
+          throw new Error(`Only ${sizeVariant.stock} items remaining for ${product.name} (${colorName}, ${size})`);
+        }
+
+        const itemTotal = product.sellingPrice * quantity;
+        subtotal += itemTotal;
+
+        itemSnapshots.push({
+          productId: product._id,
+          productName: product.name,
+          colorName: colorVariant.colorName,
+          colorCode: colorVariant.colorCode,
+          size: sizeVariant.size,
+          quantity,
+          unitPrice: product.sellingPrice,
+          unitCost: product.costPrice,
+          image: colorVariant.images[0] || ''
+        });
       }
 
-      const colorVariant = product.colors.find(c => c.colorName === colorName);
-      if (!colorVariant) {
-        throw new Error(`Color "${colorName}" is no longer available for ${product.name}`);
+      // 4. Dynamic Delivery Fee calculation from database
+      let deliveryFee = 0;
+      if (customer.deliveryMethod === DELIVERY_METHODS.AGENCY) {
+        deliveryFee = wilayaRate ? wilayaRate.agencyFee : deliverySetting.agencyDeliveryFee;
+      } else if (customer.deliveryMethod === DELIVERY_METHODS.HOME) {
+        deliveryFee = wilayaRate ? wilayaRate.homeFee : deliverySetting.homeDeliveryFee;
+      } else {
+        throw new Error('Invalid delivery method');
       }
 
-      const sizeVariant = colorVariant.sizes.find(s => s.size === size);
-      if (!sizeVariant) {
-        throw new Error(`Size "${size}" is not available for ${product.name} in ${colorName}`);
+      // Free delivery threshold check if active
+      if (deliverySetting.freeDeliveryThreshold && deliverySetting.freeDeliveryThreshold > 0 && subtotal >= deliverySetting.freeDeliveryThreshold) {
+        deliveryFee = 0;
       }
 
-      if (sizeVariant.stock < quantity) {
-        throw new Error(`Only ${sizeVariant.stock} items remaining for ${product.name} (${colorName}, ${size})`);
+      const totalPrice = subtotal + deliveryFee;
+
+      // 5. Deduct all inventory atomically within the session
+      await deductStockAtomic(items, session);
+
+      // 6. Generate secure unique order tracking code
+      let orderCode;
+      let codeExists = true;
+      while (codeExists) {
+        orderCode = generateOrderCode();
+        const found = await Order.findOne({ orderCode }, null, sessionOpt);
+        if (!found) codeExists = false;
       }
 
-      const itemTotal = product.sellingPrice * quantity;
-      subtotal += itemTotal;
-
-      itemSnapshots.push({
-        productId: product._id,
-        productName: product.name,
-        colorName: colorVariant.colorName,
-        colorCode: colorVariant.colorCode,
-        size: sizeVariant.size,
-        quantity,
-        unitPrice: product.sellingPrice,
-        unitCost: product.costPrice,
-        image: colorVariant.images[0] || ''
+      // 7. Create Order Document with snapshot and fingerprint inside session
+      const createdOrder = new Order({
+        orderCode,
+        idempotencyKey,
+        idempotencyFingerprint: currentFingerprint,
+        customer,
+        items: itemSnapshots,
+        subtotal,
+        deliveryFee,
+        totalPrice,
+        status: ORDER_STATUS.PENDING,
+        stockRestored: false,
+        auditHistory: [
+          {
+            action: 'ORDER_PLACED',
+            timestamp: new Date(),
+            performedBy: 'Customer',
+            note: `Order placed via Cash on Delivery (${customer.deliveryMethod})`,
+            details: { subtotal, deliveryFee, totalPrice }
+          }
+        ]
       });
-    }
 
-    // 4. Dynamic Delivery Fee calculation from database
-    let deliveryFee = 0;
-    if (customer.deliveryMethod === DELIVERY_METHODS.AGENCY) {
-      deliveryFee = wilayaRate ? wilayaRate.agencyFee : deliverySetting.agencyDeliveryFee;
-    } else if (customer.deliveryMethod === DELIVERY_METHODS.HOME) {
-      deliveryFee = wilayaRate ? wilayaRate.homeFee : deliverySetting.homeDeliveryFee;
-    } else {
-      throw new Error('Invalid delivery method');
-    }
-
-    // Free delivery threshold check if active
-    if (deliverySetting.freeDeliveryThreshold && deliverySetting.freeDeliveryThreshold > 0 && subtotal >= deliverySetting.freeDeliveryThreshold) {
-      deliveryFee = 0;
-    }
-
-    const totalPrice = subtotal + deliveryFee;
-
-    // 5. Deduct all inventory atomically within the session
-    await deductStockAtomic(items, session);
-
-    // 6. Generate secure unique order tracking code
-    let orderCode;
-    let codeExists = true;
-    while (codeExists) {
-      orderCode = generateOrderCode();
-      const found = await Order.findOne({ orderCode }).session(session);
-      if (!found) codeExists = false;
-    }
-
-    // 7. Create Order Document with snapshot and fingerprint inside session
-    createdOrder = new Order({
-      orderCode,
-      idempotencyKey,
-      idempotencyFingerprint: currentFingerprint,
-      customer,
-      items: itemSnapshots,
-      subtotal,
-      deliveryFee,
-      totalPrice,
-      status: ORDER_STATUS.PENDING,
-      stockRestored: false,
-      auditHistory: [
-        {
-          action: 'ORDER_PLACED',
-          timestamp: new Date(),
-          performedBy: 'Customer',
-          note: `Order placed via Cash on Delivery (${customer.deliveryMethod})`,
-          details: { subtotal, deliveryFee, totalPrice }
-        }
-      ]
+      await createdOrder.save(sessionOpt);
+      console.log(`[OrderService] [TX] Checkout committed successfully on attempt ${attempt}: order ${createdOrder.orderCode}`);
+      return { order: createdOrder, isDuplicate: false };
     });
-
-    await createdOrder.save({ session });
-
-    await session.commitTransaction();
-    console.log(`[OrderService] [TX] Checkout committed successfully: order ${createdOrder.orderCode}`);
-
   } catch (err) {
-    try {
-      await session.abortTransaction();
-    } catch (abortErr) {
-      console.error(`[OrderService] [TX] Checkout abortTransaction failed: ${abortErr.message}`);
-    }
-
     // Handle race condition where another concurrent transaction with the same idempotency key won/committed
-    if (idempotencyKey) {
+    if (idempotencyKey && (err.code === 11000 || err.message?.includes('duplicate key') || err.message?.includes('E11000'))) {
       let existingOrder = await Order.findOne({ idempotencyKey });
       if (!existingOrder) {
-        // Brief pause in case the winner is in the middle of commitTransaction
         await new Promise(resolve => setTimeout(resolve, 100));
         existingOrder = await Order.findOne({ idempotencyKey });
       }
@@ -280,18 +304,20 @@ export async function placeOrder({ customer, items, idempotencyKey }) {
     }
 
     throw err;
-  } finally {
-    session.endSession();
   }
 
-  // 8. Real-time WebSocket Broadcast to Admin (only after successful commit)
-  try {
-    wsService.broadcastNewOrder(createdOrder);
-  } catch (wsErr) {
-    console.warn(`[OrderService] WebSocket broadcastNewOrder failed (non-fatal): ${wsErr.message}`);
+  const { order: finalOrder, isDuplicate } = txResult;
+
+  // 8. Real-time WebSocket Broadcast to Admin (strictly after successful final commit)
+  if (!isDuplicate && finalOrder) {
+    try {
+      wsService.broadcastNewOrder(finalOrder);
+    } catch (wsErr) {
+      console.warn(`[OrderService] WebSocket broadcastNewOrder failed (non-fatal): ${wsErr.message}`);
+    }
   }
 
-  return { order: createdOrder, isDuplicate: false };
+  return { order: finalOrder, isDuplicate: !!isDuplicate };
 }
 
 /**
@@ -385,16 +411,14 @@ export async function updateOrderStatus(
   let updatedOrder = null;
 
   if (needsTransaction) {
-    // ─── TRANSACTION PATH: inventory-touching transition ────────────────────────
+    // ─── TRANSACTION PATH: inventory-touching transition (WITH BOUNDED RETRY) ───
     // All reads and writes happen inside a single MongoDB session so they either
     // ALL commit or ALL abort. No compensating rollback is needed or performed.
-    const session = await mongoose.startSession();
-
-    try {
-      session.startTransaction();
+    updatedOrder = await withTransactionRetry(async (session, attempt) => {
+      const sessionOpt = session ? { session } : {};
 
       // Re-read inside transaction to establish a consistent read snapshot.
-      const orderInTx = await Order.findById(orderId).session(session);
+      const orderInTx = await Order.findById(orderId, null, sessionOpt);
       if (!orderInTx) {
         throw new Error('Order not found');
       }
@@ -458,35 +482,27 @@ export async function updateOrderStatus(
         $push: { auditHistory: auditEntry }
       };
 
-      updatedOrder = await Order.findOneAndUpdate(casQuery, casUpdate, {
+      const res = await Order.findOneAndUpdate(casQuery, casUpdate, {
         new: true,
-        session
+        ...sessionOpt
       });
 
-      if (!updatedOrder) {
+      if (!res) {
         throw new Error('CONCURRENT_CONFLICT: Order was modified concurrently. Please retry.');
       }
 
       // ─── INVENTORY OPERATIONS (inside the same transaction) ─────────────────
       if (needsRestore) {
-        console.log(`[OrderService] [TX] Restoring stock for ${newStatus.toLowerCase()} order ${updatedOrder.orderCode}`);
-        await restoreStockAtomic(updatedOrder.items, session);
+        console.log(`[OrderService] [TX] Restoring stock for ${newStatus.toLowerCase()} order ${res.orderCode}`);
+        await restoreStockAtomic(res.items, session);
       } else if (needsDeduct) {
-        console.log(`[OrderService] [TX] Re-deducting stock for reactivated order ${updatedOrder.orderCode}`);
-        await deductStockAtomic(updatedOrder.items, session);
+        console.log(`[OrderService] [TX] Re-deducting stock for reactivated order ${res.orderCode}`);
+        await deductStockAtomic(res.items, session);
       }
 
-      await session.commitTransaction();
-      console.log(`[OrderService] [TX] Committed: order ${updatedOrder.orderCode} → ${newStatus}`);
-
-    } catch (err) {
-      try { await session.abortTransaction(); } catch (abortErr) {
-        console.error(`[OrderService] [TX] abortTransaction failed: ${abortErr.message}`);
-      }
-      throw err;
-    } finally {
-      session.endSession();
-    }
+      console.log(`[OrderService] [TX] Committed on attempt ${attempt}: order ${res.orderCode} → ${newStatus}`);
+      return res;
+    });
 
   } else {
     // ─── NON-TRANSACTION PATH: pure status change (no inventory involved) ───────
@@ -547,6 +563,7 @@ export async function updateOrderStatus(
  * Calculate financial analytics: revenue, realized profit, breakdown.
  * CRITICAL RULE: Realized profit ONLY comes from DELIVERED orders.
  * Cancelled orders do NOT contribute to revenue or realized profit.
+ * Realized profit must be exactly revenue - cost (losses remain negative).
  */
 export async function getFinancialAnalytics() {
   // Aggregate delivered orders for realized revenue and profit
@@ -571,7 +588,8 @@ export async function getFinancialAnalytics() {
     unitsSold: 0
   };
 
-  const realizedProfit = Math.max(0, deliveredMetrics.totalRevenue - deliveredMetrics.totalCost);
+  // Realized profit without clamp: legitimate losses remain negative
+  const realizedProfit = deliveredMetrics.totalRevenue - deliveredMetrics.totalCost;
 
   // Status breakdown
   const statusCounts = await Order.aggregate([

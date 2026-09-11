@@ -51,6 +51,8 @@ update_categories.js
 update_cats.js
 backend/test_data_rs/
 test_data_rs/
+mongo_rs0/
+backend/mongo_rs0/
 
 # Test coverage
 coverage/

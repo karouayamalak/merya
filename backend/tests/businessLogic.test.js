@@ -265,7 +265,68 @@ describe('MERYA DZ Core Business Logic & Inventory Integrity', () => {
     const metrics = await getFinancialAnalytics();
     assert.ok(typeof metrics.realizedRevenue === 'number');
     assert.ok(typeof metrics.realizedProfit === 'number');
-    assert.ok(metrics.realizedProfit >= 0, 'Realized profit must never be negative');
+    // Realized profit must match revenue - cost exactly
+    assert.strictEqual(metrics.realizedProfit, metrics.realizedRevenue - metrics.realizedProductCost);
     console.log(`[Test] Realized Revenue: ${metrics.realizedRevenue} DZD, Realized Profit: ${metrics.realizedProfit} DZD`);
+  });
+
+  test('7. Profit Calculation: Legitimate losses remain negative (Revenue < Cost)', async () => {
+    // Create a product sold at a loss: sellingPrice = 10000, costPrice = 12000
+    const lossProduct = await Product.create({
+      name: 'Loss Leader Abaya',
+      slug: `loss-leader-${Date.now()}`,
+      description: 'Product sold below cost',
+      category: testCategory._id,
+      sellingPrice: 10000,
+      costPrice: 12000,
+      isActive: true,
+      colors: [
+        {
+          colorName: 'Loss Black',
+          colorCode: '#000000',
+          images: ['https://example.com/loss.jpg'],
+          sizes: [{ size: 'M', stock: 5 }]
+        }
+      ]
+    });
+
+    // Place an order for 1 item
+    const { order: lossOrder } = await placeOrder({
+      customer: {
+        fullName: 'Loss Test Customer',
+        phone: '0555000999',
+        wilaya: { code: 16, name: 'Algiers' },
+        deliveryMethod: DELIVERY_METHODS.AGENCY,
+        agencyName: 'Yalidine Kouba'
+      },
+      items: [{
+        productId: lossProduct._id.toString(),
+        colorName: 'Loss Black',
+        size: 'M',
+        quantity: 1
+      }]
+    });
+
+    // Mark it Delivered
+    await updateOrderStatus(lossOrder._id, ORDER_STATUS.CONFIRMED, 'Admin');
+    await updateOrderStatus(lossOrder._id, ORDER_STATUS.ON_THE_WAY, 'Admin');
+    await updateOrderStatus(lossOrder._id, ORDER_STATUS.DELIVERED, 'Admin');
+
+    const metrics = await getFinancialAnalytics();
+    assert.strictEqual(
+      metrics.realizedProfit,
+      metrics.realizedRevenue - metrics.realizedProductCost,
+      'Realized profit must equal realizedRevenue - realizedProductCost'
+    );
+
+    // Calculate the specific order margin: 10000 - 12000 = -2000
+    const orderRevenue = lossOrder.items[0].unitPrice * lossOrder.items[0].quantity;
+    const orderCost = lossOrder.items[0].unitCost * lossOrder.items[0].quantity;
+    const orderMargin = orderRevenue - orderCost;
+    assert.strictEqual(orderMargin, -2000, 'Single loss order margin must be -2000');
+
+    // Clean up
+    await Product.deleteOne({ _id: lossProduct._id });
+    await Order.deleteOne({ _id: lossOrder._id });
   });
 });

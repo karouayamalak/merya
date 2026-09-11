@@ -341,7 +341,7 @@ async function runAdversarialAudit() {
     // 11. Confirmed -> On the way -> At Agency (stock is never deducted twice)
     const p4 = await createTestProduct('SM Product 4', 1);
     const { order: o4 } = await placeOrder({
-      customer: { fullName: 'User 4', phone: '0555444444', wilaya: { code: 16, name: 'Algiers' }, deliveryMethod: DELIVERY_METHODS.AGENCY },
+      customer: { fullName: 'User 4', phone: '0555444444', wilaya: { code: 16, name: 'Algiers' }, deliveryMethod: DELIVERY_METHODS.AGENCY, agencyName: 'Agency 4' },
       items: [{ productId: p4._id.toString(), colorName: 'Noir', size: 'M', quantity: 1 }],
       idempotencyKey: 'sm-4-' + Date.now()
     });

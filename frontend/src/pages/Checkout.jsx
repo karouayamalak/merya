@@ -75,7 +75,11 @@ export default function Checkout({ onBack, onOrderSuccess }) {
       return;
     }
     if (deliveryMethod === 'home' && (!address.trim() || address.trim().length < 4)) {
-      setErrorMessage('Please provide a complete home delivery address');
+      setErrorMessage('Please provide a complete home delivery address (at least 4 characters)');
+      return;
+    }
+    if (deliveryMethod === 'agency' && (!agencyName.trim() || agencyName.trim().length < 2)) {
+      setErrorMessage('Please specify the agency/stopdesk name for pickup (e.g. Yalidine Kouba)');
       return;
     }
 
@@ -92,7 +96,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
             name: selectedWilayaObj.name
           },
           deliveryMethod,
-          agencyName: deliveryMethod === 'agency' ? (agencyName.trim() || 'Nearest Stopdesk / Yalidine Bureau') : undefined,
+          agencyName: deliveryMethod === 'agency' ? agencyName.trim() : undefined,
           address: deliveryMethod === 'home' ? address.trim() : undefined,
           notes: notes.trim() || undefined
         },
@@ -369,11 +373,12 @@ export default function Checkout({ onBack, onOrderSuccess }) {
               ) : (
                 <div>
                   <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '600', marginBottom: '0.4rem' }}>
-                    Preferred Pickup Agency / Bureau (Optional)
+                    Preferred Pickup Agency / Bureau <span style={{ color: 'var(--color-danger)' }}>*</span>
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. Yalidine Kouba or Nearest Bureau"
+                    required
+                    placeholder="e.g. Yalidine Kouba, MBE Alger Centre, Guepex Oran..."
                     value={agencyName}
                     onChange={(e) => setAgencyName(e.target.value)}
                     style={{
@@ -385,7 +390,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                     }}
                   />
                   <span style={{ fontSize: '0.75rem', color: '#777', marginTop: '0.25rem', display: 'block' }}>
-                    If left blank, package will be routed to the central Yalidine / Stopdesk hub of {selectedWilayaObj.name}.
+                    Please enter the name of the pickup agency or stopdesk where you'll collect your order (min. 2 characters).
                   </span>
                 </div>
               )}

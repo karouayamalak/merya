@@ -356,7 +356,17 @@ export const updateOrderCustomerDetails = async (req, res, next) => {
       }
     }
 
-    order.auditHistory.push({
+    // Agency delivery name validation
+    if (order.customer.deliveryMethod === DELIVERY_METHODS.AGENCY) {
+      if (!order.customer.agencyName || typeof order.customer.agencyName !== 'string' || order.customer.agencyName.trim().length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Agency name is required for agency delivery.'
+        });
+      }
+    }
+
+    const auditEntry = {
       action: 'CUSTOMER_INFO_UPDATED',
       timestamp: new Date(),
       performedBy: req.admin?.username || 'Admin',
@@ -373,10 +383,55 @@ export const updateOrderCustomerDetails = async (req, res, next) => {
         previousTotalPrice,
         updatedTotalPrice: order.totalPrice
       }
-    });
+    };
 
-    await order.save();
-    res.json({ success: true, order });
+    // ── Optimistic Concurrency Control (CAS on __v) ───────────────────────────
+    const expectedVersion = req.body.expectedVersion !== undefined
+      ? Number(req.body.expectedVersion)
+      : order.__v;
+
+    const financialsOrDeliveryAttempted = deliveryFee !== undefined || wilaya !== undefined || deliveryMethod !== undefined;
+
+    const casQuery = {
+      _id: order._id,
+      __v: expectedVersion
+    };
+
+    // Historical financial protection: Under concurrent requests, Delivered orders must never be modified
+    if (financialsOrDeliveryAttempted) {
+      casQuery.status = { $ne: ORDER_STATUS.DELIVERED };
+    }
+
+    const casUpdate = {
+      $set: {
+        customer: order.customer,
+        deliveryFee: order.deliveryFee,
+        totalPrice: order.totalPrice
+      },
+      $inc: { __v: 1 },
+      $push: { auditHistory: auditEntry }
+    };
+
+    const updatedOrder = await Order.findOneAndUpdate(casQuery, casUpdate, { new: true });
+
+    if (!updatedOrder) {
+      // Check if the order was concurrently marked Delivered
+      const latestOrder = await Order.findById(id);
+      if (latestOrder && latestOrder.status === ORDER_STATUS.DELIVERED && financialsOrDeliveryAttempted) {
+        return res.status(400).json({
+          success: false,
+          message: 'Historical financial values (delivery fee, subtotal, total) cannot be modified on Delivered orders.'
+        });
+      }
+
+      return res.status(409).json({
+        success: false,
+        code: 'CONCURRENT_CONFLICT',
+        message: 'CONCURRENT_CONFLICT: Order was modified concurrently. Please refresh and retry.'
+      });
+    }
+
+    res.json({ success: true, order: updatedOrder });
   } catch (error) {
     next(error);
   }

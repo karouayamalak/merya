@@ -33,14 +33,48 @@ export const checkoutOrderSchema = z.object({
     agencyName: z.string().optional(),
     address: z.string().optional(),
     notes: z.string().max(500).optional()
-  }).refine((data) => {
-    if (data.deliveryMethod === DELIVERY_METHODS.HOME) {
-      return !!data.address && data.address.trim().length > 3;
+  }).superRefine((data, ctx) => {
+    if (data.deliveryMethod === DELIVERY_METHODS.AGENCY) {
+      if (!data.agencyName || typeof data.agencyName !== 'string' || data.agencyName.trim().length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Agency name is required for agency delivery',
+          path: ['agencyName']
+        });
+      } else if (data.agencyName.trim().length < 2) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Agency name must be at least 2 characters',
+          path: ['agencyName']
+        });
+      } else if (data.agencyName.trim().length > 100) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Agency name cannot exceed 100 characters',
+          path: ['agencyName']
+        });
+      }
+    } else if (data.deliveryMethod === DELIVERY_METHODS.HOME) {
+      if (!data.address || typeof data.address !== 'string' || data.address.trim().length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Detailed delivery address is required for home delivery',
+          path: ['address']
+        });
+      } else if (data.address.trim().length < 4) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Detailed delivery address is required for home delivery (min 4 characters)',
+          path: ['address']
+        });
+      } else if (data.address.trim().length > 300) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Address cannot exceed 300 characters',
+          path: ['address']
+        });
+      }
     }
-    return true;
-  }, {
-    message: 'Detailed delivery address is required for home delivery',
-    path: ['address']
   }),
   items: z.array(z.object({
     productId: z.string().min(1, 'Product ID required'),
