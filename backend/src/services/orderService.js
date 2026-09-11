@@ -284,7 +284,7 @@ export async function placeOrder({ customer, items, idempotencyKey }) {
       await createdOrder.save(sessionOpt);
       console.log(`[OrderService] [TX] Checkout committed successfully on attempt ${attempt}: order ${createdOrder.orderCode}`);
       return { order: createdOrder, isDuplicate: false };
-    }, { allowStandaloneFallback: true });
+    });
   } catch (err) {
     // Handle race condition where another concurrent transaction with the same idempotency key won/committed
     if (idempotencyKey && (err.code === 11000 || err.message?.includes('duplicate key') || err.message?.includes('E11000'))) {
@@ -502,7 +502,7 @@ export async function updateOrderStatus(
 
       console.log(`[OrderService] [TX] Committed on attempt ${attempt}: order ${res.orderCode} → ${newStatus}`);
       return res;
-    }, { allowStandaloneFallback: true });
+    });
 
   } else {
     // ─── NON-TRANSACTION PATH: pure status change (no inventory involved) ───────

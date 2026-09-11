@@ -10,14 +10,10 @@ export function getImageUrl(imagePath) {
 }
 
 async function request(endpoint, options = {}) {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('merya_admin_token') : null;
-  const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
-
   const config = {
-    credentials: 'include',
+    credentials: 'include', // HttpOnly cookie is sent automatically by the browser
     headers: {
       'Content-Type': 'application/json',
-      ...authHeaders,
       ...options.headers
     },
     ...options
@@ -32,9 +28,6 @@ async function request(endpoint, options = {}) {
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
-    if (res.status === 401 && token) {
-      localStorage.removeItem('merya_admin_token');
-    }
     throw new Error(data.message || (data.errors ? data.errors.join(', ') : 'Request failed'));
   }
 

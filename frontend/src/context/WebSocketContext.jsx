@@ -117,8 +117,9 @@ export function WebSocketProvider({ children }) {
     listenersRef.current.get(channel).add(callback);
 
     if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('merya_admin_token') : null;
-      socketRef.current.send(JSON.stringify({ action: 'SUBSCRIBE_ADMIN', token }));
+      // No token needed — the browser sends the HttpOnly cookie automatically
+      // during the WebSocket upgrade handshake. The backend authenticates there.
+      socketRef.current.send(JSON.stringify({ action: 'SUBSCRIBE_ADMIN' }));
     }
 
     return () => {

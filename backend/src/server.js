@@ -51,15 +51,19 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' } // Allows frontend to render uploaded images
 }));
 
-// CORS Setup
-const allowedOrigins = [
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
-  process.env.CLIENT_ORIGIN
-].filter(Boolean);
+// CORS Setup — production strictly limits to CLIENT_ORIGIN; dev adds localhost for hot-reload
+const isProduction = process.env.NODE_ENV === 'production';
+const allowedOrigins = isProduction
+  ? [process.env.CLIENT_ORIGIN].filter(Boolean)
+  : [
+      'http://localhost:5173',
+      'http://127.0.0.1:5173',
+      process.env.CLIENT_ORIGIN
+    ].filter(Boolean);
 
 app.use(cors({
   origin: (origin, callback) => {
+    // Allow same-origin (no origin header) and explicitly whitelisted origins
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {

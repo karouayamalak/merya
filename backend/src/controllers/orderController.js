@@ -447,9 +447,18 @@ export const adjustVariantStock = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Missing required inventory parameters' });
     }
 
-    const stockNum = parseInt(newStock, 10);
-    if (isNaN(stockNum) || stockNum < 0) {
-      return res.status(400).json({ success: false, message: 'Stock must be a non-negative integer' });
+    // Strict non-negative integer validation:
+    // - reject decimals (1.5), floats, strings with whitespace
+    // - reject values beyond safe integer range
+    const rawStock = String(newStock).trim();
+    const stockNum = Number(rawStock);
+    if (
+      !Number.isInteger(stockNum) ||
+      stockNum < 0 ||
+      !Number.isSafeInteger(stockNum) ||
+      rawStock === ''
+    ) {
+      return res.status(400).json({ success: false, message: 'Stock must be a non-negative whole integer (no decimals)' });
     }
 
     const updatedProduct = await setStockAtomic(

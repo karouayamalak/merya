@@ -464,6 +464,27 @@ export default function ProductsManager() {
                   </button>
                 </div>
 
+                {editingProduct && (
+                  <div style={{
+                    backgroundColor: '#FFF8E1',
+                    border: '1px solid #FFD54F',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '0.65rem 1rem',
+                    marginBottom: '1rem',
+                    fontSize: '0.8rem',
+                    color: '#6D4C00',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem'
+                  }}>
+                    <span style={{ fontSize: '1rem' }}>⚠️</span>
+                    <span>
+                      <strong>Stock is read-only here.</strong> To adjust live stock levels, use the{' '}
+                      <strong>Inventory Manager</strong> tab — changes there are transactionally safe and fully audited.
+                    </span>
+                  </div>
+                )}
+
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                   {colors.map((color, cIdx) => (
                     <div
@@ -499,21 +520,39 @@ export default function ProductsManager() {
                       {/* Sizes & Stock */}
                       <div style={{ marginBottom: '1rem' }}>
                         <div style={{ fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.4rem', color: '#666' }}>
-                          STOCK PER SIZE:
+                          {editingProduct ? 'CURRENT STOCK PER SIZE (read-only — adjust in Inventory Manager):' : 'INITIAL STOCK PER SIZE:'}
                         </div>
                         <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
                           {AVAILABLE_SIZES.map(sz => {
                             const currentSzObj = color.sizes?.find(s => s.size === sz);
                             const currentStock = currentSzObj ? currentSzObj.stock : 0;
                             return (
-                              <div key={sz} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', backgroundColor: '#FFF', padding: '0.3rem 0.6rem', borderRadius: '4px', border: '1px solid #DDD' }}>
+                              <div key={sz} style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.3rem',
+                                backgroundColor: editingProduct ? 'var(--color-bg-base)' : '#FFF',
+                                padding: '0.3rem 0.6rem',
+                                borderRadius: '4px',
+                                border: '1px solid #DDD',
+                                opacity: editingProduct ? 0.7 : 1
+                              }}>
                                 <span style={{ fontWeight: '700', fontSize: '0.8rem' }}>{sz}:</span>
                                 <input
                                   type="number"
                                   min="0"
                                   value={currentStock}
-                                  onChange={(e) => handleStockChange(cIdx, sz, e.target.value)}
-                                  style={{ width: '48px', padding: '0.2rem', textAlign: 'center', border: '1px solid #CCC', borderRadius: '3px' }}
+                                  readOnly={!!editingProduct}
+                                  onChange={editingProduct ? undefined : (e) => handleStockChange(cIdx, sz, e.target.value)}
+                                  style={{
+                                    width: '48px',
+                                    padding: '0.2rem',
+                                    textAlign: 'center',
+                                    border: '1px solid #CCC',
+                                    borderRadius: '3px',
+                                    cursor: editingProduct ? 'not-allowed' : 'text',
+                                    backgroundColor: editingProduct ? '#F5F5F5' : '#FFF'
+                                  }}
                                 />
                               </div>
                             );

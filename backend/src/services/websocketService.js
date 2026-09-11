@@ -1,4 +1,5 @@
 import { WebSocketServer, WebSocket } from 'ws';
+import { parse as parseCookie } from 'cookie';
 import jwt from 'jsonwebtoken';
 import { Admin } from '../models/Admin.js';
 import { Order } from '../models/Order.js';
@@ -14,10 +15,30 @@ class WebSocketService {
   init(server) {
     this.wss = new WebSocketServer({ server, path: '/ws' });
 
-    this.wss.on('connection', (ws) => {
+    this.wss.on('connection', async (ws, req) => {
       ws.isAlive = true;
       ws.subscribedOrders = new Set();
       ws.isAdmin = false;
+      // Pre-authenticate admin identity from the upgrade request cookie.
+      // This avoids transmitting the JWT in plaintext WebSocket messages.
+      ws._adminIdentity = null;
+      try {
+        const cookieHeader = req.headers?.cookie || '';
+        const cookies = parseCookie(cookieHeader);
+        const token = cookies.token;
+        if (token) {
+          const secret = process.env.JWT_SECRET;
+          if (secret) {
+            const decoded = jwt.verify(token, secret);
+            const admin = await Admin.findById(decoded.id).select('-passwordHash');
+            if (admin && admin.isActive && (admin.role === 'admin' || admin.role === 'owner')) {
+              ws._adminIdentity = admin;
+            }
+          }
+        }
+      } catch {
+        // Not authenticated as admin — cookie absent, expired, or invalid. This is not an error.
+      }
 
       ws.on('pong', () => {
         ws.isAlive = true;
@@ -68,34 +89,17 @@ class WebSocketService {
   async handleMessage(ws, message) {
     const { action, orderCode, phone, token } = message;
 
-    // 1. ADMIN SUBSCRIPTION — Strictly requires valid Admin/Owner JWT token
+    // 1. ADMIN SUBSCRIPTION — Authenticated via HttpOnly cookie at connection time
     if (action === 'SUBSCRIBE_ADMIN') {
-      if (!token) {
-        ws.send(JSON.stringify({ type: 'ERROR', message: 'Unauthorized: Admin authentication token required' }));
+      const adminIdentity = ws._adminIdentity;
+      if (!adminIdentity) {
+        ws.send(JSON.stringify({ type: 'ERROR', message: 'Unauthorized: Admin session required' }));
         return;
       }
 
-      try {
-        const secret = process.env.JWT_SECRET;
-        if (!secret) {
-          ws.send(JSON.stringify({ type: 'ERROR', message: 'Server authentication configuration error' }));
-          return;
-        }
-
-        const decoded = jwt.verify(token, secret);
-        const admin = await Admin.findById(decoded.id).select('-passwordHash');
-
-        if (!admin || !admin.isActive || (admin.role !== 'admin' && admin.role !== 'owner')) {
-          ws.send(JSON.stringify({ type: 'ERROR', message: 'Forbidden: Insufficient privileges for admin subscription' }));
-          return;
-        }
-
-        this.adminClients.add(ws);
-        ws.isAdmin = true;
-        ws.send(JSON.stringify({ type: 'SUBSCRIBED', channel: 'admin' }));
-      } catch (err) {
-        ws.send(JSON.stringify({ type: 'ERROR', message: 'Unauthorized: Invalid or expired session token' }));
-      }
+      this.adminClients.add(ws);
+      ws.isAdmin = true;
+      ws.send(JSON.stringify({ type: 'SUBSCRIBED', channel: 'admin' }));
       return;
     }
 

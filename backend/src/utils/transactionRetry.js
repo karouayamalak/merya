@@ -165,9 +165,14 @@ export async function withTransactionRetry(workFn, options = {}) {
 
   const canUseTx = await supportsTransactions();
 
+  // Production requirement: Multi-document transactions are strictly required.
+  // Standalone fallback is never permitted in production mode under any circumstances.
+  const isProduction = process.env.NODE_ENV === 'production';
+  const effectiveStandaloneFallback = isProduction ? false : allowStandaloneFallback;
+
   if (!canUseTx) {
-    if (allowStandaloneFallback) {
-      // Standalone MongoDB fallback only when explicitly permitted by caller (e.g. read-only or legacy tests)
+    if (effectiveStandaloneFallback) {
+      // Standalone MongoDB fallback only when explicitly permitted in dev/test
       return await workFn(null, 1);
     }
     const err = new Error(

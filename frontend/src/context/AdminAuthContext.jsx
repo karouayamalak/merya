@@ -29,9 +29,6 @@ export function AdminAuthProvider({ children }) {
   const login = async (email, password) => {
     const res = await apiLogin(email, password);
     if (res.success && res.admin) {
-      if (res.token) {
-        localStorage.setItem('merya_admin_token', res.token);
-      }
       setAdmin(res.admin);
       return res.admin;
     }
@@ -43,7 +40,6 @@ export function AdminAuthProvider({ children }) {
     } catch (e) {
       console.error(e);
     } finally {
-      localStorage.removeItem('merya_admin_token');
       setAdmin(null);
     }
   };

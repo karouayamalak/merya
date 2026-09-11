@@ -41,9 +41,10 @@ export const login = async (req, res, next) => {
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
 
+    // NOTE: The JWT is intentionally NOT included in the response body.
+    // It is set exclusively via an HttpOnly cookie above, preventing XSS token theft.
     res.json({
       success: true,
-      token, // Also return token for clients using Authorization header
       admin: {
         id: admin._id,
         username: admin.username,
