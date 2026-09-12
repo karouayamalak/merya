@@ -1507,4 +1507,237 @@ describe('MERYA DZ Price Consistency & Free Delivery Hardening', () => {
       }
     });
   });
+
+  describe('11. Authoritative Delivery Configuration Self-Validation & Wilaya Input Hardening', async () => {
+    const {
+      validateAuthoritativeDeliverySetting,
+      parseAuthoritativeWilayaCode,
+      resolveAuthoritativeDelivery
+    } = await import('../src/services/deliveryService.js');
+
+    const canonical58Rates = ALGERIA_WILAYAS.map(w => ({
+      wilayaCode: w.code,
+      wilayaName: w.name,
+      wilayaNameAr: w.nameAr,
+      homeFee: 800,
+      agencyFee: 500,
+      isAvailable: true
+    }));
+
+    test('Valid complete 58-Wilaya configuration succeeds', () => {
+      const res = validateAuthoritativeDeliverySetting({
+        wilayaRates: canonical58Rates,
+        freeDeliveryThreshold: 10000
+      });
+      assert.strictEqual(res.valid, true);
+    });
+
+    test('57 Wilaya rates rejected as incomplete', () => {
+      const res = validateAuthoritativeDeliverySetting({
+        wilayaRates: canonical58Rates.slice(0, 57)
+      });
+      assert.strictEqual(res.valid, false);
+      assert.ok(res.error.includes('incomplete') || res.error.includes('missing'));
+    });
+
+    test('59 Wilaya rates rejected as invalid', () => {
+      const res = validateAuthoritativeDeliverySetting({
+        wilayaRates: [
+          ...canonical58Rates,
+          { wilayaCode: 59, wilayaName: 'Extra', homeFee: 800, agencyFee: 500, isAvailable: true }
+        ]
+      });
+      assert.strictEqual(res.valid, false);
+      assert.ok(res.error.includes('58'));
+    });
+
+    test('Duplicate Wilaya code strictly rejected', () => {
+      const res = validateAuthoritativeDeliverySetting({
+        wilayaRates: [
+          ...canonical58Rates.slice(0, 57),
+          { ...canonical58Rates[0] }
+        ]
+      });
+      assert.strictEqual(res.valid, false);
+      assert.ok(res.error.includes('duplicate'));
+    });
+
+    test('Missing Wilaya code strictly rejected', () => {
+      const res = validateAuthoritativeDeliverySetting({
+        wilayaRates: [
+          { ...canonical58Rates[0], wilayaCode: 99 },
+          ...canonical58Rates.slice(1)
+        ]
+      });
+      assert.strictEqual(res.valid, false);
+      assert.ok(res.error.includes('missing') || res.error.includes('corrupted'));
+    });
+
+    test('Wrong Wilaya name strictly rejected', () => {
+      const res = validateAuthoritativeDeliverySetting({
+        wilayaRates: [
+          { ...canonical58Rates[0], wilayaName: 'Fake Adrar City' },
+          ...canonical58Rates.slice(1)
+        ]
+      });
+      assert.strictEqual(res.valid, false);
+      assert.ok(res.error.includes('canonical name'));
+    });
+
+    test('Negative agency fee strictly rejected', () => {
+      const res = validateAuthoritativeDeliverySetting({
+        wilayaRates: [
+          { ...canonical58Rates[0], agencyFee: -100 },
+          ...canonical58Rates.slice(1)
+        ]
+      });
+      assert.strictEqual(res.valid, false);
+      assert.ok(res.error.includes('agencyFee'));
+    });
+
+    test('Decimal agency fee strictly rejected', () => {
+      const res = validateAuthoritativeDeliverySetting({
+        wilayaRates: [
+          { ...canonical58Rates[0], agencyFee: 450.75 },
+          ...canonical58Rates.slice(1)
+        ]
+      });
+      assert.strictEqual(res.valid, false);
+      assert.ok(res.error.includes('agencyFee'));
+    });
+
+    test('Negative home fee strictly rejected', () => {
+      const res = validateAuthoritativeDeliverySetting({
+        wilayaRates: [
+          { ...canonical58Rates[0], homeFee: -200 },
+          ...canonical58Rates.slice(1)
+        ]
+      });
+      assert.strictEqual(res.valid, false);
+      assert.ok(res.error.includes('homeFee'));
+    });
+
+    test('Decimal home fee strictly rejected', () => {
+      const res = validateAuthoritativeDeliverySetting({
+        wilayaRates: [
+          { ...canonical58Rates[0], homeFee: 799.99 },
+          ...canonical58Rates.slice(1)
+        ]
+      });
+      assert.strictEqual(res.valid, false);
+      assert.ok(res.error.includes('homeFee'));
+    });
+
+    test('Invalid isAvailable (non-boolean) strictly rejected', () => {
+      const resString = validateAuthoritativeDeliverySetting({
+        wilayaRates: [
+          { ...canonical58Rates[0], isAvailable: 'true' },
+          ...canonical58Rates.slice(1)
+        ]
+      });
+      assert.strictEqual(resString.valid, false);
+      assert.ok(resString.error.includes('isAvailable'));
+
+      const resNumber = validateAuthoritativeDeliverySetting({
+        wilayaRates: [
+          { ...canonical58Rates[0], isAvailable: 1 },
+          ...canonical58Rates.slice(1)
+        ]
+      });
+      assert.strictEqual(resNumber.valid, false);
+      assert.ok(resNumber.error.includes('isAvailable'));
+    });
+
+    test('Invalid freeDeliveryThreshold strictly rejected', () => {
+      assert.strictEqual(validateAuthoritativeDeliverySetting({
+        wilayaRates: canonical58Rates,
+        freeDeliveryThreshold: -100
+      }).valid, false);
+
+      assert.strictEqual(validateAuthoritativeDeliverySetting({
+        wilayaRates: canonical58Rates,
+        freeDeliveryThreshold: 5000.5
+      }).valid, false);
+
+      assert.strictEqual(validateAuthoritativeDeliverySetting({
+        wilayaRates: canonical58Rates,
+        freeDeliveryThreshold: NaN
+      }).valid, false);
+
+      assert.strictEqual(validateAuthoritativeDeliverySetting({
+        wilayaRates: canonical58Rates,
+        freeDeliveryThreshold: 'invalid'
+      }).valid, false);
+    });
+
+    test('Consistent Wilaya input parser strictly rejects malformed representations', () => {
+      // Malformed string representations
+      assert.strictEqual(parseAuthoritativeWilayaCode('1.0').valid, false);
+      assert.strictEqual(parseAuthoritativeWilayaCode('01').valid, false);
+      assert.strictEqual(parseAuthoritativeWilayaCode('1e0').valid, false);
+      assert.strictEqual(parseAuthoritativeWilayaCode('0').valid, false);
+      assert.strictEqual(parseAuthoritativeWilayaCode('59').valid, false);
+
+      // Malformed numeric representations
+      assert.strictEqual(parseAuthoritativeWilayaCode(1.5).valid, false);
+      assert.strictEqual(parseAuthoritativeWilayaCode(0).valid, false);
+      assert.strictEqual(parseAuthoritativeWilayaCode(-1).valid, false);
+      assert.strictEqual(parseAuthoritativeWilayaCode(59).valid, false);
+      assert.strictEqual(parseAuthoritativeWilayaCode(NaN).valid, false);
+
+      // Valid canonical representations
+      const validNum = parseAuthoritativeWilayaCode(16);
+      assert.strictEqual(validNum.valid, true);
+      assert.strictEqual(validNum.codeNum, 16);
+
+      const validStr = parseAuthoritativeWilayaCode('16');
+      assert.strictEqual(validStr.valid, true);
+      assert.strictEqual(validStr.codeNum, 16);
+    });
+
+    test('resolveAuthoritativeDelivery enforces complete 58-Wilaya configuration and fails closed on invalid threshold', async () => {
+      // Incomplete configuration fails
+      const incompleteRes = await resolveAuthoritativeDelivery({
+        wilayaCode: 16,
+        deliveryMethod: 'home',
+        deliverySetting: { wilayaRates: canonical58Rates.slice(0, 57) },
+        throwOnError: false
+      });
+      assert.strictEqual(incompleteRes.success, false);
+      assert.strictEqual(incompleteRes.code, 'DELIVERY_CONFIGURATION_MISSING');
+
+      // Invalid threshold fails
+      const badThresholdRes = await resolveAuthoritativeDelivery({
+        wilayaCode: 16,
+        deliveryMethod: 'home',
+        deliverySetting: { wilayaRates: canonical58Rates, freeDeliveryThreshold: -500 },
+        throwOnError: false
+      });
+      assert.strictEqual(badThresholdRes.success, false);
+      assert.strictEqual(badThresholdRes.code, 'DELIVERY_CONFIGURATION_INVALID');
+
+      // Malformed wilayaCode ('1.0', '01', '1e0') fails
+      const malformedCodeRes = await resolveAuthoritativeDelivery({
+        wilayaCode: '1.0',
+        deliveryMethod: 'home',
+        deliverySetting: { wilayaRates: canonical58Rates },
+        throwOnError: false
+      });
+      assert.strictEqual(malformedCodeRes.success, false);
+      assert.strictEqual(malformedCodeRes.code, 'INVALID_WILAYA_CODE');
+
+      // Valid complete configuration succeeds
+      const validRes = await resolveAuthoritativeDelivery({
+        wilayaCode: 16,
+        deliveryMethod: 'home',
+        subtotal: 7000,
+        deliverySetting: { wilayaRates: canonical58Rates, freeDeliveryThreshold: 10000 },
+        throwOnError: false
+      });
+      assert.strictEqual(validRes.success, true);
+      assert.strictEqual(validRes.deliveryFee, 800);
+      assert.strictEqual(validRes.totalPrice, 7800);
+    });
+  });
 });
+

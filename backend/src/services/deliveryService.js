@@ -4,6 +4,206 @@ import { DELIVERY_METHODS, ALGERIA_WILAYAS } from '../config/constants.js';
 export const MAX_ITEM_QUANTITY = 20;
 
 /**
+ * Strict Wilaya Code Parser & Validator.
+ * Enforces canonical Algerian Wilayas 1–58.
+ * Rejects malformed representations such as:
+ * - '1.0' (decimal string)
+ * - '01' (leading zero string)
+ * - '1e0' (scientific notation)
+ * - 1.5, NaN, negative numbers, floats, or numbers outside 1..58
+ */
+export function parseAuthoritativeWilayaCode(wilayaCode) {
+  if (wilayaCode === undefined || wilayaCode === null || wilayaCode === '') {
+    return { valid: false, error: 'Customer Wilaya is required.', code: 'WILAYA_REQUIRED' };
+  }
+
+  // If number: must be finite safe integer between 1 and 58
+  if (typeof wilayaCode === 'number') {
+    if (!Number.isFinite(wilayaCode) || !Number.isInteger(wilayaCode) || wilayaCode < 1 || wilayaCode > 58) {
+      return {
+        valid: false,
+        error: `Invalid Wilaya code: ${wilayaCode}. Must be an integer between 1 and 58.`,
+        code: 'INVALID_WILAYA_CODE'
+      };
+    }
+    return { valid: true, codeNum: wilayaCode };
+  }
+
+  // If string: must strictly match canonical decimal integer representation (1-58 without decimals, leading zeros, or exponent)
+  if (typeof wilayaCode === 'string') {
+    const trimmed = wilayaCode.trim();
+    if (!/^(?:[1-9]|[1-4][0-9]|5[0-8])$/.test(trimmed)) {
+      return {
+        valid: false,
+        error: `Invalid Wilaya code: ${wilayaCode}. Must be an integer between 1 and 58.`,
+        code: 'INVALID_WILAYA_CODE'
+      };
+    }
+    return { valid: true, codeNum: parseInt(trimmed, 10) };
+  }
+
+  return {
+    valid: false,
+    error: `Invalid Wilaya code: ${wilayaCode}. Must be an integer between 1 and 58.`,
+    code: 'INVALID_WILAYA_CODE'
+  };
+}
+
+/**
+ * Strict Authoritative Delivery Configuration Validator.
+ * Self-validating rules:
+ * - exactly 58 wilayaRates
+ * - codes 1 through 58 each exist exactly once
+ * - every code is an integer 1–58
+ * - every Wilaya matches the canonical ALGERIA_WILAYAS entry
+ * - agencyFee is a non-negative integer
+ * - homeFee is a non-negative integer
+ * - isAvailable is a boolean
+ * - no duplicate Wilaya codes
+ * - no missing Wilaya codes
+ * - freeDeliveryThreshold (if present) is a finite non-negative integer
+ */
+export function validateAuthoritativeDeliverySetting(setting) {
+  if (!setting || typeof setting !== 'object') {
+    return {
+      valid: false,
+      error: 'Delivery configuration is not initialized. Please configure delivery settings before placing orders.',
+      code: 'DELIVERY_CONFIGURATION_MISSING',
+      statusCode: 400
+    };
+  }
+
+  if (!Array.isArray(setting.wilayaRates) || setting.wilayaRates.length !== 58) {
+    return {
+      valid: false,
+      error: `Delivery configuration missing or incomplete: expected exactly 58 Algerian Wilayas, but found ${Array.isArray(setting.wilayaRates) ? setting.wilayaRates.length : 0}.`,
+      code: 'DELIVERY_CONFIGURATION_MISSING',
+      statusCode: 400
+    };
+  }
+
+  const canonicalByCode = new Map(ALGERIA_WILAYAS.map(w => [w.code, w]));
+  const seenCodes = new Set();
+
+  for (let i = 0; i < setting.wilayaRates.length; i++) {
+    const r = setting.wilayaRates[i];
+    if (!r || typeof r !== 'object') {
+      return {
+        valid: false,
+        error: `Delivery configuration corrupted: invalid entry at index ${i}.`,
+        code: 'DELIVERY_CONFIGURATION_INVALID',
+        statusCode: 400
+      };
+    }
+
+    const code = r.wilayaCode;
+    if (typeof code !== 'number' || !Number.isInteger(code) || code < 1 || code > 58) {
+      return {
+        valid: false,
+        error: `Delivery configuration corrupted: invalid wilayaCode ${code} (expected integer 1–58).`,
+        code: 'DELIVERY_CONFIGURATION_INVALID',
+        statusCode: 400
+      };
+    }
+
+    if (seenCodes.has(code)) {
+      return {
+        valid: false,
+        error: `Delivery configuration corrupted: duplicate wilayaCode ${code}. Each Wilaya must be unique.`,
+        code: 'DELIVERY_CONFIGURATION_INVALID',
+        statusCode: 400
+      };
+    }
+    seenCodes.add(code);
+
+    const canonical = canonicalByCode.get(code);
+    if (!canonical) {
+      return {
+        valid: false,
+        error: `Delivery configuration corrupted: unknown Wilaya code ${code}.`,
+        code: 'DELIVERY_CONFIGURATION_INVALID',
+        statusCode: 400
+      };
+    }
+
+    const rawName = typeof r.wilayaName === 'string' ? r.wilayaName.trim() : '';
+    const nameMatches = rawName === canonical.name || (code === 16 && (rawName.toLowerCase() === 'alger' || rawName.toLowerCase() === 'algiers'));
+    if (!nameMatches) {
+      return {
+        valid: false,
+        error: `Delivery configuration corrupted: Wilaya ${code} name "${rawName}" does not match canonical name "${canonical.name}".`,
+        code: 'DELIVERY_CONFIGURATION_INVALID',
+        statusCode: 400
+      };
+    }
+
+    if (
+      typeof r.homeFee !== 'number' ||
+      !Number.isFinite(r.homeFee) ||
+      !Number.isInteger(r.homeFee) ||
+      r.homeFee < 0
+    ) {
+      return {
+        valid: false,
+        error: `Delivery configuration corrupted: homeFee for Wilaya ${code} must be a non-negative integer.`,
+        code: 'DELIVERY_CONFIGURATION_INVALID',
+        statusCode: 400
+      };
+    }
+
+    if (
+      typeof r.agencyFee !== 'number' ||
+      !Number.isFinite(r.agencyFee) ||
+      !Number.isInteger(r.agencyFee) ||
+      r.agencyFee < 0
+    ) {
+      return {
+        valid: false,
+        error: `Delivery configuration corrupted: agencyFee for Wilaya ${code} must be a non-negative integer.`,
+        code: 'DELIVERY_CONFIGURATION_INVALID',
+        statusCode: 400
+      };
+    }
+
+    if (typeof r.isAvailable !== 'boolean') {
+      return {
+        valid: false,
+        error: `Delivery configuration corrupted: isAvailable for Wilaya ${code} must be a boolean.`,
+        code: 'DELIVERY_CONFIGURATION_INVALID',
+        statusCode: 400
+      };
+    }
+  }
+
+  // Ensure codes 1 through 58 each exist exactly once
+  for (let c = 1; c <= 58; c++) {
+    if (!seenCodes.has(c)) {
+      return {
+        valid: false,
+        error: `Delivery configuration missing or incomplete: missing Wilaya code ${c}.`,
+        code: 'DELIVERY_CONFIGURATION_MISSING',
+        statusCode: 400
+      };
+    }
+  }
+
+  // Strict freeDeliveryThreshold validation
+  if (setting.freeDeliveryThreshold !== undefined && setting.freeDeliveryThreshold !== null) {
+    const thresh = setting.freeDeliveryThreshold;
+    if (typeof thresh !== 'number' || !Number.isFinite(thresh) || !Number.isInteger(thresh) || thresh < 0) {
+      return {
+        valid: false,
+        error: 'Delivery configuration corrupted: freeDeliveryThreshold must be a finite non-negative integer in DZD.',
+        code: 'DELIVERY_CONFIGURATION_INVALID',
+        statusCode: 400
+      };
+    }
+  }
+
+  return { valid: true };
+}
+
+/**
  * Validates a cart line item's quantity and required variant coordinates.
  * Enforces:
  * - productId present non-empty string
@@ -61,7 +261,7 @@ export function validateCartItem(item, index = 0, { maxQuantity = null } = {}) {
  * Strict Business Rules:
  * 1. Canonical Wilaya: code must be an integer between 1 and 58 matching ALGERIA_WILAYAS.
  * 2. Delivery Method: must be strictly 'agency' or 'home'.
- * 3. Delivery Setting: must exist in database with valid rates.
+ * 3. Delivery Setting: must exist in database with a complete and valid 58-Wilaya configuration.
  * 4. Wilaya Availability: Wilaya must exist in delivery setting and isAvailable !== false.
  * 5. Method Fee: Rate for the selected method must be a valid non-negative integer.
  * 6. Free Delivery Threshold: if subtotal >= threshold (and threshold > 0), fee is 0 DZD.
@@ -83,17 +283,12 @@ export async function resolveAuthoritativeDelivery({
     return { success: false, error: message, code, statusCode };
   };
 
-  // 1. Wilaya Code Validation
-  if (wilayaCode === undefined || wilayaCode === null || wilayaCode === '') {
-    return fail('Customer Wilaya is required.', { code: 'WILAYA_REQUIRED' });
+  // 1. Wilaya Code Validation using parseAuthoritativeWilayaCode
+  const parsedCode = parseAuthoritativeWilayaCode(wilayaCode);
+  if (!parsedCode.valid) {
+    return fail(parsedCode.error, { code: parsedCode.code });
   }
-
-  const codeNum = Number(wilayaCode);
-  if (!Number.isInteger(codeNum) || codeNum < 1 || codeNum > 58) {
-    return fail(`Invalid Wilaya code: ${wilayaCode}. Must be between 1 and 58.`, {
-      code: 'INVALID_WILAYA_CODE'
-    });
-  }
+  const codeNum = parsedCode.codeNum;
 
   const canonicalWilaya = ALGERIA_WILAYAS.find(w => w.code === codeNum);
   if (!canonicalWilaya) {
@@ -116,16 +311,17 @@ export async function resolveAuthoritativeDelivery({
     });
   }
 
-  // 3. Authoritative Delivery Setting lookup & verification
+  // 3. Authoritative Delivery Setting lookup & self-verification
   let setting = deliverySetting;
   if (!setting) {
     setting = await DeliverySetting.findOne();
   }
 
-  if (!setting || !Array.isArray(setting.wilayaRates) || setting.wilayaRates.length === 0) {
-    return fail('Delivery configuration is not initialized. Please configure delivery settings before placing orders.', {
-      code: 'DELIVERY_CONFIGURATION_MISSING',
-      statusCode: 400
+  const settingValidation = validateAuthoritativeDeliverySetting(setting);
+  if (!settingValidation.valid) {
+    return fail(settingValidation.error, {
+      code: settingValidation.code,
+      statusCode: settingValidation.statusCode
     });
   }
 

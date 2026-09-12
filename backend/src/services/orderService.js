@@ -9,7 +9,7 @@ import { normalizeAlgerianPhone } from '../utils/phone.js';
 import { deductStockAtomic, restoreStockAtomic } from './inventoryService.js';
 import { wsService } from './websocketService.js';
 import { withTransactionRetry } from '../utils/transactionRetry.js';
-import { resolveAuthoritativeDelivery, validateCartItem } from './deliveryService.js';
+import { resolveAuthoritativeDelivery, validateCartItem, parseAuthoritativeWilayaCode } from './deliveryService.js';
 
 /**
  * Deterministic fingerprint of order payload for strict idempotency checking.
@@ -85,13 +85,17 @@ export async function placeOrder({ customer, items, idempotencyKey }) {
     throw new Error('Customer Wilaya is required');
   }
 
-  const code = typeof customer.wilaya === 'object' ? customer.wilaya.code : customer.wilaya;
+  const rawCode = typeof customer.wilaya === 'object' ? customer.wilaya.code : customer.wilaya;
+  const parsedCode = parseAuthoritativeWilayaCode(rawCode);
+  if (!parsedCode.valid) {
+    throw new Error(parsedCode.error);
+  }
+  const codeNum = parsedCode.codeNum;
   const name = typeof customer.wilaya === 'object' ? (customer.wilaya.name || '') : String(customer.wilaya);
-  const codeNum = Number(code);
 
   const canonicalWilaya = ALGERIA_WILAYAS.find(w => w.code === codeNum);
   if (!canonicalWilaya) {
-    throw new Error(`Invalid Wilaya code: ${code}. Must be between 1 and 58.`);
+    throw new Error(`Invalid Wilaya code: ${codeNum}. Must be between 1 and 58.`);
   }
 
   if (name && typeof name === 'string' && name.trim()) {
