@@ -5,7 +5,7 @@ import { fetchProducts, fetchCategories } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 
 export default function Shop({ selectedCategory, setSelectedCategory, onSelectProduct }) {
-  const { t, isRtl } = useLanguage();
+  const { t, isRtl, localized } = useLanguage();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [search, setSearch] = useState('');
@@ -128,7 +128,7 @@ export default function Shop({ selectedCategory, setSelectedCategory, onSelectPr
                   transition: 'var(--transition-fast)'
                 }}
               >
-                {cat.name}
+                {localized(cat.name)}
               </button>
             ))}
           </div>

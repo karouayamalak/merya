@@ -213,9 +213,18 @@ export async function placeOrder({ customer, items, idempotencyKey }) {
         const itemTotal = itemPrice * quantity;
         subtotal += itemTotal;
 
+        const resolveSnapshotProductName = (name) => {
+          if (!name) return 'Product';
+          if (typeof name === 'string') return name;
+          if (typeof name === 'object') {
+            return name.fr || name.en || name.ar || 'Product';
+          }
+          return String(name);
+        };
+
         itemSnapshots.push({
           productId: product._id,
-          productName: product.name,
+          productName: resolveSnapshotProductName(product.name),
           colorName: colorVariant.colorName,
           colorCode: colorVariant.colorCode,
           size: sizeVariant.size,
@@ -935,9 +944,10 @@ export async function updateOrderItemsService({
               err.statusCode = 400;
               throw err;
             }
+            const resolvedName = typeof prod.name === 'object' && prod.name ? (prod.name.fr || prod.name.en || prod.name.ar || 'Product') : String(prod.name || 'Product');
             priceChanges.push({
               productId: prod._id,
-              productName: prod.name,
+              productName: resolvedName,
               colorName: colorObj.colorName,
               size: it.size,
               previousPrice: existingOrderItem.unitPrice,
@@ -953,10 +963,11 @@ export async function updateOrderItemsService({
         unitCost = existingOrderItem.unitCost ?? prod.costPrice;
       } else {
         // New item added to order: if explicit unitPrice provided, use it; else use current product effective price
+        const resolvedName = typeof prod.name === 'object' && prod.name ? (prod.name.fr || prod.name.en || prod.name.ar || 'Product') : String(prod.name || 'Product');
         if (it.unitPrice !== undefined) {
           const explicitPrice = Number(it.unitPrice);
           if (!Number.isInteger(explicitPrice) || explicitPrice <= 0 || !Number.isSafeInteger(explicitPrice)) {
-            const err = new Error(`Explicit unitPrice for "${prod.name}" must be a positive integer in DZD.`);
+            const err = new Error(`Explicit unitPrice for "${resolvedName}" must be a positive integer in DZD.`);
             err.statusCode = 400;
             throw err;
           }
@@ -969,9 +980,10 @@ export async function updateOrderItemsService({
         unitCost = prod.costPrice;
       }
 
+      const finalResolvedName = typeof prod.name === 'object' && prod.name ? (prod.name.fr || prod.name.en || prod.name.ar || 'Product') : String(prod.name || 'Product');
       return {
         productId: prod._id,
-        productName: prod.name,
+        productName: finalResolvedName,
         colorName: colorObj.colorName,
         colorCode: colorObj.colorCode,
         size: it.size,

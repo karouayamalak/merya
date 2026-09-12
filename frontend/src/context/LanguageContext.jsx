@@ -4,6 +4,7 @@ import {
   DEFAULT_LANGUAGE,
   resolveTranslation
 } from '../translations/index.js';
+import { getLocalizedContent } from '../utils/i18nContent.js';
 
 const STORAGE_KEY = 'merya_language';
 
@@ -56,6 +57,16 @@ export function LanguageProvider({ children }) {
 
   const t = useCallback((key, params) => {
     return resolveTranslation(language, key, params);
+  }, [language]);
+
+  /**
+   * `localized(field)` — extract the correct language version of dynamic DB content.
+   * Falls back: selected language → French → any non-empty language.
+   * Never returns undefined, null, or '[object Object]'.
+   * @param {string|Object} field — e.g. product.name ({ fr, ar, en }) or a plain string
+   */
+  const localized = useCallback((field) => {
+    return getLocalizedContent(field, language, 'fr');
   }, [language]);
 
   /**
@@ -137,6 +148,7 @@ export function LanguageProvider({ children }) {
     language,
     setLanguage,
     t,
+    localized,
     isRtl,
     dir: currentLangObj.dir,
     languages: SUPPORTED_LANGUAGES,
@@ -149,6 +161,7 @@ export function LanguageProvider({ children }) {
     language,
     setLanguage,
     t,
+    localized,
     isRtl,
     currentLangObj,
     formatCurrency,

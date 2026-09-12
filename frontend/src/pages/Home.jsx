@@ -2,24 +2,27 @@ import React, { useState, useEffect } from 'react';
 import { ArrowRight } from 'lucide-react';
 import CategoryTile from '../components/CategoryTile';
 import ProductCard from '../components/ProductCard';
-import { fetchCategories, fetchProducts } from '../services/api';
+import { fetchCategories, fetchProducts, fetchBanners } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 
 export default function Home({ setCurrentView, setSelectedProduct, setSelectedCategory }) {
-  const { t, isRtl } = useLanguage();
+  const { t, isRtl, localized } = useLanguage();
   const [categories, setCategories] = useState([]);
   const [bestSellers, setBestSellers] = useState([]);
+  const [banners, setBanners] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadData() {
       try {
-        const [catRes, prodRes] = await Promise.all([
+        const [catRes, prodRes, bannerRes] = await Promise.all([
           fetchCategories(),
-          fetchProducts({ isBestSeller: 'true', limit: 8 })
+          fetchProducts({ isBestSeller: 'true', limit: 8 }),
+          fetchBanners({ isActive: 'true' }).catch(() => ({ banners: [] }))
         ]);
         if (catRes.success) setCategories(catRes.categories || []);
         if (prodRes.success) setBestSellers(prodRes.products || []);
+        if (bannerRes?.banners) setBanners(bannerRes.banners);
       } catch (err) {
         console.error('Failed to load homepage data', err);
       } finally {
@@ -214,6 +217,83 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
           )}
         </div>
       </section>
+
+      {/* PROMOTIONAL CAMPAIGN BANNER (Active owner-created banners) */}
+      {banners && banners.length > 0 && (
+        <section style={{
+          padding: '2rem 0',
+          backgroundColor: 'var(--color-bg-base)'
+        }}>
+          <div className="container">
+            <div style={{
+              position: 'relative',
+              borderRadius: 'var(--radius-xl)',
+              overflow: 'hidden',
+              minHeight: '260px',
+              display: 'flex',
+              alignItems: 'center',
+              boxShadow: 'var(--shadow-md)',
+              background: banners[0].image ? `url(${banners[0].image}) center/cover no-repeat` : 'linear-gradient(135deg, #2A241F 0%, #4A3B32 100%)',
+              color: '#FFFFFF',
+              padding: '3rem 2.5rem'
+            }}>
+              {banners[0].image && (
+                <div style={{
+                  position: 'absolute',
+                  inset: 0,
+                  background: 'linear-gradient(to right, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.35) 100%)',
+                  pointerEvents: 'none'
+                }} />
+              )}
+              <div style={{ position: 'relative', zIndex: 2, maxWidth: '580px' }}>
+                <h3 style={{
+                  fontFamily: "var(--font-serif, 'Cormorant Garamond', Georgia, serif)",
+                  fontSize: 'clamp(1.6rem, 2.8vw, 2.4rem)',
+                  fontWeight: '700',
+                  color: '#FFFFFF',
+                  marginBottom: '0.6rem'
+                }}>
+                  {localized(banners[0].title)}
+                </h3>
+                {localized(banners[0].subtitle) && (
+                  <p style={{
+                    fontSize: '1rem',
+                    color: 'rgba(255,255,255,0.88)',
+                    marginBottom: '1.5rem',
+                    lineHeight: '1.6'
+                  }}>
+                    {localized(banners[0].subtitle)}
+                  </p>
+                )}
+                {localized(banners[0].buttonText) && (
+                  <button
+                    onClick={() => {
+                      if (banners[0].link && banners[0].link.startsWith('http')) {
+                        window.open(banners[0].link, '_blank');
+                      } else {
+                        setCurrentView('shop');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }
+                    }}
+                    className="btn btn-primary"
+                    style={{
+                      backgroundColor: '#FFFFFF',
+                      color: 'var(--color-espresso)',
+                      border: 'none',
+                      fontWeight: '700',
+                      padding: '0.75rem 1.8rem',
+                      borderRadius: 'var(--radius-full)'
+                    }}
+                  >
+                    <span>{localized(banners[0].buttonText)}</span>
+                    <ArrowRight size={15} className="rtl-flip" />
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* 3. BEST SELLERS / NEW ARRIVALS */}
       <section style={{

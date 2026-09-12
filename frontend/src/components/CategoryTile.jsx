@@ -1,7 +1,10 @@
 import React from 'react';
 import { getImageUrl } from '../services/api';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function CategoryTile({ category, onClick }) {
+  const { localized, t } = useLanguage();
+  const displayName = localized(category.name);
   return (
     <div
       onClick={() => onClick(category)}
@@ -24,7 +27,7 @@ export default function CategoryTile({ category, onClick }) {
       {/* Background Image */}
       <img
         src={getImageUrl(category.image)}
-        alt={category.name}
+        alt={displayName}
         loading="lazy"
         style={{
           position: 'absolute',
@@ -59,7 +62,7 @@ export default function CategoryTile({ category, onClick }) {
           lineHeight: 1.15,
           marginBottom: '0.35rem'
         }}>
-          {category.name}
+          {displayName}
         </h3>
         <span style={{
           fontSize: '0.75rem',

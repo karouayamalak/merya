@@ -1,17 +1,59 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Archive, Upload, X, Loader2 } from 'lucide-react';
+import { Plus, Edit2, Archive, Upload, X, Loader2, Check, AlertTriangle } from 'lucide-react';
 import { adminGetCategories, adminCreateCategory, adminUpdateCategory, adminArchiveCategory, adminUploadImage } from '../../services/api';
 import { useLanguage } from '../../context/LanguageContext';
+
+const LANGS = [
+  { code: 'fr', label: '🇫🇷 FR', dir: 'ltr' },
+  { code: 'ar', label: '🇩🇿 AR', dir: 'rtl' },
+  { code: 'en', label: '🇬🇧 EN', dir: 'ltr' }
+];
+
+function TranslationBadge({ status }) {
+  if (!status) return null;
+  const langs = ['fr', 'ar', 'en'];
+  return (
+    <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
+      {langs.map((lang) => (
+        <span
+          key={lang}
+          style={{
+            fontSize: '0.68rem',
+            fontWeight: '700',
+            padding: '0.15rem 0.45rem',
+            borderRadius: '4px',
+            backgroundColor: status[lang] ? '#D1FAE5' : '#FEF3C7',
+            color: status[lang] ? '#065F46' : '#92400E',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.2rem'
+          }}
+        >
+          {status[lang] ? <Check size={9} strokeWidth={3} /> : <AlertTriangle size={9} strokeWidth={2.5} />}
+          {lang.toUpperCase()}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+const emptyLocalized = () => ({ fr: '', ar: '', en: '' });
 
 export default function CategoriesManager() {
   const { t, isRtl } = useLanguage();
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Modal
+  // Modal state
   const [modalOpen, setModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
-  const [name, setName] = useState('');
+  const [activeLang, setActiveLang] = useState('fr');
+
+  // Multilingual form fields
+  const [name, setName] = useState(emptyLocalized());
+  const [description, setDescription] = useState(emptyLocalized());
+
+  // Scalar fields
   const [image, setImage] = useState('');
   const [displayOrder, setDisplayOrder] = useState(0);
   const [isActive, setIsActive] = useState(true);
@@ -31,26 +73,34 @@ export default function CategoriesManager() {
     }
   };
 
-  useEffect(() => {
-    loadCategories();
-  }, []);
+  useEffect(() => { loadCategories(); }, []);
+
+  const normalizeLocalized = (field) => {
+    if (!field) return emptyLocalized();
+    if (typeof field === 'string') return { fr: field, ar: '', en: '' };
+    return { fr: field.fr || '', ar: field.ar || '', en: field.en || '' };
+  };
 
   const openCreateModal = () => {
     setEditingCategory(null);
-    setName('');
+    setName(emptyLocalized());
+    setDescription(emptyLocalized());
     setImage('');
     setDisplayOrder(categories.length + 1);
     setIsActive(true);
+    setActiveLang('fr');
     setError('');
     setModalOpen(true);
   };
 
   const openEditModal = (cat) => {
     setEditingCategory(cat);
-    setName(cat.name);
-    setImage(cat.image);
+    setName(normalizeLocalized(cat.name));
+    setDescription(normalizeLocalized(cat.description));
+    setImage(cat.image || '');
     setDisplayOrder(cat.displayOrder || 0);
     setIsActive(cat.isActive);
+    setActiveLang('fr');
     setError('');
     setModalOpen(true);
   };
@@ -75,13 +125,16 @@ export default function CategoriesManager() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!name.trim()) return setError('Please enter a category name');
+    if (!name.fr.trim() && !name.ar.trim() && !name.en.trim()) {
+      return setError('Please enter a category name in at least one language (French recommended)');
+    }
     if (!image.trim()) return setError('Please upload an image for the category');
 
     setModalLoading(true);
     try {
       const payload = {
-        name: name.trim(),
+        name,
+        description,
         image: image.trim(),
         displayOrder: Number(displayOrder),
         isActive
@@ -103,7 +156,7 @@ export default function CategoriesManager() {
   };
 
   const handleArchive = async (id) => {
-    if (!window.confirm('Are you sure you want to archive this category? It will be safely preserved for historical orders.')) return;
+    if (!window.confirm('Archive this category? It will be safely preserved for historical orders.')) return;
     try {
       await adminArchiveCategory(id);
       loadCategories();
@@ -111,6 +164,16 @@ export default function CategoriesManager() {
       alert(err.message);
     }
   };
+
+  const getDisplayName = (cat) => {
+    const n = cat.name;
+    if (!n) return '—';
+    if (typeof n === 'string') return n;
+    return n.fr || n.en || n.ar || '—';
+  };
+
+  const updateNameLang = (lang, val) => setName((prev) => ({ ...prev, [lang]: val }));
+  const updateDescLang = (lang, val) => setDescription((prev) => ({ ...prev, [lang]: val }));
 
   return (
     <div>
@@ -123,7 +186,6 @@ export default function CategoriesManager() {
             {t('admin.nav.categories')}
           </p>
         </div>
-
         <button onClick={openCreateModal} className="btn btn-primary btn-sm">
           <Plus size={16} className="rtl-flip" />
           <span>{t('admin.categories.addCategory')}</span>
@@ -147,6 +209,7 @@ export default function CategoriesManager() {
               <tr style={{ backgroundColor: 'var(--color-bg-card)', borderBottom: '1px solid var(--color-border)' }}>
                 <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Image</th>
                 <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.categories.categoryName')}</th>
+                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Translations</th>
                 <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.categories.slug')}</th>
                 <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Order</th>
                 <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.products.status')}</th>
@@ -159,7 +222,10 @@ export default function CategoriesManager() {
                   <td style={{ padding: '1rem' }}>
                     <img src={c.image} alt="" style={{ width: '50px', height: '65px', objectFit: 'cover', borderRadius: '4px' }} />
                   </td>
-                  <td style={{ padding: '1rem', fontWeight: '700' }}>{c.name}</td>
+                  <td style={{ padding: '1rem', fontWeight: '700' }}>{getDisplayName(c)}</td>
+                  <td style={{ padding: '1rem' }}>
+                    <TranslationBadge status={c.translationStatus} />
+                  </td>
                   <td style={{ padding: '1rem', color: '#666', fontFamily: 'monospace' }}>{c.slug}</td>
                   <td style={{ padding: '1rem' }}>{c.displayOrder}</td>
                   <td style={{ padding: '1rem' }}>
@@ -206,8 +272,10 @@ export default function CategoriesManager() {
           <div style={{
             backgroundColor: 'var(--color-surface)',
             borderRadius: 'var(--radius-xl)',
-            maxWidth: '500px',
+            maxWidth: '560px',
             width: '100%',
+            maxHeight: '90vh',
+            overflowY: 'auto',
             padding: '2rem',
             boxShadow: 'var(--shadow-lg)'
           }}>
@@ -224,21 +292,75 @@ export default function CategoriesManager() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              {/* Language Tabs */}
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>
-                  {t('admin.categories.categoryName')} *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  style={{ width: '100%', padding: '0.65rem', borderRadius: '6px', border: '1px solid var(--color-border)' }}
-                />
+                <div style={{ display: 'flex', gap: '0', borderBottom: '2px solid var(--color-border)', marginBottom: '1rem' }}>
+                  {LANGS.map((lang) => {
+                    const hasName = name[lang.code] && name[lang.code].trim().length > 0;
+                    return (
+                      <button
+                        key={lang.code}
+                        type="button"
+                        onClick={() => setActiveLang(lang.code)}
+                        style={{
+                          padding: '0.6rem 1.2rem',
+                          fontSize: '0.85rem',
+                          fontWeight: '700',
+                          border: 'none',
+                          borderBottom: activeLang === lang.code ? '2px solid var(--color-espresso)' : '2px solid transparent',
+                          marginBottom: '-2px',
+                          backgroundColor: 'transparent',
+                          cursor: 'pointer',
+                          color: activeLang === lang.code ? 'var(--color-espresso)' : '#888',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.4rem'
+                        }}
+                      >
+                        {lang.label}
+                        {hasName
+                          ? <Check size={11} strokeWidth={3} color="#059669" />
+                          : <AlertTriangle size={11} strokeWidth={2.5} color="#D97706" />
+                        }
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Name field for active lang */}
+                <div style={{ marginBottom: '0.75rem' }}>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>
+                    {t('admin.categories.categoryName')} ({activeLang.toUpperCase()})
+                    {activeLang === 'fr' && <span style={{ color: 'var(--color-danger)' }}> *</span>}
+                  </label>
+                  <input
+                    type="text"
+                    value={name[activeLang]}
+                    onChange={(e) => updateNameLang(activeLang, e.target.value)}
+                    dir={LANGS.find(l => l.code === activeLang)?.dir}
+                    placeholder={activeLang === 'ar' ? 'اسم التصنيف بالعربية' : activeLang === 'en' ? 'Category name in English' : 'Nom de la catégorie en français'}
+                    style={{ width: '100%', padding: '0.65rem', borderRadius: '6px', border: '1px solid var(--color-border)', textAlign: activeLang === 'ar' ? 'right' : 'left' }}
+                  />
+                </div>
+
+                {/* Description field for active lang */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>
+                    Description ({activeLang.toUpperCase()}) <span style={{ color: '#888', fontWeight: '400' }}>(optional)</span>
+                  </label>
+                  <textarea
+                    value={description[activeLang]}
+                    onChange={(e) => updateDescLang(activeLang, e.target.value)}
+                    dir={LANGS.find(l => l.code === activeLang)?.dir}
+                    rows={3}
+                    placeholder={activeLang === 'ar' ? 'وصف التصنيف' : activeLang === 'en' ? 'Category description' : 'Description de la catégorie'}
+                    style={{ width: '100%', padding: '0.65rem', borderRadius: '6px', border: '1px solid var(--color-border)', resize: 'vertical', textAlign: activeLang === 'ar' ? 'right' : 'left' }}
+                  />
+                </div>
               </div>
 
-              {/* Category Image Upload (No URL input) */}
+              {/* Category Image Upload */}
               <div>
                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.5rem' }}>
                   {t('admin.products.uploadImage')} *
@@ -256,28 +378,14 @@ export default function CategoriesManager() {
                     <img
                       src={image}
                       alt="Category Preview"
-                      style={{
-                        width: '80px',
-                        height: '100px',
-                        objectFit: 'cover',
-                        borderRadius: '6px',
-                        boxShadow: 'var(--shadow-sm)'
-                      }}
+                      style={{ width: '80px', height: '100px', objectFit: 'cover', borderRadius: '6px', boxShadow: 'var(--shadow-sm)' }}
                     />
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                       <span style={{ fontSize: '0.8rem', color: '#555', fontWeight: '600' }}>Image ready</span>
-                      <label
-                        className="btn btn-secondary btn-sm"
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer', width: 'fit-content' }}
-                      >
+                      <label className="btn btn-secondary btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer', width: 'fit-content' }}>
                         <Upload size={13} />
-                        <span>{t('admin.products.uploadImage')}</span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={(e) => handleImageUpload(e.target.files[0])}
-                          style={{ display: 'none' }}
-                        />
+                        <span>Change</span>
+                        <input type="file" accept="image/*" onChange={(e) => handleImageUpload(e.target.files[0])} style={{ display: 'none' }} />
                       </label>
                     </div>
                   </div>
@@ -287,8 +395,7 @@ export default function CategoriesManager() {
                     borderRadius: 'var(--radius-md)',
                     padding: '2rem 1rem',
                     textAlign: 'center',
-                    backgroundColor: 'var(--color-bg-base)',
-                    transition: 'var(--transition-fast)'
+                    backgroundColor: 'var(--color-bg-base)'
                   }}>
                     {uploadingImage ? (
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
@@ -296,41 +403,11 @@ export default function CategoriesManager() {
                         <span style={{ fontSize: '0.85rem', fontWeight: '600' }}>{t('common.loading')}</span>
                       </div>
                     ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
-                        <div style={{
-                          backgroundColor: 'var(--color-surface)',
-                          width: '44px',
-                          height: '44px',
-                          borderRadius: '50%',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          boxShadow: 'var(--shadow-sm)',
-                          color: 'var(--color-primary-dark)'
-                        }}>
-                          <Upload size={20} />
-                        </div>
-                        <div>
-                          <div style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--color-espresso)' }}>
-                            {t('admin.products.uploadImage')}
-                          </div>
-                          <div style={{ fontSize: '0.75rem', color: '#777', marginTop: '0.2rem' }}>
-                            PNG, JPG, WEBP (5MB)
-                          </div>
-                        </div>
-                        <label
-                          className="btn btn-primary btn-sm"
-                          style={{ cursor: 'pointer', marginTop: '0.25rem' }}
-                        >
-                          {t('admin.products.uploadImage')}
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => handleImageUpload(e.target.files[0])}
-                            style={{ display: 'none' }}
-                          />
-                        </label>
-                      </div>
+                      <label className="btn btn-primary btn-sm" style={{ cursor: 'pointer' }}>
+                        <Upload size={14} />
+                        {t('admin.products.uploadImage')}
+                        <input type="file" accept="image/*" onChange={(e) => handleImageUpload(e.target.files[0])} style={{ display: 'none' }} />
+                      </label>
                     )}
                   </div>
                 )}
@@ -346,19 +423,13 @@ export default function CategoriesManager() {
                     style={{ width: '100%', padding: '0.65rem', borderRadius: '6px', border: '1px solid var(--color-border)' }}
                   />
                 </div>
-
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', paddingTop: '1.2rem' }}>
-                  <input
-                    type="checkbox"
-                    id="catActive"
-                    checked={isActive}
-                    onChange={(e) => setIsActive(e.target.checked)}
-                  />
+                  <input type="checkbox" id="catActive" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
                   <label htmlFor="catActive" style={{ fontSize: '0.85rem', fontWeight: '600' }}>{t('admin.products.active')}</label>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '0.5rem' }}>
                 <button type="button" onClick={() => setModalOpen(false)} className="btn btn-secondary btn-sm">{t('common.cancel')}</button>
                 <button type="submit" disabled={modalLoading} className="btn btn-primary btn-sm">
                   {modalLoading ? <Loader2 size={16} className="animate-spin" /> : null}

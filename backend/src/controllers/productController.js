@@ -3,6 +3,20 @@ import { Category } from '../models/Category.js';
 import { Order } from '../models/Order.js';
 import { ORDER_STATUS } from '../config/constants.js';
 
+export function getTranslationStatus(entity) {
+  const name = entity?.name || {};
+  const hasFr = Boolean(name.fr && name.fr.trim());
+  const hasAr = Boolean(name.ar && name.ar.trim());
+  const hasEn = Boolean(name.en && name.en.trim());
+  return {
+    hasFr,
+    hasAr,
+    hasEn,
+    isComplete: hasFr && hasAr && hasEn,
+    missing: [!hasFr && 'fr', !hasAr && 'ar', !hasEn && 'en'].filter(Boolean)
+  };
+}
+
 // Public: Get active products with filtering, search, and pagination
 export const getProducts = async (req, res, next) => {
   try {
@@ -28,9 +42,17 @@ export const getProducts = async (req, res, next) => {
     }
 
     if (search && search.trim()) {
+      const term = search.trim();
+      const regex = { $regex: term, $options: 'i' };
       filter.$or = [
-        { name: { $regex: search.trim(), $options: 'i' } },
-        { description: { $regex: search.trim(), $options: 'i' } }
+        { 'name.fr': regex },
+        { 'name.ar': regex },
+        { 'name.en': regex },
+        { 'description.fr': regex },
+        { 'description.ar': regex },
+        { 'description.en': regex },
+        { name: regex },
+        { description: regex }
       ];
     }
 
@@ -108,7 +130,18 @@ export const getAllProductsAdmin = async (req, res, next) => {
 
     const filter = {};
     if (search && search.trim()) {
-      filter.name = { $regex: search.trim(), $options: 'i' };
+      const term = search.trim();
+      const regex = { $regex: term, $options: 'i' };
+      filter.$or = [
+        { 'name.fr': regex },
+        { 'name.ar': regex },
+        { 'name.en': regex },
+        { 'description.fr': regex },
+        { 'description.ar': regex },
+        { 'description.en': regex },
+        { name: regex },
+        { description: regex }
+      ];
     }
     if (category) filter.category = category;
     if (isActive !== undefined) filter.isActive = isActive === 'true';
@@ -136,6 +169,7 @@ export const getAllProductsAdmin = async (req, res, next) => {
         });
       });
       doc.totalStock = totalStock;
+      doc.translationStatus = getTranslationStatus(doc);
       return doc;
     });
 
@@ -161,7 +195,9 @@ export const getProductByIdAdmin = async (req, res, next) => {
     if (!product) {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
-    res.json({ success: true, product });
+    const doc = product.toObject();
+    doc.translationStatus = getTranslationStatus(doc);
+    res.json({ success: true, product: doc });
   } catch (error) {
     next(error);
   }
@@ -173,12 +209,13 @@ export const createProduct = async (req, res, next) => {
     const { name, description, category, sellingPrice, basePrice, costPrice, promotion, isActive, isBestSeller, colors } = req.body;
     const effectiveBasePrice = sellingPrice ?? basePrice;
 
-    const baseSlug = name
+    const nameForSlug = typeof name === 'object' && name ? (name.fr || name.en || name.ar || '') : (name || '');
+    const baseSlug = String(nameForSlug)
       .toLowerCase()
       .trim()
       .replace(/[^\w\s-]/g, '')
       .replace(/[\s_-]+/g, '-')
-      .replace(/^-+|-+$/g, '');
+      .replace(/^-+|-+$/g, '') || `product-${Date.now()}`;
 
     let slug = baseSlug;
     let counter = 1;
@@ -257,26 +294,58 @@ export const updateProduct = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
 
-    if (name && name !== product.name) {
-      product.name = name;
-      // update slug cleanly if name changes
-      const baseSlug = name
-        .toLowerCase()
-        .trim()
-        .replace(/[^\w\s-]/g, '')
-        .replace(/[\s_-]+/g, '-')
-        .replace(/^-+|-+$/g, '');
-
-      let newSlug = baseSlug;
-      let counter = 1;
-      while (await Product.findOne({ slug: newSlug, _id: { $ne: product._id } })) {
-        newSlug = `${baseSlug}-${counter}`;
-        counter++;
+    if (name !== undefined) {
+      const oldFr = typeof product.name === 'object' ? product.name.fr : product.name;
+      if (typeof name === 'object' && name !== null) {
+        const currentName = typeof product.name === 'object' ? product.name : { fr: product.name || '', ar: '', en: '' };
+        product.name = {
+          fr: name.fr !== undefined ? name.fr : (currentName.fr || ''),
+          ar: name.ar !== undefined ? name.ar : (currentName.ar || ''),
+          en: name.en !== undefined ? name.en : (currentName.en || '')
+        };
+      } else if (typeof name === 'string') {
+        const currentName = typeof product.name === 'object' ? product.name : {};
+        product.name = {
+          ...currentName,
+          fr: name.trim()
+        };
       }
-      product.slug = newSlug;
+
+      const newFr = typeof product.name === 'object' ? product.name.fr : product.name;
+      if (newFr && newFr !== oldFr) {
+        const baseSlug = String(newFr)
+          .toLowerCase()
+          .trim()
+          .replace(/[^\w\s-]/g, '')
+          .replace(/[\s_-]+/g, '-')
+          .replace(/^-+|-+$/g, '') || `product-${Date.now()}`;
+
+        let newSlug = baseSlug;
+        let counter = 1;
+        while (await Product.findOne({ slug: newSlug, _id: { $ne: product._id } })) {
+          newSlug = `${baseSlug}-${counter}`;
+          counter++;
+        }
+        product.slug = newSlug;
+      }
     }
 
-    if (description !== undefined) product.description = description;
+    if (description !== undefined) {
+      if (typeof description === 'object' && description !== null) {
+        const currentDesc = typeof product.description === 'object' ? product.description : { fr: product.description || '', ar: '', en: '' };
+        product.description = {
+          fr: description.fr !== undefined ? description.fr : (currentDesc.fr || ''),
+          ar: description.ar !== undefined ? description.ar : (currentDesc.ar || ''),
+          en: description.en !== undefined ? description.en : (currentDesc.en || '')
+        };
+      } else if (typeof description === 'string') {
+        const currentDesc = typeof product.description === 'object' ? product.description : {};
+        product.description = {
+          ...currentDesc,
+          fr: description.trim()
+        };
+      }
+    }
     if (category !== undefined) product.category = category;
 
     const incomingPrice = sellingPrice ?? basePrice;

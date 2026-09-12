@@ -7,7 +7,7 @@ import { useLanguage } from '../context/LanguageContext';
 
 export default function ProductDetail({ product, onBack, onSelectRelated }) {
   const { addToCart } = useCart();
-  const { t, formatCurrency, isRtl } = useLanguage();
+  const { t, formatCurrency, isRtl, localized } = useLanguage();
 
   const [selectedColorIndex, setSelectedColorIndex] = useState(0);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
@@ -108,7 +108,7 @@ export default function ProductDetail({ product, onBack, onSelectRelated }) {
             }}>
               <img
                 src={getImageUrl(mainImage)}
-                alt={`${product.name} - ${activeColor.colorName}`}
+                alt={`${localized(product.name)} - ${activeColor.colorName}`}
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
               />
 
@@ -167,7 +167,7 @@ export default function ProductDetail({ product, onBack, onSelectRelated }) {
                 letterSpacing: '0.08em',
                 color: 'var(--color-primary-dark)'
               }}>
-                {product.category?.name || 'Modest Fashion'}
+                {localized(product.category?.name) || 'Modest Fashion'}
               </span>
 
               <h1 className="heading-luxury" style={{
@@ -176,7 +176,7 @@ export default function ProductDetail({ product, onBack, onSelectRelated }) {
                 marginTop: '0.35rem',
                 lineHeight: 1.15
               }}>
-                {product.name}
+                {localized(product.name)}
               </h1>
 
               {isPromotionActive ? (
@@ -391,7 +391,7 @@ export default function ProductDetail({ product, onBack, onSelectRelated }) {
                 {t('product.descriptionFit')}
               </h3>
               <p style={{ fontSize: '0.92rem', color: '#555', lineHeight: 1.7 }}>
-                {product.description}
+                {localized(product.description)}
               </p>
             </div>
           </div>

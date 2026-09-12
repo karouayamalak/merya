@@ -3,7 +3,7 @@ import { getImageUrl } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 
 export default function ProductCard({ product, onSelect }) {
-  const { t, formatCurrency, isRtl } = useLanguage();
+  const { t, formatCurrency, isRtl, localized } = useLanguage();
   // Active selected color for preview
   const [selectedColorIndex, setSelectedColorIndex] = useState(0);
 
@@ -91,7 +91,7 @@ export default function ProductCard({ product, onSelect }) {
 
         <img
           src={currentImage}
-          alt={`${product.name} in ${activeColor.colorName || ''}`}
+          alt={`${localized(product.name)} ${activeColor.colorName || ''}`}
           loading="lazy"
           style={{
             width: '100%',
@@ -158,7 +158,7 @@ export default function ProductCard({ product, onSelect }) {
           color: 'var(--color-espresso)',
           lineHeight: 1.3
         }}>
-          {product.name}
+          {localized(product.name)}
         </h3>
 
         {/* Price Section */}

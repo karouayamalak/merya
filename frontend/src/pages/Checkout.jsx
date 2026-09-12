@@ -25,7 +25,7 @@ import { useLanguage } from '../context/LanguageContext';
 
 export default function Checkout({ onBack, onOrderSuccess }) {
   const { items, subtotal, clearCart, updateCartItems } = useCart();
-  const { t, formatCurrency, isRtl, getWilayaDisplayName } = useLanguage();
+  const { t, formatCurrency, isRtl, getWilayaDisplayName, localized } = useLanguage();
 
   // Explicit delivery settings state
   const [loadingSettings, setLoadingSettings] = useState(true);
@@ -1244,7 +1244,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                   />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: '0.88rem', fontWeight: '700', color: '#2A241F', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {item.productName}
+                      {localized(item.productName)}
                     </div>
                     <div style={{ fontSize: '0.78rem', color: '#777', display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.2rem', flexWrap: 'wrap' }}>
                       <span style={{

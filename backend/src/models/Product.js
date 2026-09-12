@@ -33,12 +33,48 @@ const colorVariantSchema = new mongoose.Schema({
   sizes: [sizeVariantSchema]
 }, { _id: true });
 
+export function normalizeLocalizedString(val) {
+  if (typeof val === 'string') {
+    return { fr: val.trim(), ar: '', en: '' };
+  }
+  if (val && typeof val === 'object') {
+    return {
+      fr: typeof val.fr === 'string' ? val.fr.trim() : (val.fr ? String(val.fr).trim() : ''),
+      ar: typeof val.ar === 'string' ? val.ar.trim() : (val.ar ? String(val.ar).trim() : ''),
+      en: typeof val.en === 'string' ? val.en.trim() : (val.en ? String(val.en).trim() : '')
+    };
+  }
+  return { fr: '', ar: '', en: '' };
+}
+
+export function getLocalizedString(val) {
+  if (typeof val === 'string') {
+    return { fr: val, ar: '', en: '' };
+  }
+  return {
+    fr: val?.fr || '',
+    ar: val?.ar || '',
+    en: val?.en || ''
+  };
+}
+
 const productSchema = new mongoose.Schema({
   name: {
-    type: String,
-    required: true,
-    trim: true,
-    maxlength: 150
+    type: mongoose.Schema.Types.Mixed,
+    required: [true, 'Product name is required'],
+    get: getLocalizedString,
+    set: normalizeLocalizedString,
+    validate: {
+      validator: function(v) {
+        if (!v) return false;
+        if (typeof v === 'string') return v.trim().length > 0;
+        if (typeof v === 'object') {
+          return Boolean((v.fr && v.fr.trim().length > 0) || (v.en && v.en.trim().length > 0) || (v.ar && v.ar.trim().length > 0));
+        }
+        return false;
+      },
+      message: 'Product name must have at least one language translation provided.'
+    }
   },
   slug: {
     type: String,
@@ -49,9 +85,21 @@ const productSchema = new mongoose.Schema({
     index: true
   },
   description: {
-    type: String,
-    required: true,
-    trim: true
+    type: mongoose.Schema.Types.Mixed,
+    required: [true, 'Product description is required'],
+    get: getLocalizedString,
+    set: normalizeLocalizedString,
+    validate: {
+      validator: function(v) {
+        if (!v) return false;
+        if (typeof v === 'string') return v.trim().length > 0;
+        if (typeof v === 'object') {
+          return Boolean((v.fr && v.fr.trim().length > 0) || (v.en && v.en.trim().length > 0) || (v.ar && v.ar.trim().length > 0));
+        }
+        return false;
+      },
+      message: 'Product description must have at least one language translation provided.'
+    }
   },
   category: {
     type: mongoose.Schema.Types.ObjectId,
@@ -113,8 +161,8 @@ const productSchema = new mongoose.Schema({
   colors: [colorVariantSchema]
 }, {
   timestamps: true,
-  toJSON: { virtuals: true },
-  toObject: { virtuals: true }
+  toJSON: { virtuals: true, getters: true },
+  toObject: { virtuals: true, getters: true }
 });
 
 // Schema-level pre-validation to enforce promotion business rules
@@ -140,6 +188,28 @@ productSchema.virtual('effectivePrice').get(function() {
 productSchema.index({ isArchived: 1, isActive: 1, category: 1 });
 productSchema.index({ isArchived: 1, isActive: 1, isBestSeller: 1 });
 productSchema.index({ "colors.colorName": 1 });
+productSchema.index({ "name.fr": 1 });
+productSchema.index({ "name.ar": 1 });
+productSchema.index({ "name.en": 1 });
+
+// Virtual: translation completeness status for admin UI badges
+productSchema.virtual('translationStatus').get(function() {
+  const n = this.name;
+  if (!n || typeof n !== 'object') return { fr: false, ar: false, en: false };
+  return {
+    fr: Boolean(n.fr && n.fr.trim().length > 0),
+    ar: Boolean(n.ar && n.ar.trim().length > 0),
+    en: Boolean(n.en && n.en.trim().length > 0)
+  };
+});
+
+// Virtual: denormalized total stock across all colors and sizes
+productSchema.virtual('totalStock').get(function() {
+  if (!this.colors || !this.colors.length) return 0;
+  return this.colors.reduce((total, color) => {
+    return total + (color.sizes || []).reduce((s, sz) => s + (sz.stock || 0), 0);
+  }, 0);
+});
 
 export const Product = mongoose.model('Product', productSchema);
 

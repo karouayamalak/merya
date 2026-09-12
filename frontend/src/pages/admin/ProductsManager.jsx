@@ -1,7 +1,39 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Archive, Search, Check, X, Image as ImageIcon, Trash2, Upload, Loader2 } from 'lucide-react';
+import { Plus, Edit2, Archive, Search, Check, X, Image as ImageIcon, Trash2, Upload, Loader2, AlertTriangle } from 'lucide-react';
 import { adminGetProducts, adminCreateProduct, adminUpdateProduct, adminArchiveProduct, adminGetCategories, adminUploadImage } from '../../services/api';
 import { useLanguage } from '../../context/LanguageContext';
+
+const LANGS = [
+  { code: 'fr', label: '🇫🇷 FR', dir: 'ltr' },
+  { code: 'ar', label: '🇩🇿 AR', dir: 'rtl' },
+  { code: 'en', label: '🇬🇧 EN', dir: 'ltr' }
+];
+
+const emptyLocalized = () => ({ fr: '', ar: '', en: '' });
+
+function TranslationBadge({ status }) {
+  if (!status) return null;
+  const langs = ['fr', 'ar', 'en'];
+  return (
+    <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
+      {langs.map((lang) => (
+        <span
+          key={lang}
+          style={{
+            fontSize: '0.68rem', fontWeight: '700',
+            padding: '0.15rem 0.45rem', borderRadius: '4px',
+            backgroundColor: status[lang] ? '#D1FAE5' : '#FEF3C7',
+            color: status[lang] ? '#065F46' : '#92400E',
+            display: 'inline-flex', alignItems: 'center', gap: '0.2rem'
+          }}
+        >
+          {status[lang] ? <Check size={9} strokeWidth={3} /> : <AlertTriangle size={9} strokeWidth={2.5} />}
+          {lang.toUpperCase()}
+        </span>
+      ))}
+    </div>
+  );
+}
 
 const AVAILABLE_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Standard'];
 
@@ -19,8 +51,9 @@ export default function ProductsManager() {
   const [modalError, setModalError] = useState('');
 
   // Form fields
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
+  const [name, setName] = useState(emptyLocalized());
+  const [description, setDescription] = useState(emptyLocalized());
+  const [activeLang, setActiveLang] = useState('fr');
   const [categoryId, setCategoryId] = useState('');
   const [sellingPrice, setSellingPrice] = useState(6000);
   const [costPrice, setCostPrice] = useState(3500);
@@ -67,8 +100,9 @@ export default function ProductsManager() {
 
   const openCreateModal = () => {
     setEditingProduct(null);
-    setName('');
-    setDescription('');
+    setName(emptyLocalized());
+    setDescription(emptyLocalized());
+    setActiveLang('fr');
     setCategoryId(categories[0]?._id || '');
     setSellingPrice(6500);
     setCostPrice(4000);
@@ -94,8 +128,14 @@ export default function ProductsManager() {
 
   const openEditModal = (prod) => {
     setEditingProduct(prod);
-    setName(prod.name);
-    setDescription(prod.description);
+    const normalizeLocalized = (f) => {
+      if (!f) return emptyLocalized();
+      if (typeof f === 'string') return { fr: f, ar: '', en: '' };
+      return { fr: f.fr || '', ar: f.ar || '', en: f.en || '' };
+    };
+    setName(normalizeLocalized(prod.name));
+    setDescription(normalizeLocalized(prod.description));
+    setActiveLang('fr');
     setCategoryId(prod.category?._id || prod.category);
     setSellingPrice(prod.sellingPrice);
     setCostPrice(prod.costPrice);
@@ -167,7 +207,9 @@ export default function ProductsManager() {
     e.preventDefault();
     setModalError('');
 
-    if (!name.trim()) return setModalError('Product name is required');
+    if (!name.fr.trim() && !name.ar.trim() && !name.en.trim()) {
+      return setModalError('Product name is required in at least one language (French recommended)');
+    }
     if (!categoryId) return setModalError('Category is required');
     if (sellingPrice <= 0) return setModalError('Selling price must be greater than 0');
     if (costPrice < 0) return setModalError('Cost price cannot be negative');
@@ -184,8 +226,8 @@ export default function ProductsManager() {
     setModalLoading(true);
     try {
       const payload = {
-        name: name.trim(),
-        description: description.trim(),
+        name,
+        description,
         category: categoryId,
         sellingPrice: Number(sellingPrice),
         costPrice: Number(costPrice),
@@ -214,7 +256,8 @@ export default function ProductsManager() {
   };
 
   const handleDeleteProduct = async (product) => {
-    if (!window.confirm(`Are you sure you want to permanently delete "${product.name}"? This action cannot be undone.`)) return;
+    const displayName = (n) => { if (!n) return '—'; if (typeof n === 'string') return n; return n.fr || n.en || n.ar || '—'; };
+    if (!window.confirm(`Are you sure you want to permanently delete "${displayName(product.name)}"? This action cannot be undone.`)) return;
     try {
       await adminArchiveProduct(product._id);
       loadData();
@@ -285,6 +328,7 @@ export default function ProductsManager() {
               <tr style={{ backgroundColor: 'var(--color-bg-card)', borderBottom: '1px solid var(--color-border)' }}>
                 <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.products.productName')}</th>
                 <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.products.category')}</th>
+                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Translations</th>
                 <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.products.sellingPrice')}</th>
                 <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.products.costPrice')}</th>
                 <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.products.variants')}</th>
@@ -303,7 +347,7 @@ export default function ProductsManager() {
                         style={{ width: '40px', height: '52px', objectFit: 'cover', borderRadius: '4px' }}
                       />
                       <div>
-                        <div style={{ fontWeight: '700' }}>{p.name}</div>
+                        <div style={{ fontWeight: '700' }}>{typeof p.name === 'object' ? (p.name.fr || p.name.en || p.name.ar || '—') : (p.name || '—')}</div>
                         {p.isBestSeller && (
                           <span style={{ fontSize: '0.68rem', backgroundColor: 'var(--color-espresso)', color: '#FFF', padding: '0.15rem 0.45rem', borderRadius: '4px', textTransform: 'uppercase' }}>
                             Best Seller
@@ -312,7 +356,12 @@ export default function ProductsManager() {
                       </div>
                     </div>
                   </td>
-                  <td style={{ padding: '1rem' }}>{p.category?.name || '—'}</td>
+                  <td style={{ padding: '1rem' }}>
+                    {(() => { const n = p.category?.name; return typeof n === 'object' ? (n.fr || n.en || n.ar || '—') : (n || '—'); })()}
+                  </td>
+                  <td style={{ padding: '1rem' }}>
+                    <TranslationBadge status={p.translationStatus} />
+                  </td>
                   <td style={{ padding: '1rem' }}>
                     {p.promotion && p.promotion.active && p.promotion.promotionalPrice ? (
                       <div>
@@ -417,41 +466,74 @@ export default function ProductsManager() {
             )}
 
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1rem' }}>
+              {/* Language Tabs for Name & Description */}
+              <div>
+                <div style={{ display: 'flex', gap: 0, borderBottom: '2px solid var(--color-border)', marginBottom: '1rem' }}>
+                  {LANGS.map((lang) => {
+                    const hasName = name[lang.code] && name[lang.code].trim().length > 0;
+                    return (
+                      <button
+                        key={lang.code}
+                        type="button"
+                        onClick={() => setActiveLang(lang.code)}
+                        style={{
+                          padding: '0.6rem 1.2rem', fontSize: '0.85rem', fontWeight: '700',
+                          border: 'none', borderBottom: activeLang === lang.code ? '2px solid var(--color-espresso)' : '2px solid transparent',
+                          marginBottom: '-2px', backgroundColor: 'transparent', cursor: 'pointer',
+                          color: activeLang === lang.code ? 'var(--color-espresso)' : '#888',
+                          display: 'flex', alignItems: 'center', gap: '0.4rem'
+                        }}
+                      >
+                        {lang.label}
+                        {hasName ? <Check size={11} strokeWidth={3} color="#059669" /> : <AlertTriangle size={11} strokeWidth={2.5} color="#D97706" />}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1rem', marginBottom: '0.75rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>
+                      Product Name ({activeLang.toUpperCase()}){activeLang === 'fr' && <span style={{ color: 'var(--color-danger)' }}> *</span>}
+                    </label>
+                    <input
+                      type="text"
+                      value={name[activeLang]}
+                      onChange={(e) => setName(prev => ({ ...prev, [activeLang]: e.target.value }))}
+                      dir={LANGS.find(l => l.code === activeLang)?.dir}
+                      placeholder={activeLang === 'ar' ? 'اسم المنتج بالعربية' : activeLang === 'en' ? 'Product name in English' : 'Nom du produit en français'}
+                      style={{ width: '100%', padding: '0.65rem', borderRadius: '6px', border: '1px solid var(--color-border)', textAlign: activeLang === 'ar' ? 'right' : 'left' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>Category *</label>
+                    <select
+                      value={categoryId}
+                      onChange={(e) => setCategoryId(e.target.value)}
+                      style={{ width: '100%', padding: '0.65rem', borderRadius: '6px', border: '1px solid var(--color-border)' }}
+                    >
+                      {categories.map(c => {
+                        const catName = typeof c.name === 'object' ? (c.name.fr || c.name.en || c.name.ar || c.slug) : c.name;
+                        return <option key={c._id} value={c._id}>{catName}</option>;
+                      })}
+                    </select>
+                  </div>
+                </div>
+
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>Product Name *</label>
-                  <input
-                    type="text"
-                    required
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    style={{ width: '100%', padding: '0.65rem', borderRadius: '6px', border: '1px solid var(--color-border)' }}
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>
+                    Description ({activeLang.toUpperCase()})
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={description[activeLang]}
+                    onChange={(e) => setDescription(prev => ({ ...prev, [activeLang]: e.target.value }))}
+                    dir={LANGS.find(l => l.code === activeLang)?.dir}
+                    placeholder={activeLang === 'ar' ? 'وصف المنتج بالعربية' : activeLang === 'en' ? 'Product description in English' : 'Description du produit en français'}
+                    style={{ width: '100%', padding: '0.65rem', borderRadius: '6px', border: '1px solid var(--color-border)', resize: 'vertical', textAlign: activeLang === 'ar' ? 'right' : 'left' }}
                   />
                 </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>Category *</label>
-                  <select
-                    value={categoryId}
-                    onChange={(e) => setCategoryId(e.target.value)}
-                    style={{ width: '100%', padding: '0.65rem', borderRadius: '6px', border: '1px solid var(--color-border)' }}
-                  >
-                    {categories.map(c => (
-                      <option key={c._id} value={c._id}>{c.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>Description & Sizing Guide *</label>
-                <textarea
-                  rows={3}
-                  required
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  style={{ width: '100%', padding: '0.65rem', borderRadius: '6px', border: '1px solid var(--color-border)' }}
-                />
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '1rem' }}>

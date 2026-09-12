@@ -6,7 +6,7 @@ import { getImageUrl } from '../services/api';
 
 export default function CartDrawer({ onProceedToCheckout, onContinueShopping }) {
   const { items, isDrawerOpen, setIsDrawerOpen, updateQuantity, removeFromCart, subtotal, totalQuantity } = useCart();
-  const { t, formatCurrency, isRtl } = useLanguage();
+  const { t, formatCurrency, isRtl, localized } = useLanguage();
 
   if (!isDrawerOpen) return null;
 
@@ -124,7 +124,7 @@ export default function CartDrawer({ onProceedToCheckout, onContinueShopping }) 
                 }}>
                   <img
                     src={getImageUrl(item.image) || 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?q=80&w=300&auto=format&fit=crop'}
-                    alt={item.productName}
+                    alt={localized(item.productName)}
                     style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                   />
                 </div>
@@ -134,7 +134,7 @@ export default function CartDrawer({ onProceedToCheckout, onContinueShopping }) 
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                       <h4 style={{ fontSize: '0.92rem', fontWeight: '600', color: 'var(--color-espresso)', maxWidth: '210px' }}>
-                        {item.productName}
+                        {localized(item.productName)}
                       </h4>
                       <button
                         onClick={() => removeFromCart(item.productId, item.colorName, item.size)}
