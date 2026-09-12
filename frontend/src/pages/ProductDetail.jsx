@@ -3,9 +3,11 @@ import { ArrowLeft, ShoppingBag, ShieldCheck, Truck, RotateCcw, Check, AlertCirc
 import { useCart } from '../context/CartContext';
 import ProductCard from '../components/ProductCard';
 import { getImageUrl } from '../services/api';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function ProductDetail({ product, onBack, onSelectRelated }) {
   const { addToCart } = useCart();
+  const { t, formatCurrency, isRtl } = useLanguage();
 
   const [selectedColorIndex, setSelectedColorIndex] = useState(0);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
@@ -82,8 +84,8 @@ export default function ProductDetail({ product, onBack, onSelectRelated }) {
             marginBottom: '2rem'
           }}
         >
-          <ArrowLeft size={16} />
-          Back to Collection
+          <ArrowLeft size={16} className="rtl-flip" />
+          {t('product.backToCollection')}
         </button>
 
         {/* Product Hero Grid */}
@@ -114,7 +116,7 @@ export default function ProductDetail({ product, onBack, onSelectRelated }) {
                 <span style={{
                   position: 'absolute',
                   top: '16px',
-                  right: '16px',
+                  [isRtl ? 'left' : 'right']: '16px',
                   backgroundColor: '#DC2626',
                   color: '#FFF',
                   fontSize: '0.8rem',
@@ -125,7 +127,7 @@ export default function ProductDetail({ product, onBack, onSelectRelated }) {
                   boxShadow: '0 2px 8px rgba(220, 38, 38, 0.4)',
                   zIndex: 2
                 }}>
-                  -{discountPercent}% OFF
+                  -{discountPercent}% {t('product.off')}
                 </span>
               )}
             </div>
@@ -185,7 +187,7 @@ export default function ProductDetail({ product, onBack, onSelectRelated }) {
                     color: '#DC2626',
                     letterSpacing: '-0.02em'
                   }}>
-                    {effectivePrice.toLocaleString()} DZD
+                    {formatCurrency(effectivePrice)}
                   </span>
                   <span style={{
                     fontSize: '1.2rem',
@@ -193,7 +195,7 @@ export default function ProductDetail({ product, onBack, onSelectRelated }) {
                     textDecoration: 'line-through',
                     fontWeight: '500'
                   }}>
-                    {product.sellingPrice.toLocaleString()} DZD
+                    {formatCurrency(product.sellingPrice)}
                   </span>
                   <span style={{
                     fontSize: '0.85rem',
@@ -203,7 +205,7 @@ export default function ProductDetail({ product, onBack, onSelectRelated }) {
                     padding: '0.2rem 0.6rem',
                     borderRadius: '6px'
                   }}>
-                    Save {(product.sellingPrice - effectivePrice).toLocaleString()} DZD (-{discountPercent}%)
+                    {t('product.save')} {formatCurrency(product.sellingPrice - effectivePrice)} (-{discountPercent}%)
                   </span>
                 </div>
               ) : (
@@ -213,7 +215,7 @@ export default function ProductDetail({ product, onBack, onSelectRelated }) {
                   color: 'var(--color-espresso)',
                   marginTop: '0.75rem'
                 }}>
-                  {product.sellingPrice.toLocaleString()} DZD
+                  {formatCurrency(product.sellingPrice)}
                 </div>
               )}
             </div>
@@ -222,10 +224,10 @@ export default function ProductDetail({ product, onBack, onSelectRelated }) {
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
                 <span style={{ fontSize: '0.85rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  Color: <strong style={{ color: 'var(--color-primary-dark)' }}>{activeColor.colorName}</strong>
+                  {t('product.color')}: <strong style={{ color: 'var(--color-primary-dark)' }}>{activeColor.colorName}</strong>
                 </span>
                 <span style={{ fontSize: '0.8rem', color: '#777' }}>
-                  {product.colors.length} available colors
+                  {product.colors.length} {t('product.colorsAvailable')}
                 </span>
               </div>
 
@@ -263,21 +265,21 @@ export default function ProductDetail({ product, onBack, onSelectRelated }) {
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
                 <span style={{ fontSize: '0.85rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  Select Size
+                  {t('product.selectSize')}
                 </span>
                 {/* Real-time stock badge */}
                 {isOutOfStock ? (
                   <span style={{ fontSize: '0.8rem', color: 'var(--color-danger)', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                     <AlertCircle size={14} />
-                    Sold Out in this color
+                    {t('product.soldOutColor')}
                   </span>
                 ) : currentStock <= 3 ? (
                   <span style={{ fontSize: '0.8rem', color: 'var(--color-warning)', fontWeight: '700' }}>
-                    Only {currentStock} left in stock!
+                    {t('product.onlyLeft', { count: currentStock })}
                   </span>
                 ) : (
                   <span style={{ fontSize: '0.8rem', color: 'var(--color-success)', fontWeight: '600' }}>
-                    In Stock ({currentStock} available)
+                    {t('product.inStock', { count: currentStock })}
                   </span>
                 )}
               </div>
@@ -350,14 +352,14 @@ export default function ProductDetail({ product, onBack, onSelectRelated }) {
                 {addedAnimation ? (
                   <>
                     <Check size={18} />
-                    <span>Added to Bag!</span>
+                    <span>{t('product.addedToBag')}</span>
                   </>
                 ) : isOutOfStock ? (
-                  <span>Sold Out</span>
+                  <span>{t('product.soldOut')}</span>
                 ) : (
                   <>
                     <ShoppingBag size={18} />
-                    <span>Add to Bag • {(effectivePrice * quantity).toLocaleString()} DZD</span>
+                    <span>{t('product.addToBag')} • {formatCurrency(effectivePrice * quantity)}</span>
                   </>
                 )}
               </button>
@@ -375,18 +377,18 @@ export default function ProductDetail({ product, onBack, onSelectRelated }) {
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.85rem' }}>
                 <Truck size={18} color="var(--color-primary-dark)" />
-                <span>Paiement à la livraison (Cash on Delivery) across all 58 Wilayas.</span>
+                <span>{t('product.codNotice')}</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.85rem' }}>
                 <ShieldCheck size={18} color="var(--color-primary-dark)" />
-                <span>Premium Medina silk & double-needle reinforced tailoring.</span>
+                <span>{t('product.qualityNotice')}</span>
               </div>
             </div>
 
             {/* Description */}
             <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '1.5rem' }}>
               <h3 style={{ fontSize: '0.95rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.6rem' }}>
-                Description & Fit
+                {t('product.descriptionFit')}
               </h3>
               <p style={{ fontSize: '0.92rem', color: '#555', lineHeight: 1.7 }}>
                 {product.description}

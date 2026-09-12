@@ -261,3 +261,44 @@ img {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-primary);
 }
+
+/* ==========================================================================
+   RTL & Multilingual Adaptations (Arabic dir="rtl")
+   ========================================================================== */
+html[dir="rtl"] {
+  font-family: 'Plus Jakarta Sans', 'Segoe UI', Tahoma, Arial, sans-serif;
+  text-align: right;
+}
+
+html[dir="rtl"] .heading-display,
+html[dir="rtl"] .btn,
+html[dir="rtl"] nav button {
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+
+/* Flip directional icons in RTL */
+html[dir="rtl"] .rtl-flip,
+html[dir="rtl"] [data-direction="forward"] {
+  transform: scaleX(-1);
+}
+
+/* RTL Input Alignments */
+html[dir="rtl"] input,
+html[dir="rtl"] textarea,
+html[dir="rtl"] select {
+  text-align: right;
+  direction: rtl;
+}
+
+html[dir="rtl"] input[type="tel"],
+html[dir="rtl"] input[type="number"] {
+  direction: ltr;
+  text-align: right;
+}
+
+/* Animation for dropdowns */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}

@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Archive, Upload, X, Loader2 } from 'lucide-react';
 import { adminGetCategories, adminCreateCategory, adminUpdateCategory, adminArchiveCategory, adminUploadImage } from '../../services/api';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function CategoriesManager() {
+  const { t, isRtl } = useLanguage();
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -115,16 +117,16 @@ export default function CategoriesManager() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
         <div>
           <h1 className="heading-display" style={{ fontSize: '1.8rem', color: 'var(--color-espresso)' }}>
-            CATEGORY MANAGEMENT
+            {t('admin.categories.title').toUpperCase()}
           </h1>
           <p style={{ fontSize: '0.85rem', color: '#666', marginTop: '0.2rem' }}>
-            Store collections appearing on the storefront and navigation.
+            {t('admin.nav.categories')}
           </p>
         </div>
 
         <button onClick={openCreateModal} className="btn btn-primary btn-sm">
-          <Plus size={16} />
-          <span>Add Category</span>
+          <Plus size={16} className="rtl-flip" />
+          <span>{t('admin.categories.addCategory')}</span>
         </button>
       </div>
 
@@ -140,15 +142,15 @@ export default function CategoriesManager() {
             <Loader2 size={32} className="animate-spin" style={{ margin: '0 auto' }} />
           </div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: isRtl ? 'right' : 'left', fontSize: '0.88rem' }}>
             <thead>
               <tr style={{ backgroundColor: 'var(--color-bg-card)', borderBottom: '1px solid var(--color-border)' }}>
                 <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Image</th>
-                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Category Name</th>
-                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Slug</th>
-                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Display Order</th>
-                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Status</th>
-                <th style={{ padding: '1rem', textAlign: 'right' }}>Actions</th>
+                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.categories.categoryName')}</th>
+                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.categories.slug')}</th>
+                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Order</th>
+                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.products.status')}</th>
+                <th style={{ padding: '1rem', textAlign: isRtl ? 'left' : 'right' }}>{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -162,21 +164,21 @@ export default function CategoriesManager() {
                   <td style={{ padding: '1rem' }}>{c.displayOrder}</td>
                   <td style={{ padding: '1rem' }}>
                     {c.isArchived ? (
-                      <span className="badge badge-cancelled">Archived</span>
+                      <span className="badge badge-cancelled">{t('admin.products.archived')}</span>
                     ) : c.isActive ? (
-                      <span className="badge badge-delivered">Active</span>
+                      <span className="badge badge-delivered">{t('admin.products.active')}</span>
                     ) : (
-                      <span className="badge badge-pending">Hidden</span>
+                      <span className="badge badge-pending">{t('admin.products.inactive')}</span>
                     )}
                   </td>
-                  <td style={{ padding: '1rem', textAlign: 'right' }}>
+                  <td style={{ padding: '1rem', textAlign: isRtl ? 'left' : 'right' }}>
                     <div style={{ display: 'inline-flex', gap: '0.5rem' }}>
                       <button onClick={() => openEditModal(c)} className="btn btn-secondary btn-sm" style={{ padding: '0.35rem 0.7rem' }}>
                         <Edit2 size={13} />
-                        <span>Edit</span>
+                        <span>{t('common.edit')}</span>
                       </button>
                       {!c.isArchived && (
-                        <button onClick={() => handleArchive(c._id)} className="btn btn-secondary btn-sm" style={{ padding: '0.35rem 0.7rem', color: 'var(--color-danger)' }}>
+                        <button onClick={() => handleArchive(c._id)} className="btn btn-secondary btn-sm" style={{ padding: '0.35rem 0.7rem', color: 'var(--color-danger)' }} title={t('admin.products.archiveProduct')}>
                           <Archive size={13} />
                         </button>
                       )}
@@ -211,9 +213,9 @@ export default function CategoriesManager() {
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid var(--color-border)', paddingBottom: '1rem' }}>
               <h2 style={{ fontSize: '1.2rem', fontWeight: '800' }}>
-                {editingCategory ? 'Edit Category' : 'New Category'}
+                {editingCategory ? t('admin.categories.editCategory') : t('admin.categories.addCategory')}
               </h2>
-              <button onClick={() => setModalOpen(false)}><X size={20} /></button>
+              <button onClick={() => setModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={20} /></button>
             </div>
 
             {error && (
@@ -224,7 +226,9 @@ export default function CategoriesManager() {
 
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>Category Name *</label>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>
+                  {t('admin.categories.categoryName')} *
+                </label>
                 <input
                   type="text"
                   required
@@ -237,7 +241,7 @@ export default function CategoriesManager() {
               {/* Category Image Upload (No URL input) */}
               <div>
                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.5rem' }}>
-                  Category Image *
+                  {t('admin.products.uploadImage')} *
                 </label>
                 {image ? (
                   <div style={{
@@ -261,13 +265,13 @@ export default function CategoriesManager() {
                       }}
                     />
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      <span style={{ fontSize: '0.8rem', color: '#555', fontWeight: '600' }}>Image uploaded successfully</span>
+                      <span style={{ fontSize: '0.8rem', color: '#555', fontWeight: '600' }}>Image ready</span>
                       <label
                         className="btn btn-secondary btn-sm"
                         style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer', width: 'fit-content' }}
                       >
                         <Upload size={13} />
-                        <span>Change Image</span>
+                        <span>{t('admin.products.uploadImage')}</span>
                         <input
                           type="file"
                           accept="image/*"
@@ -289,7 +293,7 @@ export default function CategoriesManager() {
                     {uploadingImage ? (
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
                         <Loader2 size={24} className="animate-spin" style={{ color: 'var(--color-primary-dark)' }} />
-                        <span style={{ fontSize: '0.85rem', fontWeight: '600' }}>Uploading image...</span>
+                        <span style={{ fontSize: '0.85rem', fontWeight: '600' }}>{t('common.loading')}</span>
                       </div>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
@@ -308,17 +312,17 @@ export default function CategoriesManager() {
                         </div>
                         <div>
                           <div style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--color-espresso)' }}>
-                            Upload Category Picture
+                            {t('admin.products.uploadImage')}
                           </div>
                           <div style={{ fontSize: '0.75rem', color: '#777', marginTop: '0.2rem' }}>
-                            PNG, JPG, or WEBP up to 5MB
+                            PNG, JPG, WEBP (5MB)
                           </div>
                         </div>
                         <label
                           className="btn btn-primary btn-sm"
                           style={{ cursor: 'pointer', marginTop: '0.25rem' }}
                         >
-                          Select Image File
+                          {t('admin.products.uploadImage')}
                           <input
                             type="file"
                             accept="image/*"
@@ -334,7 +338,7 @@ export default function CategoriesManager() {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>Display Order</label>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>Order</label>
                   <input
                     type="number"
                     value={displayOrder}
@@ -350,15 +354,15 @@ export default function CategoriesManager() {
                     checked={isActive}
                     onChange={(e) => setIsActive(e.target.checked)}
                   />
-                  <label htmlFor="catActive" style={{ fontSize: '0.85rem', fontWeight: '600' }}>Active</label>
+                  <label htmlFor="catActive" style={{ fontSize: '0.85rem', fontWeight: '600' }}>{t('admin.products.active')}</label>
                 </div>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1rem' }}>
-                <button type="button" onClick={() => setModalOpen(false)} className="btn btn-secondary btn-sm">Cancel</button>
+                <button type="button" onClick={() => setModalOpen(false)} className="btn btn-secondary btn-sm">{t('common.cancel')}</button>
                 <button type="submit" disabled={modalLoading} className="btn btn-primary btn-sm">
                   {modalLoading ? <Loader2 size={16} className="animate-spin" /> : null}
-                  <span>Save</span>
+                  <span>{t('common.save')}</span>
                 </button>
               </div>
             </form>

@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowRight, Sparkles, CheckCircle2, ShieldCheck, Compass } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import CategoryTile from '../components/CategoryTile';
 import ProductCard from '../components/ProductCard';
 import { fetchCategories, fetchProducts } from '../services/api';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function Home({ setCurrentView, setSelectedProduct, setSelectedCategory }) {
+  const { t, isRtl } = useLanguage();
   const [categories, setCategories] = useState([]);
   const [bestSellers, setBestSellers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -63,7 +65,7 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
           }}
         />
 
-        {/* Soft centered overlay to provide subtle contrast for the logo and button */}
+        {/* Soft centered overlay */}
         <div style={{
           position: 'absolute',
           inset: 0,
@@ -119,8 +121,8 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
               padding: '1.2rem 4rem',
               fontSize: '0.92rem',
               fontWeight: '800',
-              letterSpacing: '0.2em',
-              textTransform: 'uppercase',
+              letterSpacing: isRtl ? '0' : '0.2em',
+              textTransform: isRtl ? 'none' : 'uppercase',
               borderRadius: 'var(--radius-full)',
               boxShadow: '0 14px 35px rgba(0, 0, 0, 0.35)',
               border: '2px solid rgba(255, 255, 255, 0.9)',
@@ -141,12 +143,12 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
               e.currentTarget.style.boxShadow = '0 14px 35px rgba(0, 0, 0, 0.35)';
             }}
           >
-            Shop Now
+            {t('home.heroCta')}
           </button>
         </div>
       </section>
 
-      {/* 2. CATEGORIES SECTION - 4 Rounded tiles matching reference layout */}
+      {/* 2. CATEGORIES SECTION */}
       <section style={{
         paddingTop: '3rem',
         paddingBottom: '4.5rem',
@@ -160,11 +162,17 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
             marginBottom: '2.5rem'
           }}>
             <div>
-              <span style={{ fontSize: '0.75rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--color-primary-dark)' }}>
-                Curated Selections
+              <span style={{
+                fontSize: '0.75rem',
+                fontWeight: '700',
+                textTransform: isRtl ? 'none' : 'uppercase',
+                letterSpacing: isRtl ? '0' : '0.1em',
+                color: 'var(--color-primary-dark)'
+              }}>
+                {t('home.featuredCategoriesSubtitle')}
               </span>
               <h2 className="heading-display" style={{ fontSize: 'clamp(1.6rem, 3vw, 2.4rem)', color: 'var(--color-espresso)', marginTop: '0.25rem' }}>
-                EXPLORE CATEGORIES
+                {t('home.featuredCategories')}
               </h2>
             </div>
             <button
@@ -178,7 +186,8 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
                 gap: '0.35rem'
               }}
             >
-              View All Categories →
+              <span>{t('home.viewCollection')}</span>
+              <ArrowRight size={16} className="rtl-flip" />
             </button>
           </div>
 
@@ -206,7 +215,7 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
         </div>
       </section>
 
-      {/* 3. BEST SELLERS / NEW ARRIVALS - Inspired by reference grid */}
+      {/* 3. BEST SELLERS / NEW ARRIVALS */}
       <section style={{
         paddingTop: '3rem',
         paddingBottom: '5rem',
@@ -215,10 +224,10 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
         <div className="container">
           <div style={{ textAlign: 'center', maxWidth: '650px', margin: '0 auto 3rem auto' }}>
             <h2 className="heading-display" style={{ fontSize: 'clamp(1.8rem, 3vw, 2.6rem)', color: 'var(--color-espresso)' }}>
-              NEW ARRIVALS
+              {t('home.newArrivals')}
             </h2>
             <p style={{ fontSize: '0.95rem', color: '#666', marginTop: '0.5rem' }}>
-              Timeless pieces crafted with premium fabrics. Designed to elevate your modest wardrobe every day.
+              {t('home.newArrivalsSubtitle')}
             </p>
           </div>
 
@@ -250,54 +259,45 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
         </div>
       </section>
 
-      {/* 4. MID-PAGE EDITORIAL BANNER - "DESIGNED FOR EVERY SEASON" */}
+      {/* 4. VALUE PROPOSITIONS BANNER */}
       <section style={{
         paddingTop: '4rem',
         paddingBottom: '4rem',
-        backgroundColor: 'var(--color-bg-card)'
+        backgroundColor: 'var(--color-bg-card)',
+        borderTop: '1px solid var(--color-border)',
+        borderBottom: '1px solid var(--color-border)'
       }}>
         <div className="container" style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-          alignItems: 'center',
-          gap: '3rem'
+          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+          gap: '2.5rem',
+          textAlign: 'center'
         }}>
-          <div>
-            <span style={{ fontSize: '0.75rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--color-primary-dark)' }}>
-              MERYA Atelier
-            </span>
-            <h2 className="heading-display" style={{
-              fontSize: 'clamp(2rem, 3.5vw, 3rem)',
-              color: 'var(--color-espresso)',
-              marginTop: '0.5rem',
-              marginBottom: '1rem',
-              lineHeight: 1.1
-            }}>
-              DESIGNED FOR <br />
-              EVERY SEASON
-            </h2>
-            <p style={{ fontSize: '1rem', color: '#666', lineHeight: 1.6, marginBottom: '2rem', maxWidth: '440px' }}>
-              Comfort meets modern aesthetics. Whether for university, professional meetings, or celebratory gatherings, our pieces offer modesty with refined contemporary ease.
+          <div style={{ padding: '1.5rem', backgroundColor: 'var(--color-surface)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-sm)' }}>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: '700', marginBottom: '0.5rem', color: 'var(--color-espresso)' }}>
+              {t('home.features.qualityTitle')}
+            </h3>
+            <p style={{ fontSize: '0.88rem', color: '#666', lineHeight: 1.6 }}>
+              {t('home.features.qualityDesc')}
             </p>
-            <button
-              onClick={() => { setCurrentView('shop'); window.scrollTo(0, 0); }}
-              className="btn btn-primary"
-            >
-              Explore All Designs
-            </button>
           </div>
 
-          <div style={{
-            borderRadius: 'var(--radius-xl)',
-            overflow: 'hidden',
-            aspectRatio: '16 / 10',
-            boxShadow: 'var(--shadow-md)'
-          }}>
-            <img
-              src="/uploads/merya_dress_brown_1.jpg"
-              alt="Designed for Every Season"
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            />
+          <div style={{ padding: '1.5rem', backgroundColor: 'var(--color-surface)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-sm)' }}>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: '700', marginBottom: '0.5rem', color: 'var(--color-espresso)' }}>
+              {t('home.features.deliveryTitle')}
+            </h3>
+            <p style={{ fontSize: '0.88rem', color: '#666', lineHeight: 1.6 }}>
+              {t('home.features.deliveryDesc')}
+            </p>
+          </div>
+
+          <div style={{ padding: '1.5rem', backgroundColor: 'var(--color-surface)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-sm)' }}>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: '700', marginBottom: '0.5rem', color: 'var(--color-espresso)' }}>
+              {t('home.features.codTitle')}
+            </h3>
+            <p style={{ fontSize: '0.88rem', color: '#666', lineHeight: 1.6 }}>
+              {t('home.features.codDesc')}
+            </p>
           </div>
         </div>
       </section>

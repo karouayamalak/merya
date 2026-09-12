@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Archive, Search, Check, X, Image as ImageIcon, Trash2, Upload, Loader2 } from 'lucide-react';
 import { adminGetProducts, adminCreateProduct, adminUpdateProduct, adminArchiveProduct, adminGetCategories, adminUploadImage } from '../../services/api';
+import { useLanguage } from '../../context/LanguageContext';
 
 const AVAILABLE_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Standard'];
 
 export default function ProductsManager() {
+  const { t, isRtl, formatCurrency } = useLanguage();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [search, setSearch] = useState('');
@@ -227,16 +229,16 @@ export default function ProductsManager() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
         <div>
           <h1 className="heading-display" style={{ fontSize: '1.8rem', color: 'var(--color-espresso)' }}>
-            PRODUCTS & VARIANTS
+            {t('admin.products.title').toUpperCase()}
           </h1>
           <p style={{ fontSize: '0.85rem', color: '#666', marginTop: '0.2rem' }}>
-            Catalog, variant colors, sizes matrix, and stock management.
+            {t('admin.nav.products')}
           </p>
         </div>
 
         <button onClick={openCreateModal} className="btn btn-primary btn-sm">
-          <Plus size={16} />
-          <span>Add New Product</span>
+          <Plus size={16} className="rtl-flip" />
+          <span>{t('admin.products.addProduct')}</span>
         </button>
       </div>
 
@@ -251,10 +253,10 @@ export default function ProductsManager() {
         maxWidth: '380px',
         marginBottom: '1.5rem'
       }}>
-        <Search size={18} color="#888" style={{ marginRight: '0.5rem' }} />
+        <Search size={18} color="#888" style={{ [isRtl ? 'marginLeft' : 'marginRight']: '0.5rem' }} />
         <input
           type="text"
-          placeholder="Search products..."
+          placeholder={t('admin.products.searchPlaceholder')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none' }}
@@ -275,19 +277,19 @@ export default function ProductsManager() {
           </div>
         ) : products.length === 0 ? (
           <div style={{ padding: '3rem', textAlign: 'center', color: '#777' }}>
-            No products found. Click "Add New Product" to create one.
+            {t('shop.noProducts')}
           </div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: isRtl ? 'right' : 'left', fontSize: '0.88rem' }}>
             <thead>
               <tr style={{ backgroundColor: 'var(--color-bg-card)', borderBottom: '1px solid var(--color-border)' }}>
-                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Product</th>
-                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Category</th>
-                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Selling Price</th>
-                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Cost Price</th>
-                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Variants & Stock</th>
-                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Status</th>
-                <th style={{ padding: '1rem', textAlign: 'right' }}>Actions</th>
+                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.products.productName')}</th>
+                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.products.category')}</th>
+                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.products.sellingPrice')}</th>
+                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.products.costPrice')}</th>
+                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.products.variants')}</th>
+                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.products.status')}</th>
+                <th style={{ padding: '1rem', textAlign: isRtl ? 'left' : 'right' }}>{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -310,15 +312,15 @@ export default function ProductsManager() {
                       </div>
                     </div>
                   </td>
-                  <td style={{ padding: '1rem' }}>{p.category?.name || 'Uncategorized'}</td>
+                  <td style={{ padding: '1rem' }}>{p.category?.name || '—'}</td>
                   <td style={{ padding: '1rem' }}>
                     {p.promotion && p.promotion.active && p.promotion.promotionalPrice ? (
                       <div>
                         <div style={{ fontWeight: '700', color: '#DC2626' }}>
-                          {p.promotion.promotionalPrice.toLocaleString()} DZD
+                          {formatCurrency(p.promotion.promotionalPrice)}
                         </div>
                         <div style={{ fontSize: '0.75rem', color: '#888', textDecoration: 'line-through' }}>
-                          {p.sellingPrice.toLocaleString()} DZD
+                          {formatCurrency(p.sellingPrice)}
                         </div>
                         <span style={{
                           fontSize: '0.65rem',
@@ -330,30 +332,30 @@ export default function ProductsManager() {
                           display: 'inline-block',
                           marginTop: '2px'
                         }}>
-                          PROMO -{Math.round(((p.sellingPrice - p.promotion.promotionalPrice) / p.sellingPrice) * 100)}%
+                          {t('product.discount')} -{Math.round(((p.sellingPrice - p.promotion.promotionalPrice) / p.sellingPrice) * 100)}%
                         </span>
                       </div>
                     ) : (
-                      <div style={{ fontWeight: '700' }}>{p.sellingPrice.toLocaleString()} DZD</div>
+                      <div style={{ fontWeight: '700' }}>{formatCurrency(p.sellingPrice)}</div>
                     )}
                   </td>
-                  <td style={{ padding: '1rem', color: '#666' }}>{p.costPrice.toLocaleString()} DZD</td>
+                  <td style={{ padding: '1rem', color: '#666' }}>{formatCurrency(p.costPrice)}</td>
                   <td style={{ padding: '1rem' }}>
-                    <div style={{ fontWeight: '700' }}>{p.totalStock} units in stock</div>
-                    <div style={{ fontSize: '0.75rem', color: '#777' }}>{p.colors?.length} color variants</div>
+                    <div style={{ fontWeight: '700' }}>{p.totalStock} {t('common.quantity')}</div>
+                    <div style={{ fontSize: '0.75rem', color: '#777' }}>{p.colors?.length} {t('product.colorsAvailable')}</div>
                   </td>
                   <td style={{ padding: '1rem' }}>
                     {p.isActive ? (
-                      <span className="badge badge-delivered">Active</span>
+                      <span className="badge badge-delivered">{t('admin.products.active')}</span>
                     ) : (
-                      <span className="badge badge-cancelled">Inactive</span>
+                      <span className="badge badge-cancelled">{t('admin.products.inactive')}</span>
                     )}
                   </td>
-                  <td style={{ padding: '1rem', textAlign: 'right' }}>
+                  <td style={{ padding: '1rem', textAlign: isRtl ? 'left' : 'right' }}>
                     <div style={{ display: 'inline-flex', gap: '0.5rem' }}>
                       <button onClick={() => openEditModal(p)} className="btn btn-secondary btn-sm" style={{ padding: '0.35rem 0.7rem' }}>
                         <Edit2 size={13} />
-                        <span>Edit</span>
+                        <span>{t('common.edit')}</span>
                       </button>
                       <button
                         onClick={() => handleDeleteProduct(p)}
@@ -364,10 +366,10 @@ export default function ProductsManager() {
                           borderColor: '#FFCDD2',
                           backgroundColor: '#FFF5F5'
                         }}
-                        title="Delete product permanently"
+                        title={t('common.delete')}
                       >
                         <Trash2 size={13} />
-                        <span>Delete</span>
+                        <span>{t('common.delete')}</span>
                       </button>
                     </div>
                   </td>

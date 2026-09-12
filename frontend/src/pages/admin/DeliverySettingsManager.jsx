@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Building2, Home as HomeIcon, CheckCircle2, AlertCircle, Loader2, Search, Sliders, Check } from 'lucide-react';
+import { Settings, Building2, Home as HomeIcon, CheckCircle2, AlertCircle, Loader2, Search, Sliders } from 'lucide-react';
 import { fetchDeliverySettings, adminUpdateDeliverySettings } from '../../services/api';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function DeliverySettingsManager() {
+  const { t, isRtl } = useLanguage();
   const [agencyFee, setAgencyFee] = useState(0);
   const [homeFee, setHomeFee] = useState(0);
   const [freeThreshold, setFreeThreshold] = useState(0);
@@ -58,7 +60,7 @@ export default function DeliverySettingsManager() {
       agencyFee: a !== null ? a : w.agencyFee
     })));
 
-    setMessage('Bulk prices updated in editor. Click "Save All Delivery Settings" to commit.');
+    setMessage(t('admin.delivery.settingsSaved'));
   };
 
   const handleSave = async (e) => {
@@ -76,13 +78,13 @@ export default function DeliverySettingsManager() {
       });
 
       if (res.success) {
-        setMessage('All 58 Wilayas delivery prices successfully updated in database! All checkout calculations will immediately use these rates.');
+        setMessage(t('admin.delivery.settingsSaved'));
         if (res.settings && res.settings.wilayaRates) {
           setWilayaRates(res.settings.wilayaRates);
         }
       }
     } catch (err) {
-      setError(err.message || 'Failed to update delivery rates');
+      setError(err.message || t('common.error'));
     } finally {
       setSaving(false);
     }
@@ -110,10 +112,10 @@ export default function DeliverySettingsManager() {
     <div style={{ maxWidth: '1000px' }}>
       <div style={{ marginBottom: '2rem' }}>
         <h1 className="heading-display" style={{ fontSize: '1.8rem', color: 'var(--color-espresso)' }}>
-          DELIVERY PRICING PER WILAYA (58 WILAYAS)
+          {t('admin.delivery.title').toUpperCase()}
         </h1>
         <p style={{ fontSize: '0.85rem', color: '#666', marginTop: '0.2rem' }}>
-          Configure custom Home Delivery and Agency Pickup (Stopdesk) prices for each of the 58 Algerian Wilayas.
+          {t('checkout.subtitle')}
         </p>
       </div>
 
@@ -168,29 +170,29 @@ export default function DeliverySettingsManager() {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: '700', fontSize: '0.9rem', color: 'var(--color-espresso)' }}>
               <Sliders size={16} />
-              <span>Bulk Price Setter (Quick Tool)</span>
+              <span>{t('admin.delivery.saveSettings')}</span>
             </div>
             <div style={{ fontSize: '0.78rem', color: '#666', marginTop: '0.2rem' }}>
-              Quickly fill all Wilayas with a default price before adjusting individual ones.
+              {t('admin.delivery.freeDeliveryThresholdHelp')}
             </div>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
             <div>
-              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', color: '#555' }}>Home Fee (DZD)</label>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', color: '#555' }}>{t('admin.delivery.homeFee')}</label>
               <input
                 type="number"
-                placeholder="e.g. 800"
+                placeholder="800"
                 value={bulkHome}
                 onChange={e => setBulkHome(e.target.value)}
                 style={{ width: '110px', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--color-border)', fontSize: '0.85rem' }}
               />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', color: '#555' }}>Agency Fee (DZD)</label>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', color: '#555' }}>{t('admin.delivery.agencyFee')}</label>
               <input
                 type="number"
-                placeholder="e.g. 500"
+                placeholder="500"
                 value={bulkAgency}
                 onChange={e => setBulkAgency(e.target.value)}
                 style={{ width: '110px', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--color-border)', fontSize: '0.85rem' }}
@@ -202,7 +204,7 @@ export default function DeliverySettingsManager() {
               className="btn btn-secondary btn-sm"
               style={{ height: '36px', alignSelf: 'flex-end' }}
             >
-              Apply to All
+              {t('common.confirm')}
             </button>
           </div>
         </div>
@@ -227,24 +229,21 @@ export default function DeliverySettingsManager() {
           }}>
             <div>
               <h2 style={{ fontSize: '1.1rem', fontWeight: '800', color: 'var(--color-espresso)' }}>
-                Wilayas Shipping Rates ({filteredWilayas.length} of {wilayaRates.length})
+                {t('admin.delivery.title')} ({filteredWilayas.length} / {wilayaRates.length})
               </h2>
-              <p style={{ fontSize: '0.78rem', color: '#777', marginTop: '0.15rem' }}>
-                Each wilaya has its own independent Home Delivery and Stopdesk Agency prices.
-              </p>
             </div>
 
             {/* Search Filter */}
             <div style={{ position: 'relative', width: '280px' }}>
-              <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#888' }} />
+              <Search size={15} style={{ position: 'absolute', [isRtl ? 'right' : 'left']: '12px', top: '50%', transform: 'translateY(-50%)', color: '#888' }} />
               <input
                 type="text"
-                placeholder="Search Wilaya (name or number)..."
+                placeholder={t('common.searchPlaceholder')}
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 style={{
                   width: '100%',
-                  padding: '0.5rem 1rem 0.5rem 2.25rem',
+                  padding: isRtl ? '0.5rem 2.25rem 0.5rem 1rem' : '0.5rem 1rem 0.5rem 2.25rem',
                   borderRadius: 'var(--radius-full)',
                   border: '1px solid var(--color-border)',
                   fontSize: '0.85rem'
@@ -254,21 +253,21 @@ export default function DeliverySettingsManager() {
           </div>
 
           <div style={{ overflowX: 'auto', maxHeight: '550px' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: isRtl ? 'right' : 'left' }}>
               <thead>
                 <tr style={{ backgroundColor: 'var(--color-bg-base)', borderBottom: '1px solid var(--color-border)', position: 'sticky', top: 0, zIndex: 5 }}>
-                  <th style={{ padding: '0.85rem 1.25rem', fontSize: '0.75rem', textTransform: 'uppercase', width: '80px' }}>Code</th>
-                  <th style={{ padding: '0.85rem 1.25rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Wilaya</th>
+                  <th style={{ padding: '0.85rem 1.25rem', fontSize: '0.75rem', textTransform: 'uppercase', width: '80px' }}>{t('admin.delivery.wilayaCode')}</th>
+                  <th style={{ padding: '0.85rem 1.25rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.delivery.wilayaName')}</th>
                   <th style={{ padding: '0.85rem 1.25rem', fontSize: '0.75rem', textTransform: 'uppercase', width: '200px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                       <HomeIcon size={14} color="var(--color-primary-dark)" />
-                      <span>Home Delivery (DZD)</span>
+                      <span>{t('admin.delivery.homeFee')}</span>
                     </div>
                   </th>
                   <th style={{ padding: '0.85rem 1.25rem', fontSize: '0.75rem', textTransform: 'uppercase', width: '200px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                       <Building2 size={14} color="var(--color-primary-dark)" />
-                      <span>Agency Pickup (DZD)</span>
+                      <span>{t('admin.delivery.agencyFee')}</span>
                     </div>
                   </th>
                 </tr>
@@ -281,11 +280,11 @@ export default function DeliverySettingsManager() {
                     </td>
                     <td style={{ padding: '0.85rem 1.25rem' }}>
                       <div style={{ fontWeight: '700', fontSize: '0.9rem', color: 'var(--color-espresso)' }}>
-                        {w.wilayaName}
+                        {isRtl && w.wilayaNameAr ? w.wilayaNameAr : w.wilayaName}
                       </div>
                       {w.wilayaNameAr && (
-                        <div style={{ fontSize: '0.78rem', color: '#888', direction: 'rtl', textAlign: 'left' }}>
-                          {w.wilayaNameAr}
+                        <div style={{ fontSize: '0.78rem', color: '#888' }}>
+                          {isRtl ? w.wilayaName : w.wilayaNameAr}
                         </div>
                       )}
                     </td>
@@ -305,7 +304,7 @@ export default function DeliverySettingsManager() {
                             fontSize: '0.95rem'
                           }}
                         />
-                        <span style={{ fontSize: '0.8rem', color: '#666', fontWeight: '600' }}>DZD</span>
+                        <span style={{ fontSize: '0.8rem', color: '#666', fontWeight: '600' }}>{t('common.dzd')}</span>
                       </div>
                     </td>
                     <td style={{ padding: '0.85rem 1.25rem' }}>
@@ -324,7 +323,7 @@ export default function DeliverySettingsManager() {
                             fontSize: '0.95rem'
                           }}
                         />
-                        <span style={{ fontSize: '0.8rem', color: '#666', fontWeight: '600' }}>DZD</span>
+                        <span style={{ fontSize: '0.8rem', color: '#666', fontWeight: '600' }}>{t('common.dzd')}</span>
                       </div>
                     </td>
                   </tr>
@@ -350,10 +349,10 @@ export default function DeliverySettingsManager() {
         }}>
           <div>
             <div style={{ fontWeight: '700', fontSize: '0.9rem', color: 'var(--color-espresso)' }}>
-              Ready to save shipping rates?
+              {t('admin.delivery.saveSettings')}
             </div>
             <div style={{ fontSize: '0.78rem', color: '#666' }}>
-              Changes will immediately take effect for all new customer orders.
+              {t('admin.delivery.freeDeliveryThresholdHelp')}
             </div>
           </div>
 
@@ -364,7 +363,7 @@ export default function DeliverySettingsManager() {
             style={{ padding: '0.9rem 2.25rem' }}
           >
             {saving ? <Loader2 size={18} className="animate-spin" /> : null}
-            <span>Save All Delivery Settings</span>
+            <span>{t('common.save')}</span>
           </button>
         </div>
       </form>

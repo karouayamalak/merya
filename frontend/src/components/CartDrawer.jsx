@@ -1,10 +1,12 @@
 import React from 'react';
 import { X, Trash2, Plus, Minus, ArrowRight, ShoppingBag } from 'lucide-react';
 import { useCart } from '../context/CartContext';
+import { useLanguage } from '../context/LanguageContext';
 import { getImageUrl } from '../services/api';
 
 export default function CartDrawer({ onProceedToCheckout, onContinueShopping }) {
   const { items, isDrawerOpen, setIsDrawerOpen, updateQuantity, removeFromCart, subtotal, totalQuantity } = useCart();
+  const { t, formatCurrency, isRtl } = useLanguage();
 
   if (!isDrawerOpen) return null;
 
@@ -14,7 +16,7 @@ export default function CartDrawer({ onProceedToCheckout, onContinueShopping }) 
       inset: 0,
       zIndex: 200,
       display: 'flex',
-      justifyContent: 'flex-end'
+      justifyContent: isRtl ? 'flex-start' : 'flex-end'
     }}>
       {/* Backdrop */}
       <div
@@ -35,11 +37,11 @@ export default function CartDrawer({ onProceedToCheckout, onContinueShopping }) 
         maxWidth: '460px',
         height: '100%',
         backgroundColor: 'var(--color-bg-base)',
-        boxShadow: '-8px 0 32px rgba(0, 0, 0, 0.15)',
+        boxShadow: isRtl ? '8px 0 32px rgba(0, 0, 0, 0.15)' : '-8px 0 32px rgba(0, 0, 0, 0.15)',
         display: 'flex',
         flexDirection: 'column',
         zIndex: 201,
-        animation: 'slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
+        animation: isRtl ? 'slideInRtl 0.3s cubic-bezier(0.16, 1, 0.3, 1)' : 'slideInLtr 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
       }}>
         {/* Header */}
         <div style={{
@@ -51,14 +53,19 @@ export default function CartDrawer({ onProceedToCheckout, onContinueShopping }) 
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <ShoppingBag size={20} color="var(--color-espresso)" />
-            <h2 style={{ fontSize: '1.1rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Your Bag ({totalQuantity})
+            <h2 style={{
+              fontSize: '1.1rem',
+              fontWeight: '700',
+              textTransform: isRtl ? 'none' : 'uppercase',
+              letterSpacing: isRtl ? '0' : '0.04em'
+            }}>
+              {t('cart.title')} ({totalQuantity})
             </h2>
           </div>
           <button
             onClick={() => setIsDrawerOpen(false)}
             style={{ padding: '0.5rem', color: '#666', borderRadius: '50%' }}
-            aria-label="Close cart"
+            aria-label={t('common.close')}
           >
             <X size={22} />
           </button>
@@ -85,16 +92,17 @@ export default function CartDrawer({ onProceedToCheckout, onContinueShopping }) 
               color: '#777'
             }}>
               <ShoppingBag size={48} strokeWidth={1.2} />
-              <p style={{ fontSize: '1rem', fontWeight: '500' }}>Your shopping bag is currently empty</p>
+              <p style={{ fontSize: '1rem', fontWeight: '500' }}>{t('cart.emptyTitle')}</p>
+              <p style={{ fontSize: '0.85rem', color: '#999', maxWidth: '280px' }}>{t('cart.emptyDesc')}</p>
               <button
                 onClick={() => { setIsDrawerOpen(false); onContinueShopping(); }}
                 className="btn btn-secondary btn-sm"
               >
-                Explore Collection
+                {t('cart.continueShopping')}
               </button>
             </div>
           ) : (
-            items.map((item, idx) => (
+            items.map((item) => (
               <div
                 key={`${item.productId}-${item.colorName}-${item.size}`}
                 style={{
@@ -131,15 +139,15 @@ export default function CartDrawer({ onProceedToCheckout, onContinueShopping }) 
                       <button
                         onClick={() => removeFromCart(item.productId, item.colorName, item.size)}
                         style={{ color: '#999', padding: '0.2rem' }}
-                        title="Remove item"
+                        title={t('cart.removeItem')}
                       >
                         <Trash2 size={16} />
                       </button>
                     </div>
 
                     <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.35rem', fontSize: '0.8rem', color: '#666' }}>
-                      <span>Color: <strong>{item.colorName}</strong></span>
-                      <span>Size: <strong>{item.size}</strong></span>
+                      <span>{t('cart.color')}: <strong>{item.colorName}</strong></span>
+                      <span>{t('cart.size')}: <strong>{item.size}</strong></span>
                     </div>
                   </div>
 
@@ -171,13 +179,13 @@ export default function CartDrawer({ onProceedToCheckout, onContinueShopping }) 
                       </button>
                     </div>
 
-                    <div style={{ textAlign: 'right' }}>
+                    <div style={{ textAlign: isRtl ? 'left' : 'right' }}>
                       <div style={{
                         fontSize: '0.95rem',
                         fontWeight: '700',
                         color: (item.originalPrice && item.originalPrice > item.unitPrice) ? '#DC2626' : 'var(--color-espresso)'
                       }}>
-                        {(item.unitPrice * item.quantity).toLocaleString()} DZD
+                        {formatCurrency(item.unitPrice * item.quantity)}
                       </div>
                       {item.originalPrice && item.originalPrice > item.unitPrice && (
                         <div style={{
@@ -185,7 +193,7 @@ export default function CartDrawer({ onProceedToCheckout, onContinueShopping }) 
                           color: '#888',
                           textDecoration: 'line-through'
                         }}>
-                          {(item.originalPrice * item.quantity).toLocaleString()} DZD
+                          {formatCurrency(item.originalPrice * item.quantity)}
                         </div>
                       )}
                     </div>
@@ -207,17 +215,18 @@ export default function CartDrawer({ onProceedToCheckout, onContinueShopping }) 
             gap: '1rem'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.9rem', color: '#666', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Estimated Subtotal
+              <span style={{
+                fontSize: '0.9rem',
+                color: '#666',
+                textTransform: isRtl ? 'none' : 'uppercase',
+                letterSpacing: isRtl ? '0' : '0.04em'
+              }}>
+                {t('common.subtotal')}
               </span>
               <span style={{ fontSize: '1.25rem', fontWeight: '800', color: 'var(--color-espresso)' }}>
-                {subtotal.toLocaleString()} DZD
+                {formatCurrency(subtotal)}
               </span>
             </div>
-
-            <p style={{ fontSize: '0.75rem', color: '#777', lineHeight: 1.4 }}>
-              * Delivery fee (Home or Agency pickup) is calculated dynamically at checkout based on your Wilaya.
-            </p>
 
             <button
               onClick={() => {
@@ -225,18 +234,22 @@ export default function CartDrawer({ onProceedToCheckout, onContinueShopping }) 
                 onProceedToCheckout();
               }}
               className="btn btn-primary"
-              style={{ width: '100%', padding: '1rem', fontSize: '0.9rem' }}
+              style={{ width: '100%', padding: '1rem', fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
             >
-              <span>Proceed to Cash on Delivery</span>
-              <ArrowRight size={18} />
+              <span>{t('cart.proceedToCheckout')}</span>
+              <ArrowRight size={18} className="rtl-flip" />
             </button>
           </div>
         )}
       </div>
 
       <style>{`
-        @keyframes slideIn {
+        @keyframes slideInLtr {
           from { transform: translateX(100%); }
+          to { transform: translateX(0); }
+        }
+        @keyframes slideInRtl {
+          from { transform: translateX(-100%); }
           to { transform: translateX(0); }
         }
       `}</style>

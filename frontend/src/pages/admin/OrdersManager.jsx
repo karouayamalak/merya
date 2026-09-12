@@ -33,6 +33,7 @@ import {
   adminGetProducts,
   fetchDeliverySettings
 } from '../../services/api';
+import { useLanguage } from '../../context/LanguageContext';
 
 const ORDER_STATUSES = [
   'Pending',
@@ -45,7 +46,22 @@ const ORDER_STATUSES = [
 ];
 
 export default function OrdersManager() {
+  const { t, isRtl, formatCurrency } = useLanguage();
   const [orders, setOrders] = useState([]);
+
+  const getStatusLabel = (status) => {
+    const map = {
+      'Pending': 'status.pending',
+      'Confirmed': 'status.confirmed',
+      'On the way': 'status.onTheWay',
+      'At agency': 'status.atAgency',
+      'Delivered': 'status.delivered',
+      'Returned': 'status.returned',
+      'Cancelled': 'status.cancelled'
+    };
+    const key = map[status];
+    return key ? t(key) : status;
+  };
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [loading, setLoading] = useState(true);
@@ -376,10 +392,10 @@ export default function OrdersManager() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
         <div>
           <h1 className="heading-display" style={{ fontSize: '1.8rem', color: 'var(--color-espresso)' }}>
-            ORDERS MANAGEMENT
+            {t('admin.orders.title').toUpperCase()}
           </h1>
           <p style={{ fontSize: '0.85rem', color: '#666', marginTop: '0.2rem' }}>
-            Authoritative order processing, real-time status updates, and editable customer delivery information.
+            {t('admin.dashboard.quickStats')}
           </p>
         </div>
       </div>
@@ -401,10 +417,10 @@ export default function OrdersManager() {
           flex: 1,
           maxWidth: '400px'
         }}>
-          <Search size={18} color="#888" style={{ marginRight: '0.5rem' }} />
+          <Search size={18} color="#888" style={{ [isRtl ? 'marginLeft' : 'marginRight']: '0.5rem' }} />
           <input
             type="text"
-            placeholder="Search by code (MD-...), customer, or phone..."
+            placeholder={t('admin.orders.searchPlaceholder')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none' }}
@@ -423,9 +439,9 @@ export default function OrdersManager() {
             fontSize: '0.85rem'
           }}
         >
-          <option value="">All Statuses</option>
+          <option value="">{t('admin.orders.allStatuses')}</option>
           {ORDER_STATUSES.map(st => (
-            <option key={st} value={st}>{st}</option>
+            <option key={st} value={st}>{getStatusLabel(st)}</option>
           ))}
         </select>
       </div>
@@ -445,19 +461,19 @@ export default function OrdersManager() {
         ) : orders.length === 0 ? (
           <div style={{ padding: '4rem 1rem', textAlign: 'center', color: '#777' }}>
             <ShoppingBag size={40} strokeWidth={1.5} style={{ margin: '0 auto 1rem auto' }} />
-            <p>No orders matching your search filters.</p>
+            <p>{t('admin.orders.noOrders')}</p>
           </div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: isRtl ? 'right' : 'left', fontSize: '0.88rem' }}>
             <thead>
               <tr style={{ backgroundColor: 'var(--color-bg-card)', borderBottom: '1px solid var(--color-border)' }}>
-                <th style={{ padding: '1rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.75rem' }}>Order Code</th>
-                <th style={{ padding: '1rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.75rem' }}>Customer</th>
-                <th style={{ padding: '1rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.75rem' }}>Destination</th>
-                <th style={{ padding: '1rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.75rem' }}>Total (COD)</th>
-                <th style={{ padding: '1rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.75rem' }}>Order Status (Click to Update)</th>
-                <th style={{ padding: '1rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.75rem' }}>Date</th>
-                <th style={{ padding: '1rem', textAlign: 'right' }}>Action</th>
+                <th style={{ padding: '1rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.75rem' }}>{t('admin.orders.orderCode')}</th>
+                <th style={{ padding: '1rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.75rem' }}>{t('admin.orders.customer')}</th>
+                <th style={{ padding: '1rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.75rem' }}>{t('admin.orders.wilaya')}</th>
+                <th style={{ padding: '1rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.75rem' }}>{t('admin.orders.total')}</th>
+                <th style={{ padding: '1rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.75rem' }}>{t('admin.orders.changeStatus')}</th>
+                <th style={{ padding: '1rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.75rem' }}>{t('admin.orders.date')}</th>
+                <th style={{ padding: '1rem', textAlign: isRtl ? 'left' : 'right' }}>{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -475,13 +491,13 @@ export default function OrdersManager() {
                       <div style={{ fontSize: '0.78rem', color: '#666' }}>{o.customer.phone}</div>
                     </td>
                     <td style={{ padding: '1rem' }}>
-                      <div>Wilaya {o.customer.wilaya?.code} - {o.customer.wilaya?.name}</div>
+                      <div>{t('confirmation.wilaya')} {o.customer.wilaya?.code} - {o.customer.wilaya?.name}</div>
                       <div style={{ fontSize: '0.75rem', color: '#777', textTransform: 'uppercase' }}>
-                        {String(o.customer.deliveryMethod).toLowerCase() === 'agency' ? 'Agency Pickup' : 'Home Delivery'}
+                        {String(o.customer.deliveryMethod).toLowerCase() === 'agency' ? t('checkout.agency') : t('checkout.home')}
                       </div>
                     </td>
                     <td style={{ padding: '1rem', fontWeight: '800' }}>
-                      {o.totalPrice.toLocaleString()} DZD
+                      {formatCurrency(o.totalPrice)}
                     </td>
                     <td style={{ padding: '1rem' }}>
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
@@ -498,10 +514,10 @@ export default function OrdersManager() {
                             outline: 'none',
                             ...badgeStyle
                           }}
-                          title="Directly update status of this order"
+                          title={t('admin.orders.changeStatus')}
                         >
                           {ORDER_STATUSES.map(st => (
-                            <option key={st} value={st}>{st}</option>
+                            <option key={st} value={st}>{getStatusLabel(st)}</option>
                           ))}
                         </select>
                         {isUpdating && <Loader2 size={13} className="animate-spin" color="var(--color-espresso)" />}
@@ -510,14 +526,14 @@ export default function OrdersManager() {
                     <td style={{ padding: '1rem', color: '#666', fontSize: '0.8rem' }}>
                       {new Date(o.createdAt).toLocaleDateString()} {new Date(o.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </td>
-                    <td style={{ padding: '1rem', textAlign: 'right' }}>
+                    <td style={{ padding: '1rem', textAlign: isRtl ? 'left' : 'right' }}>
                       <button
                         onClick={() => openOrderDetails(o._id)}
                         className="btn btn-secondary btn-sm"
                         style={{ padding: '0.4rem 0.8rem' }}
                       >
                         <Eye size={14} />
-                        <span>Edit & View</span>
+                        <span>{t('admin.orders.viewDetails')}</span>
                       </button>
                     </td>
                   </tr>

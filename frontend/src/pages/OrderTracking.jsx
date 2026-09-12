@@ -2,24 +2,26 @@ import React, { useState, useEffect } from 'react';
 import { Compass, Search, CheckCircle, Clock, Truck, Building2, PackageCheck, XCircle, Wifi, AlertCircle, Loader2 } from 'lucide-react';
 import { trackOrder } from '../services/api';
 import { useWebSocket } from '../context/WebSocketContext';
+import { useLanguage } from '../context/LanguageContext';
 
 const STATUS_STEPS_HOME = [
-  { key: 'Pending', label: 'Order Received', labelAr: 'تم الاستلام', icon: Clock },
-  { key: 'Confirmed', label: 'Confirmed', labelAr: 'تم التأكيد', icon: CheckCircle },
-  { key: 'On the way', label: 'On The Way', labelAr: 'جاري التوصيل', icon: Truck },
-  { key: 'Delivered', label: 'Delivered', labelAr: 'تم التسليم', icon: PackageCheck }
+  { key: 'Pending', statusKey: 'pending', icon: Clock },
+  { key: 'Confirmed', statusKey: 'confirmed', icon: CheckCircle },
+  { key: 'On the way', statusKey: 'onTheWay', icon: Truck },
+  { key: 'Delivered', statusKey: 'delivered', icon: PackageCheck }
 ];
 
 const STATUS_STEPS_AGENCY = [
-  { key: 'Pending', label: 'Order Received', labelAr: 'تم الاستلام', icon: Clock },
-  { key: 'Confirmed', label: 'Confirmed', labelAr: 'تم التأكيد', icon: CheckCircle },
-  { key: 'On the way', label: 'Dispatched', labelAr: 'تم الشحن', icon: Truck },
-  { key: 'At agency', label: 'At Stopdesk/Bureau', labelAr: 'في المكتب', icon: Building2 },
-  { key: 'Delivered', label: 'Delivered', labelAr: 'تم الاستلام', icon: PackageCheck }
+  { key: 'Pending', statusKey: 'pending', icon: Clock },
+  { key: 'Confirmed', statusKey: 'confirmed', icon: CheckCircle },
+  { key: 'On the way', statusKey: 'onTheWay', icon: Truck },
+  { key: 'At agency', statusKey: 'atAgency', icon: Building2 },
+  { key: 'Delivered', statusKey: 'delivered', icon: PackageCheck }
 ];
 
 export default function OrderTracking({ initialPhone = '', initialOrderCode = '' }) {
   const { isConnected, subscribeOrder } = useWebSocket();
+  const { t, isRtl, formatCurrency } = useLanguage();
 
   const [phone, setPhone] = useState(initialPhone);
   const [orderCode, setOrderCode] = useState(initialOrderCode);
@@ -61,7 +63,7 @@ export default function OrderTracking({ initialPhone = '', initialOrderCode = ''
 
   const handleLookup = async (phoneVal = phone, codeVal = orderCode) => {
     if (!phoneVal.trim() || !codeVal.trim()) {
-      setError('Please enter both your phone number and order tracking code');
+      setError(t('tracking.enterPhoneAndCode'));
       return;
     }
 
@@ -73,11 +75,11 @@ export default function OrderTracking({ initialPhone = '', initialOrderCode = ''
       if (res.success) {
         setOrderData(res.order);
       } else {
-        setError(res.message || 'Order not found');
+        setError(res.message || t('tracking.notFoundDesc'));
         setOrderData(null);
       }
     } catch (err) {
-      setError(err.message || 'No order found matching this tracking code and phone number');
+      setError(err.message || t('tracking.notFoundDesc'));
       setOrderData(null);
     } finally {
       setLoading(false);
@@ -89,11 +91,25 @@ export default function OrderTracking({ initialPhone = '', initialOrderCode = ''
     return steps.findIndex(s => s.key.toLowerCase() === status.toLowerCase());
   };
 
+  const getStatusLabel = (status) => {
+    const map = {
+      'Pending': 'status.pending',
+      'Confirmed': 'status.confirmed',
+      'On the way': 'status.onTheWay',
+      'At agency': 'status.atAgency',
+      'Delivered': 'status.delivered',
+      'Returned': 'status.returned',
+      'Cancelled': 'status.cancelled'
+    };
+    const key = map[status];
+    return key ? t(key) : status;
+  };
+
   const currentSteps = orderData?.deliveryMethod === 'agency' ? STATUS_STEPS_AGENCY : STATUS_STEPS_HOME;
   const currentStepIdx = orderData ? getStepIndex(orderData.status, currentSteps) : -1;
 
   return (
-    <div style={{ paddingTop: '3rem', paddingBottom: '6rem' }}>
+    <div style={{ paddingTop: '3rem', paddingBottom: '6rem' }} dir={isRtl ? 'rtl' : 'ltr'}>
       <div className="container" style={{ maxWidth: '800px' }}>
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
@@ -111,15 +127,16 @@ export default function OrderTracking({ initialPhone = '', initialOrderCode = ''
             color: 'var(--color-primary-dark)',
             marginBottom: '1rem'
           }}>
-            <Compass size={14} />
-            Live Delivery Tracking
+            <Compass size={14} className="rtl-flip" />
+            {t('tracking.liveTracking')}
           </div>
 
           <h1 className="heading-display" style={{ fontSize: 'clamp(2rem, 4vw, 2.7rem)', color: 'var(--color-espresso)' }}>
-            TRACK YOUR ORDER
+            {t('tracking.title').toUpperCase()}
           </h1>
+
           <p style={{ fontSize: '0.95rem', color: '#666', marginTop: '0.5rem' }}>
-            Enter your phone number and the unique order code received after checkout.
+            {t('tracking.subtitle')}
           </p>
         </div>
 
@@ -138,12 +155,12 @@ export default function OrderTracking({ initialPhone = '', initialOrderCode = ''
           >
             <div>
               <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.4rem' }}>
-                Phone Number
+                {t('tracking.phoneLabel')}
               </label>
               <input
                 type="tel"
                 required
-                placeholder="e.g. 0550123456"
+                placeholder={t('tracking.phonePlaceholder')}
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 style={{
@@ -158,12 +175,12 @@ export default function OrderTracking({ initialPhone = '', initialOrderCode = ''
 
             <div>
               <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.4rem' }}>
-                Order Code
+                {t('tracking.codeLabel')}
               </label>
               <input
                 type="text"
                 required
-                placeholder="e.g. MD-8K3N9P"
+                placeholder={t('tracking.codePlaceholder')}
                 value={orderCode}
                 onChange={(e) => setOrderCode(e.target.value)}
                 style={{
@@ -186,7 +203,7 @@ export default function OrderTracking({ initialPhone = '', initialOrderCode = ''
               style={{ padding: '0.85rem 1rem', height: '48px', width: '100%' }}
             >
               {loading ? <Loader2 size={18} className="animate-spin" /> : <Search size={18} />}
-              <span>Track</span>
+              <span>{t('tracking.trackBtn')}</span>
             </button>
           </form>
 
@@ -231,7 +248,7 @@ export default function OrderTracking({ initialPhone = '', initialOrderCode = ''
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Wifi size={14} color={isConnected ? '#4CAF50' : '#FF9800'} />
-                <span>{isConnected ? 'Real-Time Updates Active' : 'Connecting to Live Updates...'}</span>
+                <span>{isConnected ? t('tracking.realTimeActive') : t('tracking.connectingToUpdates')}</span>
               </div>
               <span style={{ fontFamily: 'monospace', fontWeight: '700', letterSpacing: '0.05em' }}>
                 {orderData.orderCode}
@@ -250,28 +267,28 @@ export default function OrderTracking({ initialPhone = '', initialOrderCode = ''
               }}>
                 <div>
                   <span style={{ fontSize: '0.8rem', color: '#777', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Current Status
+                    {t('tracking.currentStatus')}
                   </span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.25rem' }}>
                     <h2 style={{ fontSize: '1.6rem', fontWeight: '800', color: 'var(--color-espresso)' }}>
-                      {orderData.status}
+                      {getStatusLabel(orderData.status)}
                     </h2>
                     {orderData.status === 'Cancelled' ? (
-                      <span className="badge badge-cancelled">Cancelled</span>
+                      <span className="badge badge-cancelled">{t('status.cancelled')}</span>
                     ) : (
                       <span className={`badge badge-${orderData.status.toLowerCase().replace(/\s+/g, '')}`}>
-                        Active Delivery
+                        {getStatusLabel(orderData.status)}
                       </span>
                     )}
                   </div>
                 </div>
 
-                <div style={{ textAlign: 'right' }}>
+                <div style={{ textAlign: isRtl ? 'left' : 'right' }}>
                   <span style={{ fontSize: '0.8rem', color: '#777', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Delivery Wilaya
+                    {t('tracking.wilaya')}
                   </span>
                   <div style={{ fontSize: '1.05rem', fontWeight: '700', color: 'var(--color-espresso)', marginTop: '0.2rem' }}>
-                    {orderData.wilaya} ({orderData.deliveryMethod === 'agency' ? 'Agency Pickup' : 'Home Delivery'})
+                    {t('confirmation.wilaya')} {orderData.wilaya} ({orderData.deliveryMethod === 'agency' ? t('checkout.agency') : t('checkout.home')})
                   </div>
                   {orderData.agencyName && (
                     <div style={{ fontSize: '0.8rem', color: 'var(--color-primary-dark)', fontWeight: '600' }}>
@@ -316,10 +333,7 @@ export default function OrderTracking({ initialPhone = '', initialOrderCode = ''
                           </div>
 
                           <div style={{ fontSize: '0.82rem', fontWeight: isCurrent ? '800' : '600', color: isCompleted ? 'var(--color-espresso)' : '#999' }}>
-                            {step.label}
-                          </div>
-                          <div style={{ fontSize: '0.72rem', color: '#888', marginTop: '0.1rem' }}>
-                            {step.labelAr}
+                            {t('status.' + step.statusKey)}
                           </div>
                         </div>
                       );
@@ -338,9 +352,9 @@ export default function OrderTracking({ initialPhone = '', initialOrderCode = ''
                 }}>
                   <XCircle size={28} color="var(--color-danger)" />
                   <div>
-                    <h4 style={{ fontWeight: '700', color: 'var(--color-danger)' }}>This order has been cancelled</h4>
+                    <h4 style={{ fontWeight: '700', color: 'var(--color-danger)' }}>{t('status.cancelled')}</h4>
                     <p style={{ fontSize: '0.85rem', color: '#666', marginTop: '0.2rem' }}>
-                      Reserved stock was safely restored. If you have any questions, please contact our support team.
+                      {t('tracking.cancelledNotice')}
                     </p>
                   </div>
                 </div>
@@ -349,7 +363,7 @@ export default function OrderTracking({ initialPhone = '', initialOrderCode = ''
               {/* Items List in Order */}
               <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '1.75rem' }}>
                 <h3 style={{ fontSize: '0.95rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '1.25rem' }}>
-                  Items in Package
+                  {t('tracking.orderItems')}
                 </h3>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -363,11 +377,11 @@ export default function OrderTracking({ initialPhone = '', initialOrderCode = ''
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: '0.9rem', fontWeight: '600' }}>{item.productName}</div>
                         <div style={{ fontSize: '0.78rem', color: '#666' }}>
-                          Color: {item.colorName} • Size: {item.size} • Qty: {item.quantity}
+                          {t('cart.color')}: {item.colorName} • {t('cart.size')}: {item.size} • {t('common.quantity')}: {item.quantity}
                         </div>
                       </div>
                       <div style={{ fontSize: '0.95rem', fontWeight: '700' }}>
-                        {(item.unitPrice * item.quantity).toLocaleString()} DZD
+                        {formatCurrency(item.unitPrice * item.quantity)}
                       </div>
                     </div>
                   ))}
@@ -381,9 +395,9 @@ export default function OrderTracking({ initialPhone = '', initialOrderCode = ''
                   justifyContent: 'space-between',
                   alignItems: 'center'
                 }}>
-                  <span style={{ fontSize: '1rem', fontWeight: '700' }}>Total (Cash on Delivery)</span>
+                  <span style={{ fontSize: '1rem', fontWeight: '700' }}>{t('checkout.totalToPayCod')}</span>
                   <span style={{ fontSize: '1.3rem', fontWeight: '800', color: 'var(--color-espresso)' }}>
-                    {orderData.totalPrice.toLocaleString()} DZD
+                    {formatCurrency(orderData.totalPrice)}
                   </span>
                 </div>
               </div>

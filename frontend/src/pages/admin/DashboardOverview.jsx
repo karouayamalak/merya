@@ -12,8 +12,10 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { adminGetDashboard } from '../../services/api';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function DashboardOverview({ onNavigateToOrders }) {
+  const { t, formatCurrency, isRtl } = useLanguage();
   const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -56,10 +58,10 @@ export default function DashboardOverview({ onNavigateToOrders }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h1 className="heading-display" style={{ fontSize: '1.8rem', color: 'var(--color-espresso)' }}>
-            BUSINESS DASHBOARD
+            {t('admin.dashboard.title').toUpperCase()}
           </h1>
           <p style={{ fontSize: '0.85rem', color: '#666', marginTop: '0.2rem' }}>
-            Authoritative performance indicators and realized financial records.
+            {t('admin.dashboard.quickStats')}
           </p>
         </div>
 
@@ -68,8 +70,8 @@ export default function DashboardOverview({ onNavigateToOrders }) {
           className="btn btn-secondary btn-sm"
           style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
         >
-          <RefreshCw size={14} />
-          <span>Refresh Data</span>
+          <RefreshCw size={14} className="rtl-flip" />
+          <span>{t('common.retry')}</span>
         </button>
       </div>
 
@@ -89,17 +91,17 @@ export default function DashboardOverview({ onNavigateToOrders }) {
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <span style={{ fontSize: '0.78rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#777' }}>
-              Realized Revenue
+              {t('admin.dashboard.totalRevenue')}
             </span>
             <div style={{ backgroundColor: '#E8F5E9', padding: '0.4rem', borderRadius: 'var(--radius-sm)', color: 'var(--color-success)' }}>
               <DollarSign size={18} />
             </div>
           </div>
           <div style={{ fontSize: '1.8rem', fontWeight: '800', color: 'var(--color-espresso)', marginTop: '0.75rem' }}>
-            {(metrics?.realizedRevenue || 0).toLocaleString()} DZD
+            {formatCurrency(metrics?.realizedRevenue || 0)}
           </div>
           <div style={{ fontSize: '0.75rem', color: '#777', marginTop: '0.35rem' }}>
-            Calculated strictly from <strong>Delivered</strong> orders
+            {t('status.delivered')}
           </div>
         </div>
 
@@ -113,17 +115,17 @@ export default function DashboardOverview({ onNavigateToOrders }) {
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <span style={{ fontSize: '0.78rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#777' }}>
-              Realized Profit
+              {t('admin.dashboard.netProfit')}
             </span>
             <div style={{ backgroundColor: 'var(--color-primary-subtle)', padding: '0.4rem', borderRadius: 'var(--radius-sm)', color: 'var(--color-primary-dark)' }}>
               <TrendingUp size={18} />
             </div>
           </div>
           <div style={{ fontSize: '1.8rem', fontWeight: '800', color: 'var(--color-primary-dark)', marginTop: '0.75rem' }}>
-            {(metrics?.realizedProfit || 0).toLocaleString()} DZD
+            {formatCurrency(metrics?.realizedProfit || 0)}
           </div>
           <div style={{ fontSize: '0.75rem', color: '#777', marginTop: '0.35rem' }}>
-            Net profit snapshot (Selling Price - Cost Price)
+            {t('admin.products.sellingPrice')} - {t('admin.products.costPrice')}
           </div>
         </div>
 
@@ -141,7 +143,7 @@ export default function DashboardOverview({ onNavigateToOrders }) {
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <span style={{ fontSize: '0.78rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#777' }}>
-              Total Orders
+              {t('admin.dashboard.totalOrders')}
             </span>
             <div style={{ backgroundColor: '#EDE7F6', padding: '0.4rem', borderRadius: 'var(--radius-sm)', color: '#6A1B9A' }}>
               <Package size={18} />
@@ -151,7 +153,7 @@ export default function DashboardOverview({ onNavigateToOrders }) {
             {metrics?.totalOrders || 0}
           </div>
           <div style={{ fontSize: '0.75rem', color: '#777', marginTop: '0.35rem' }}>
-            Click to manage all customer orders
+            {t('admin.orders.title')}
           </div>
         </div>
 
@@ -165,7 +167,7 @@ export default function DashboardOverview({ onNavigateToOrders }) {
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <span style={{ fontSize: '0.78rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#777' }}>
-              Delivered Units
+              {t('admin.dashboard.deliveredOrders')}
             </span>
             <div style={{ backgroundColor: '#FFF3E0', padding: '0.4rem', borderRadius: 'var(--radius-sm)', color: '#EF6C00' }}>
               <CheckCircle2 size={18} />
@@ -175,7 +177,7 @@ export default function DashboardOverview({ onNavigateToOrders }) {
             {metrics?.unitsSold || 0}
           </div>
           <div style={{ fontSize: '0.75rem', color: '#777', marginTop: '0.35rem' }}>
-            Items physically delivered to customers
+            {t('admin.inventory.title')}
           </div>
         </div>
       </div>
@@ -189,7 +191,7 @@ export default function DashboardOverview({ onNavigateToOrders }) {
         boxShadow: 'var(--shadow-sm)'
       }}>
         <h3 style={{ fontSize: '1rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '1.5rem' }}>
-          Order Pipeline Status
+          {t('admin.orders.title')}
         </h3>
 
         <div style={{
@@ -201,7 +203,7 @@ export default function DashboardOverview({ onNavigateToOrders }) {
           <div style={{ padding: '1.25rem', backgroundColor: '#FFF8E1', borderRadius: 'var(--radius-md)', border: '1px solid #FFE082' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#B78103', fontSize: '0.8rem', fontWeight: '700' }}>
               <Clock size={16} />
-              <span>Pending</span>
+              <span>{t('status.pending')}</span>
             </div>
             <div style={{ fontSize: '1.6rem', fontWeight: '800', color: '#B78103', marginTop: '0.5rem' }}>
               {statusMap['Pending'] || 0}
@@ -212,7 +214,7 @@ export default function DashboardOverview({ onNavigateToOrders }) {
           <div style={{ padding: '1.25rem', backgroundColor: '#E3F2FD', borderRadius: 'var(--radius-md)', border: '1px solid #BBDEFB' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#1565C0', fontSize: '0.8rem', fontWeight: '700' }}>
               <CheckCircle2 size={16} />
-              <span>Confirmed</span>
+              <span>{t('status.confirmed')}</span>
             </div>
             <div style={{ fontSize: '1.6rem', fontWeight: '800', color: '#1565C0', marginTop: '0.5rem' }}>
               {statusMap['Confirmed'] || 0}
@@ -223,7 +225,7 @@ export default function DashboardOverview({ onNavigateToOrders }) {
           <div style={{ padding: '1.25rem', backgroundColor: '#EDE7F6', borderRadius: 'var(--radius-md)', border: '1px solid #D1C4E9' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#6A1B9A', fontSize: '0.8rem', fontWeight: '700' }}>
               <Truck size={16} />
-              <span>On The Way</span>
+              <span>{t('status.onTheWay')}</span>
             </div>
             <div style={{ fontSize: '1.6rem', fontWeight: '800', color: '#6A1B9A', marginTop: '0.5rem' }}>
               {statusMap['On the way'] || 0}
@@ -234,7 +236,7 @@ export default function DashboardOverview({ onNavigateToOrders }) {
           <div style={{ padding: '1.25rem', backgroundColor: '#E0F2F1', borderRadius: 'var(--radius-md)', border: '1px solid #B2DFDB' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#00695C', fontSize: '0.8rem', fontWeight: '700' }}>
               <Building2 size={16} />
-              <span>At Agency</span>
+              <span>{t('status.atAgency')}</span>
             </div>
             <div style={{ fontSize: '1.6rem', fontWeight: '800', color: '#00695C', marginTop: '0.5rem' }}>
               {statusMap['At agency'] || 0}
@@ -245,7 +247,7 @@ export default function DashboardOverview({ onNavigateToOrders }) {
           <div style={{ padding: '1.25rem', backgroundColor: '#E8F5E9', borderRadius: 'var(--radius-md)', border: '1px solid #C8E6C9' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#2E7D32', fontSize: '0.8rem', fontWeight: '700' }}>
               <CheckCircle2 size={16} />
-              <span>Delivered</span>
+              <span>{t('status.delivered')}</span>
             </div>
             <div style={{ fontSize: '1.6rem', fontWeight: '800', color: '#2E7D32', marginTop: '0.5rem' }}>
               {statusMap['Delivered'] || 0}
@@ -256,7 +258,7 @@ export default function DashboardOverview({ onNavigateToOrders }) {
           <div style={{ padding: '1.25rem', backgroundColor: '#FFEBEE', borderRadius: 'var(--radius-md)', border: '1px solid #FFCDD2' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#C62828', fontSize: '0.8rem', fontWeight: '700' }}>
               <XCircle size={16} />
-              <span>Cancelled</span>
+              <span>{t('status.cancelled')}</span>
             </div>
             <div style={{ fontSize: '1.6rem', fontWeight: '800', color: '#C62828', marginTop: '0.5rem' }}>
               {statusMap['Cancelled'] || 0}
@@ -276,12 +278,12 @@ export default function DashboardOverview({ onNavigateToOrders }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
           <AlertTriangle size={20} color="var(--color-warning)" />
           <h3 style={{ fontSize: '1rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            Low Stock Alerts (Items with 5 or fewer remaining)
+            {t('admin.inventory.lowStockAlert')}
           </h3>
         </div>
 
         {metrics?.lowStockItems?.length === 0 ? (
-          <p style={{ fontSize: '0.88rem', color: '#666' }}>All inventory items have healthy stock levels.</p>
+          <p style={{ fontSize: '0.88rem', color: '#666' }}>{t('product.inStock').replace('{count}', '')}</p>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
             {metrics?.lowStockItems?.map((item, idx) => (
@@ -305,7 +307,7 @@ export default function DashboardOverview({ onNavigateToOrders }) {
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: '0.85rem', fontWeight: '700' }}>{item.productName}</div>
                   <div style={{ fontSize: '0.78rem', color: '#666' }}>
-                    {item.colorName} • Size {item.size}
+                    {item.colorName} • {t('cart.size')} {item.size}
                   </div>
                 </div>
                 <div style={{
@@ -316,7 +318,7 @@ export default function DashboardOverview({ onNavigateToOrders }) {
                   fontWeight: '800',
                   fontSize: '0.82rem'
                 }}>
-                  {item.stock === 0 ? 'SOLD OUT' : `${item.stock} left`}
+                  {item.stock === 0 ? t('product.soldOut') : t('product.onlyLeft').replace('{count}', item.stock)}
                 </div>
               </div>
             ))}

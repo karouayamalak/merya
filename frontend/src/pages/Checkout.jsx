@@ -21,9 +21,11 @@ import {
   calculateDeliveryFee,
   revalidateCartWithServer
 } from '../services/checkoutValidation';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function Checkout({ onBack, onOrderSuccess }) {
   const { items, subtotal, clearCart, updateCartItems } = useCart();
+  const { t, formatCurrency, isRtl, getWilayaDisplayName } = useLanguage();
 
   // Explicit delivery settings state
   const [loadingSettings, setLoadingSettings] = useState(true);
@@ -63,7 +65,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
       const validation = validateDeliverySettingsResponse(res);
       if (!validation.valid) {
         setLoadingSettings(false);
-        setSettingsError(validation.error || 'Impossible de charger les informations de livraison. Veuillez réessayer.');
+        setSettingsError(validation.error || t('checkout.deliverySettingsError'));
         setWilayas([]);
         setDeliverySettings(null);
         setSelectedWilayaCode(null);
@@ -83,7 +85,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
       }
     } catch {
       setLoadingSettings(false);
-      setSettingsError('Impossible de charger les informations de livraison. Veuillez réessayer.');
+      setSettingsError(t('checkout.deliverySettingsError'));
       setWilayas([]);
       setDeliverySettings(null);
       setSelectedWilayaCode(null);
@@ -96,19 +98,8 @@ export default function Checkout({ onBack, onOrderSuccess }) {
 
   /**
    * Reactive live-quote effect.
-   *
-   * Triggers whenever the delivery selection (wilaya, method) or cart items change
-   * AND delivery settings are loaded. Uses a 300 ms debounce to avoid rapid
-   * re-fetches when the user scrolls through the Wilaya selector.
-   *
-   * Responsibility:
-   *   - Keeps the order-summary financial display in sync with server-authoritative data.
-   *   - Detects stale client prices and silently updates the cart.
-   *   - Does NOT gate checkout alone — the final POST /orders/quote at submit time is the
-   *     authoritative hard gate.
    */
   useEffect(() => {
-    // Do not run until settings have been loaded successfully
     if (loadingSettings || settingsError || !selectedWilayaCode || wilayas.length !== 58) return;
     if (!items || items.length === 0) {
       setLiveQuote(null);
@@ -118,7 +109,6 @@ export default function Checkout({ onBack, onOrderSuccess }) {
 
     let isMounted = true;
 
-    // Clear any pending debounce
     if (liveQuoteDebounceRef.current) clearTimeout(liveQuoteDebounceRef.current);
 
     liveQuoteDebounceRef.current = setTimeout(async () => {
@@ -135,18 +125,17 @@ export default function Checkout({ onBack, onOrderSuccess }) {
 
         if (res.pricesChanged && res.updatedItems.length > 0) {
           updateCartItems(res.updatedItems);
-          setCartNotice('Le prix de certains articles a été mis à jour. Votre panier a été actualisé.');
+          setCartNotice(t('checkout.cartUpdatedNotice'));
         }
 
         if (res.success && res.isValid) {
           setLiveQuote(res);
           setLiveQuoteError('');
         } else {
-          // Quote unavailable or invalid
           setLiveQuote(null);
           const errMsg = res.issues && res.issues.length > 0
             ? res.issues.join(' • ')
-            : 'Impossible de vérifier les prix actuels et le montant total de la commande.';
+            : t('checkout.quoteVerifyError');
           setLiveQuoteError(errMsg);
           setErrorMessage(errMsg);
         }
@@ -154,7 +143,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
         if (!isMounted) return;
         setLiveQuoteLoading(false);
         setLiveQuote(null);
-        setLiveQuoteError('Impossible de vérifier les prix actuels et le montant total de la commande. Veuillez vérifier votre connexion.');
+        setLiveQuoteError(t('checkout.quoteVerifyError'));
       }
     }, 300);
 
@@ -198,10 +187,6 @@ export default function Checkout({ onBack, onOrderSuccess }) {
 
   const estimatedTotal = activeDeliveryFee !== null ? subtotal + activeDeliveryFee : null;
 
-  // ── Server-authoritative display values ─────────────────────────────────────
-  // Server quote is the STRICT source of truth for financial display.
-  // If quote is unavailable, invalid, or loading, we do NOT display potentially stale
-  // local estimates as if they were authoritative.
   const hasValidLiveQuote = Boolean(
     liveQuote &&
     liveQuote.success &&
@@ -221,7 +206,6 @@ export default function Checkout({ onBack, onOrderSuccess }) {
     ? liveQuote.freeDeliveryThreshold
     : freeDeliveryThreshold;
   const displayTotal = hasValidLiveQuote ? liveQuote.totalPrice : null;
-  // The raw fee (before free-delivery override) for the strikethrough display
   const displayRawFee = hasValidLiveQuote && displayIsFreeDelivery
     ? (rawDeliveryFee !== null ? rawDeliveryFee : (displayDeliveryFee === 0 ? null : displayDeliveryFee))
     : rawDeliveryFee;
@@ -245,39 +229,38 @@ export default function Checkout({ onBack, onOrderSuccess }) {
     setCartNotice('');
 
     if (loadingSettings) {
-      setErrorMessage('Veuillez patienter pendant le chargement des tarifs de livraison.');
+      setErrorMessage(t('checkout.waitLoadingRatesError'));
       return;
     }
     if (settingsError || !isSettingsReady || !selectedWilayaObj) {
-      setErrorMessage('Impossible de passer la commande : tarifs de livraison indisponibles. Veuillez réessayer.');
+      setErrorMessage(t('checkout.deliveryRatesUnavailableError'));
       return;
     }
     if (!selectedWilayaObj.isAvailable) {
-      setErrorMessage(`La livraison n'est actuellement pas disponible pour la wilaya de ${selectedWilayaObj.name}.`);
+      setErrorMessage(t('checkout.wilayaNotAvailableError'));
       return;
     }
 
     const fullName = `${nom} ${prenom}`.trim();
     if (!fullName) {
-      setErrorMessage('Veuillez renseigner votre nom et prénom.');
+      setErrorMessage(t('checkout.fillNameError'));
       return;
     }
     if (!phone.trim() || phone.trim().length < 8) {
-      setErrorMessage('Veuillez renseigner un numéro de téléphone algérien valide (au moins 8 chiffres).');
+      setErrorMessage(t('checkout.invalidPhoneError'));
       return;
     }
     if (deliveryMethod === 'home' && (!address.trim() || address.trim().length < 4)) {
-      setErrorMessage('Veuillez indiquer une adresse complète pour la livraison à domicile.');
+      setErrorMessage(t('checkout.fillAddressError'));
       return;
     }
     if (deliveryMethod === 'agency' && (!agencyName.trim() || agencyName.trim().length < 2)) {
-      setErrorMessage('Veuillez préciser le nom du bureau / agence de retrait (ex: Yalidine Kouba).');
+      setErrorMessage(t('checkout.fillAgencyError'));
       return;
     }
 
     setIsSubmitting(true);
 
-    // CRITICAL: Revalidate cart against server before final checkout
     const reval = await revalidateCartWithServer(items, {
       wilayaCode: selectedWilayaObj?.code,
       deliveryMethod
@@ -290,15 +273,13 @@ export default function Checkout({ onBack, onOrderSuccess }) {
     }
 
     if (reval.pricesChanged) {
-      // Synchronize cart with current server prices
       updateCartItems(reval.updatedItems);
-      setCartNotice('Le prix de certains articles a été mis à jour. Votre panier a été actualisé. Veuillez vérifier le montant avant de confirmer.');
+      setCartNotice(t('checkout.cartPriceChangedReview'));
       setIsSubmitting(false);
       return;
     }
 
     try {
-      // NOTE: Prices are NEVER sent in checkout payload — server is authoritative inside transaction
       const orderPayload = {
         idempotencyKey,
         customer: {
@@ -326,11 +307,11 @@ export default function Checkout({ onBack, onOrderSuccess }) {
         clearCart();
         onOrderSuccess(res);
       } else {
-        setErrorMessage(res.message || 'Impossible d\'enregistrer la commande.');
+        setErrorMessage(res.message || t('checkout.failedToSaveOrder'));
         setIsSubmitting(false);
       }
     } catch (err) {
-      setErrorMessage(err.message || 'Une erreur est survenue lors de l\'envoi de la commande.');
+      setErrorMessage(err.message || t('checkout.checkoutGenericError'));
       setIsSubmitting(false);
     }
   };
@@ -339,13 +320,13 @@ export default function Checkout({ onBack, onOrderSuccess }) {
     return (
       <div className="container" style={{ padding: '6rem 1rem', textAlign: 'center' }}>
         <h2 style={{ fontSize: '1.8rem', fontWeight: '700', marginBottom: '1rem', fontFamily: 'var(--font-serif)' }}>
-          Votre panier est vide
+          {t('checkout.emptyCartTitle')}
         </h2>
         <p style={{ color: '#666', marginBottom: '2rem' }}>
-          Veuillez sélectionner des articles de notre collection avant de finaliser votre commande.
+          {t('checkout.emptyCartDesc')}
         </p>
         <button onClick={onBack} className="btn btn-primary">
-          Retourner à la boutique
+          {t('checkout.returnToShop')}
         </button>
       </div>
     );
@@ -512,16 +493,19 @@ export default function Checkout({ onBack, onOrderSuccess }) {
             cursor: 'pointer'
           }}
         >
-          <ArrowLeft size={15} />
-          Retour au panier
+          <ArrowLeft size={15} className="rtl-flip" />
+          {t('checkout.backToCart')}
         </button>
 
         <div className="checkout-grid">
           {/* LEFT: THE LUXURY ORDER FORM CARD */}
           <div style={{ position: 'relative', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
 
-            {/* BOW: sits physically ON TOP of the card's top-right corner */}
-            <div className="checkout-bow-decor">
+            {/* BOW: sits physically ON TOP of the card's top corner */}
+            <div className="checkout-bow-decor" style={{
+              [isRtl ? 'left' : 'right']: isRtl ? '-30px' : '-30px',
+              transform: isRtl ? 'scaleX(-1)' : 'none'
+            }}>
               <img
                 src="/decor_corner_bow.png"
                 alt=""
@@ -536,19 +520,20 @@ export default function Checkout({ onBack, onOrderSuccess }) {
             </div>
 
             <div className="checkout-form-card">
-              {/* Top-left draped silk & natural flowers */}
+              {/* Top draped silk & natural flowers */}
               <div style={{
                 position: 'absolute',
                 top: '-15px',
-                left: '-15px',
+                [isRtl ? 'right' : 'left']: '-15px',
                 width: '230px',
                 height: '230px',
                 pointerEvents: 'none',
                 zIndex: 1,
                 opacity: 0.88,
                 mixBlendMode: 'multiply',
-                WebkitMaskImage: 'radial-gradient(circle at 25% 25%, black 45%, transparent 80%)',
-                maskImage: 'radial-gradient(circle at 25% 25%, black 45%, transparent 80%)'
+                WebkitMaskImage: `radial-gradient(circle at ${isRtl ? '75% 25%' : '25% 25%'}, black 45%, transparent 80%)`,
+                maskImage: `radial-gradient(circle at ${isRtl ? '75% 25%' : '25% 25%'}, black 45%, transparent 80%)`,
+                transform: isRtl ? 'scaleX(-1)' : 'none'
               }}>
                 <img
                   src="/decor_silk_flowers.jpg"
@@ -606,11 +591,11 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                   color: '#9F8268',
                   fontWeight: '600'
                 }}>
-                  <span>MODEST</span>
+                  <span>{t('checkout.modest')}</span>
                   <span style={{ color: '#B89C82', fontSize: '0.55rem' }}>♥</span>
-                  <span>ÉLÉGANT</span>
+                  <span>{t('checkout.elegant')}</span>
                   <span style={{ color: '#B89C82', fontSize: '0.55rem' }}>♥</span>
-                  <span>TIMELESS</span>
+                  <span>{t('checkout.timeless')}</span>
                 </div>
               </div>
 
@@ -649,7 +634,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
 
                   <div style={{ height: '28px', width: '1.5px', backgroundColor: '#DFD5C6' }}></div>
 
-                  <div style={{ textAlign: 'left' }}>
+                  <div style={{ textAlign: isRtl ? 'right' : 'left' }}>
                     <span style={{
                       fontFamily: 'var(--font-sans, inherit)',
                       fontSize: '0.92rem',
@@ -658,19 +643,19 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                       textTransform: 'uppercase',
                       color: '#2A241F',
                       display: 'inline-block',
-                      marginRight: '0.45rem'
+                      marginInlineEnd: '0.45rem'
                     }}>
-                      ENVOYER VOS
+                      {t('checkout.sendInfoBanner')}
                     </span>
                     <span style={{
-                      fontFamily: "'Alex Brush', cursive",
-                      fontSize: '1.85rem',
+                      fontFamily: isRtl ? 'inherit' : "'Alex Brush', cursive",
+                      fontSize: isRtl ? '1.1rem' : '1.85rem',
                       color: '#9F8268',
-                      fontWeight: '400',
+                      fontWeight: isRtl ? '700' : '400',
                       lineHeight: 0.9,
                       verticalAlign: 'middle'
                     }}>
-                      informations
+                      {t('checkout.sendInfoCursive')}
                     </span>
                   </div>
                 </div>
@@ -685,7 +670,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                   lineHeight: 1.4,
                   margin: '0 auto 0.35rem auto'
                 }}>
-                  POUR FINALISER VOTRE COMMANDE, MERCI DE BIEN VOULOIR RENSEIGNER LES INFORMATIONS SUIVANTES :
+                  {t('checkout.fillInfoSubtitle')}
                 </p>
 
                 <div style={{ color: '#9F8268', fontSize: '0.7rem' }}>
@@ -711,7 +696,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.84rem' }}>
                     <AlertCircle size={18} flexShrink={0} />
-                    <span>{settingsError || "Impossible de charger les informations de livraison. Veuillez réessayer."}</span>
+                    <span>{settingsError || t('checkout.deliverySettingsError')}</span>
                   </div>
                   <button
                     type="button"
@@ -728,7 +713,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                       flexShrink: 0
                     }}
                   >
-                    Réessayer
+                    {t('checkout.retry')}
                   </button>
                 </div>
               )}
@@ -789,12 +774,12 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', color: '#2A241F', marginBottom: '0.25rem' }}>
-                          Nom : <span style={{ color: '#A86450' }}>*</span>
+                          {t('checkout.lastName')} : <span style={{ color: '#A86450' }}>*</span>
                         </label>
                         <input
                           type="text"
                           required
-                          placeholder="Nom de famille"
+                          placeholder={t('checkout.lastNamePlaceholder')}
                           value={nom}
                           onChange={(e) => setNom(e.target.value)}
                           className="checkout-input"
@@ -809,12 +794,12 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', color: '#2A241F', marginBottom: '0.25rem' }}>
-                          Prénom : <span style={{ color: '#A86450' }}>*</span>
+                          {t('checkout.firstName')} : <span style={{ color: '#A86450' }}>*</span>
                         </label>
                         <input
                           type="text"
                           required
-                          placeholder="Prénom"
+                          placeholder={t('checkout.firstNamePlaceholder')}
                           value={prenom}
                           onChange={(e) => setPrenom(e.target.value)}
                           className="checkout-input"
@@ -830,7 +815,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', color: '#2A241F', marginBottom: '0.25rem' }}>
-                        Wilaya (58 Wilayas) : <span style={{ color: '#A86450' }}>*</span>
+                        {t('checkout.wilayaLabel')} : <span style={{ color: '#A86450' }}>*</span>
                       </label>
                       {loadingSettings ? (
                         <div style={{
@@ -845,7 +830,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                           fontSize: '0.88rem'
                         }}>
                           <Loader2 size={16} className="animate-spin" />
-                          <span>Chargement des 58 wilayas...</span>
+                          <span>{t('checkout.loadingWilayas')}</span>
                         </div>
                       ) : (
                         <select
@@ -856,11 +841,11 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                           style={{ cursor: isSettingsReady ? 'pointer' : 'not-allowed', fontWeight: '600' }}
                         >
                           {wilayas.length === 0 ? (
-                            <option value="">Paramètres de livraison non disponibles</option>
+                            <option value="">{t('checkout.wilayasUnavailable')}</option>
                           ) : (
                             wilayas.map((w) => (
                               <option key={w.code} value={w.code} disabled={!w.isAvailable}>
-                                {w.code} - {w.name} {w.nameAr ? `(${w.nameAr})` : ''} {!w.isAvailable ? '— [Non desservie]' : ''}
+                                {w.code} - {getWilayaDisplayName(w)} {!w.isAvailable ? `— [${t('checkout.wilayaNotServed')}]` : ''}
                               </option>
                             ))
                           )}
@@ -878,7 +863,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                           color: '#B91C1C'
                         }}>
                           <AlertCircle size={14} flexShrink={0} />
-                          <span>La livraison est temporairement suspendue pour cette wilaya. Veuillez en sélectionner une autre.</span>
+                          <span>{t('checkout.wilayaSuspended')}</span>
                         </div>
                       )}
                     </div>
@@ -891,12 +876,12 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', color: '#2A241F', marginBottom: '0.25rem' }}>
-                        Numéro de téléphone : <span style={{ color: '#A86450' }}>*</span>
+                        {t('checkout.phoneLabel')} : <span style={{ color: '#A86450' }}>*</span>
                       </label>
                       <input
                         type="tel"
                         required
-                        placeholder="05 / 06 / 07 XX XX XX XX"
+                        placeholder={t('checkout.phonePlaceholder')}
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
                         className="checkout-input"
@@ -911,7 +896,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', color: '#2A241F', marginBottom: '0.35rem' }}>
-                        Mode de livraison :
+                        {t('checkout.deliveryMethodLabel')}
                       </label>
                       <div style={{ display: 'flex', gap: '0.65rem', flexWrap: 'wrap' }}>
                         <button
@@ -937,7 +922,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                           }}
                         >
                           <span>
-                            À domicile {selectedWilayaObj ? (isFreeDelivery ? '(Livraison offerte)' : `(+${selectedWilayaObj.homeFee.toLocaleString()} DA)`) : (loadingSettings ? '(Chargement...)' : '')}
+                            {t('checkout.homeDelivery')} {selectedWilayaObj ? (isFreeDelivery ? `(${t('checkout.freeDeliveryBadge')})` : `(+${formatCurrency(selectedWilayaObj.homeFee)})`) : (loadingSettings ? `(${t('checkout.calculating')})` : '')}
                           </span>
                         </button>
 
@@ -964,7 +949,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                           }}
                         >
                           <span>
-                            Au bureau / Stopdesk {selectedWilayaObj ? (isFreeDelivery ? '(Livraison offerte)' : `(+${selectedWilayaObj.agencyFee.toLocaleString()} DA)`) : (loadingSettings ? '(Chargement...)' : '')}
+                            {t('checkout.agencyDelivery')} {selectedWilayaObj ? (isFreeDelivery ? `(${t('checkout.freeDeliveryBadge')})` : `(+${formatCurrency(selectedWilayaObj.agencyFee)})`) : (loadingSettings ? `(${t('checkout.calculating')})` : '')}
                           </span>
                         </button>
                       </div>
@@ -979,12 +964,12 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', color: '#2A241F', marginBottom: '0.25rem' }}>
-                          Adresse complète de livraison : <span style={{ color: '#A86450' }}>*</span>
+                          {t('checkout.homeAddressLabel')} : <span style={{ color: '#A86450' }}>*</span>
                         </label>
                         <input
                           type="text"
                           required
-                          placeholder="Cité, Bâtiment, Numéro de rue, Commune..."
+                          placeholder={t('checkout.homeAddressPlaceholder')}
                           value={address}
                           onChange={(e) => setAddress(e.target.value)}
                           className="checkout-input"
@@ -1001,12 +986,12 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', color: '#2A241F', marginBottom: '0.25rem' }}>
-                          Nom de l'agence ou bureau de retrait : <span style={{ color: '#A86450' }}>*</span>
+                          {t('checkout.agencyNameLabel')} : <span style={{ color: '#A86450' }}>*</span>
                         </label>
                         <input
                           type="text"
                           required
-                          placeholder="Ex: Bureau Yalidine Alger Centre, Stopdesk Bab Ezzouar..."
+                          placeholder={t('checkout.agencyNamePlaceholder')}
                           value={agencyName}
                           onChange={(e) => setAgencyName(e.target.value)}
                           className="checkout-input"
@@ -1022,11 +1007,11 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', color: '#2A241F', marginBottom: '0.25rem' }}>
-                        Autres informations (si besoin) :
+                        {t('checkout.notesLabel')} :
                       </label>
                       <textarea
                         rows={2}
-                        placeholder="Instructions pour le livreur, horaire préféré, remarque..."
+                        placeholder={t('checkout.notesPlaceholder')}
                         value={notes}
                         onChange={(e) => setNotes(e.target.value)}
                         className="checkout-textarea"
@@ -1064,38 +1049,38 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                       {isSubmitting ? (
                         <>
                           <Loader2 size={19} className="animate-spin" />
-                          <span>Confirmation de votre commande...</span>
+                          <span>{t('checkout.confirmingOrder')}</span>
                         </>
                       ) : loadingSettings ? (
                         <>
                           <Loader2 size={19} className="animate-spin" />
-                          <span>Chargement des tarifs de livraison...</span>
+                          <span>{t('checkout.loadingRates')}</span>
                         </>
                       ) : Boolean(settingsError) ? (
                         <>
                           <AlertCircle size={19} />
-                          <span>Tarifs indisponibles (Vérifier connexion)</span>
+                          <span>{t('checkout.ratesUnavailable')}</span>
                         </>
                       ) : (selectedWilayaObj && !selectedWilayaObj.isAvailable) ? (
                         <>
                           <AlertCircle size={19} />
-                          <span>Wilaya non desservie</span>
+                          <span>{t('checkout.wilayaNotServed')}</span>
                         </>
                       ) : liveQuoteLoading ? (
                         <>
                           <Loader2 size={19} className="animate-spin" />
-                          <span>Calcul du montant en cours...</span>
+                          <span>{t('checkout.calculatingQuote')}</span>
                         </>
                       ) : !hasValidLiveQuote ? (
                         <>
                           <AlertCircle size={19} />
-                          <span>Vérification du panier requise</span>
+                          <span>{t('checkout.verificationRequired')}</span>
                         </>
                       ) : (
                         <>
                           <CheckCircle2 size={19} />
                           <span>
-                            Confirmer ma commande {displayTotal !== null ? `(${displayTotal.toLocaleString()} DZD)` : ''}
+                            {t('checkout.confirmOrder')} {displayTotal !== null ? `(${formatCurrency(displayTotal)})` : ''}
                           </span>
                         </>
                       )}
@@ -1125,13 +1110,14 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                 </div>
 
                 <div style={{
-                  fontFamily: "'Alex Brush', cursive",
-                  fontSize: '2.3rem',
+                  fontFamily: isRtl ? 'inherit' : "'Alex Brush', cursive",
+                  fontSize: isRtl ? '1.8rem' : '2.3rem',
+                  fontWeight: isRtl ? '700' : '400',
                   color: '#9F8268',
                   lineHeight: 1,
                   marginBottom: '0.15rem'
                 }}>
-                  Merci ♥
+                  {t('checkout.thankYou')} ♥
                 </div>
 
                 <div style={{
@@ -1142,22 +1128,23 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                   textTransform: 'uppercase',
                   color: '#766657'
                 }}>
-                  POUR VOTRE CONFIANCE
+                  {t('checkout.forYourTrust')}
                 </div>
 
-                {/* Bottom right sprig */}
+                {/* Bottom sprig */}
                 <div style={{
                   position: 'absolute',
                   bottom: '-12px',
-                  right: '-10px',
+                  [isRtl ? 'left' : 'right']: '-10px',
                   width: '160px',
                   height: '160px',
                   pointerEvents: 'none',
                   zIndex: 1,
                   opacity: 0.75,
                   mixBlendMode: 'multiply',
-                  WebkitMaskImage: 'radial-gradient(circle at 60% 60%, black 40%, transparent 80%)',
-                  maskImage: 'radial-gradient(circle at 60% 60%, black 40%, transparent 80%)'
+                  WebkitMaskImage: `radial-gradient(circle at ${isRtl ? '40% 60%' : '60% 60%'}, black 40%, transparent 80%)`,
+                  maskImage: `radial-gradient(circle at ${isRtl ? '40% 60%' : '60% 60%'}, black 40%, transparent 80%)`,
+                  transform: isRtl ? 'scaleX(-1)' : 'none'
                 }}>
                   <img
                     src="/decor_flowers_bottom.jpg"
@@ -1174,24 +1161,25 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                 <div style={{
                   position: 'absolute',
                   bottom: '-6px',
-                  right: '8px',
-                  textAlign: 'right',
+                  [isRtl ? 'left' : 'right']: '8px',
+                  textAlign: isRtl ? 'left' : 'right',
                   pointerEvents: 'none',
                   zIndex: 2
                 }} className="desktop-only">
                   <div style={{
-                    fontFamily: "'Alex Brush', cursive",
-                    fontSize: '1.45rem',
+                    fontFamily: isRtl ? 'inherit' : "'Alex Brush', cursive",
+                    fontSize: isRtl ? '1.1rem' : '1.45rem',
+                    fontWeight: isRtl ? '700' : '400',
                     color: '#8A715C',
                     lineHeight: 1,
-                    transform: 'rotate(-4deg)'
+                    transform: isRtl ? 'none' : 'rotate(-4deg)'
                   }}>
-                    Toujours plus<br />près de vous
+                    {t('checkout.alwaysCloser')}
                   </div>
                   <div style={{
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'flex-end',
+                    justifyContent: isRtl ? 'flex-start' : 'flex-end',
                     gap: '3px',
                     marginTop: '1px',
                     color: '#B89C82'
@@ -1214,10 +1202,10 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                 letterSpacing: '0.1em',
                 color: '#2A241F'
               }}>
-                Récapitulatif ({items.length} {items.length === 1 ? 'article' : 'articles'})
+                {t('checkout.summaryTitle')} ({items.length} {items.length === 1 ? t('checkout.articleSingular') : t('checkout.articlePlural')})
               </h3>
               <span style={{ fontSize: '0.78rem', color: '#9F8268', fontWeight: '600' }}>
-                Paiement Cash à la livraison
+                {t('checkout.codBadge')}
               </span>
             </div>
 
@@ -1269,21 +1257,21 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                       }}>
                         {item.colorName}
                       </span>
-                      <span>• Taille {item.size}</span>
-                      <span>• Qté {item.quantity}</span>
+                      <span>• {t('checkout.sizeLabel')} {item.size}</span>
+                      <span>• {t('checkout.qtyLabel')} {item.quantity}</span>
                     </div>
                   </div>
-                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <div style={{ textAlign: isRtl ? 'left' : 'right', flexShrink: 0 }}>
                     <div style={{
                       fontSize: '0.92rem',
                       fontWeight: '700',
                       color: (item.originalPrice && item.originalPrice > item.unitPrice) ? '#DC2626' : '#2A241F'
                     }}>
-                      {(item.unitPrice * item.quantity).toLocaleString()} DA
+                      {formatCurrency(item.unitPrice * item.quantity)}
                     </div>
                     {item.originalPrice && item.originalPrice > item.unitPrice && (
                       <div style={{ fontSize: '0.75rem', color: '#999', textDecoration: 'line-through' }}>
-                        {(item.originalPrice * item.quantity).toLocaleString()} DA
+                        {formatCurrency(item.originalPrice * item.quantity)}
                       </div>
                     )}
                   </div>
@@ -1318,14 +1306,14 @@ export default function Checkout({ onBack, onOrderSuccess }) {
               )}
 
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem', color: '#666' }}>
-                <span>Sous-total articles</span>
+                <span>{t('checkout.articlesSubtotal')}</span>
                 <span style={{ fontWeight: '600', color: '#2A241F' }}>
                   {liveQuoteLoading ? (
-                    <span style={{ fontSize: '0.8rem', color: '#9F8268' }}>Calcul en cours...</span>
+                    <span style={{ fontSize: '0.8rem', color: '#9F8268' }}>{t('checkout.calculating')}</span>
                   ) : displaySubtotal !== null ? (
-                    `${displaySubtotal.toLocaleString()} DZD`
+                    formatCurrency(displaySubtotal)
                   ) : (
-                    <span style={{ fontSize: '0.8rem', color: '#DC2626' }}>Indisponible</span>
+                    <span style={{ fontSize: '0.8rem', color: '#DC2626' }}>{t('checkout.unavailable')}</span>
                   )}
                 </span>
               </div>
@@ -1333,28 +1321,28 @@ export default function Checkout({ onBack, onOrderSuccess }) {
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem', color: '#666' }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                   <Truck size={15} color="#9F8268" />
-                  Livraison ({deliveryMethod === 'agency' ? 'Stopdesk' : 'À domicile'} {selectedWilayaObj ? `- Wilaya ${selectedWilayaObj.code}` : ''})
+                  {t('checkout.deliveryLabel')} ({deliveryMethod === 'agency' ? t('checkout.agency') : t('checkout.home')} {selectedWilayaObj ? `- ${selectedWilayaObj.code}` : ''})
                 </span>
                 <span style={{ fontWeight: '600', color: displayIsFreeDelivery ? '#16A34A' : '#2A241F' }}>
                   {loadingSettings || liveQuoteLoading ? (
-                    <span style={{ fontSize: '0.8rem', color: '#9F8268' }}>Calcul en cours...</span>
+                    <span style={{ fontSize: '0.8rem', color: '#9F8268' }}>{t('checkout.calculating')}</span>
                   ) : settingsError ? (
-                    <span style={{ fontSize: '0.8rem', color: '#DC2626' }}>Non disponible</span>
+                    <span style={{ fontSize: '0.8rem', color: '#DC2626' }}>{t('checkout.unavailable')}</span>
                   ) : displayDeliveryFee !== null ? (
                     displayIsFreeDelivery ? (
                       <span style={{ color: '#16A34A', fontWeight: '700', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                        <span>Livraison offerte</span>
+                        <span>{t('checkout.freeDeliveryBadge')}</span>
                         {displayRawFee !== null && (
                           <span style={{ fontSize: '0.75rem', textDecoration: 'line-through', color: '#999', fontWeight: '400' }}>
-                            +{displayRawFee.toLocaleString()} DZD
+                            +{formatCurrency(displayRawFee)}
                           </span>
                         )}
                       </span>
                     ) : (
-                      `+${displayDeliveryFee.toLocaleString()} DZD`
+                      `+${formatCurrency(displayDeliveryFee)}`
                     )
                   ) : (
-                    <span style={{ fontSize: '0.8rem', color: '#DC2626' }}>Indisponible</span>
+                    <span style={{ fontSize: '0.8rem', color: '#DC2626' }}>{t('checkout.unavailable')}</span>
                   )}
                 </span>
               </div>
@@ -1374,7 +1362,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                   fontWeight: '600'
                 }}>
                   <span>🎁</span>
-                  <span>Livraison offerte appliquée (seuil de {displayFreeThreshold.toLocaleString()} DZD atteint)</span>
+                  <span>{t('checkout.freeDeliveryApplied', { threshold: formatCurrency(displayFreeThreshold) })}</span>
                 </div>
               )}
 
@@ -1392,7 +1380,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                 }}>
                   <span>💡</span>
                   <span>
-                    Plus que <strong>{(displayFreeThreshold - displaySubtotal).toLocaleString()} DZD</strong> pour bénéficier de la <strong>livraison offerte</strong> !
+                    {t('checkout.moreForFreeDelivery', { amount: formatCurrency(displayFreeThreshold - displaySubtotal) })}
                   </span>
                 </div>
               )}
@@ -1408,14 +1396,14 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                 paddingTop: '0.85rem',
                 marginTop: '0.25rem'
               }}>
-                <span>Total à régler (COD)</span>
+                <span>{t('checkout.totalToPayCod')}</span>
                 <span style={{ color: '#9F8268', fontSize: '1.35rem' }}>
                   {liveQuoteLoading ? (
-                    <span style={{ fontSize: '0.95rem', color: '#9F8268', fontWeight: '600' }}>Calcul en cours...</span>
+                    <span style={{ fontSize: '0.95rem', color: '#9F8268', fontWeight: '600' }}>{t('checkout.calculating')}</span>
                   ) : displayTotal !== null ? (
-                    `${displayTotal.toLocaleString()} DZD`
+                    formatCurrency(displayTotal)
                   ) : (
-                    <span style={{ fontSize: '0.95rem', color: '#DC2626', fontWeight: '600' }}>Indisponible</span>
+                    <span style={{ fontSize: '0.95rem', color: '#DC2626', fontWeight: '600' }}>{t('checkout.unavailable')}</span>
                   )}
                 </span>
               </div>
@@ -1437,7 +1425,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
             }}>
               <ShieldCheck size={20} color="#9F8268" flexShrink={0} style={{ marginTop: '2px' }} />
               <div>
-                <strong style={{ color: '#2A241F' }}>Paiement à la livraison garanti :</strong> Aucun paiement par carte n'est requis. Vous ne payez qu'après réception de votre colis auprès du livreur ou en agence.
+                <strong style={{ color: '#2A241F' }}>{t('checkout.codGuaranteeTitle')}</strong> {t('checkout.codGuaranteeDesc')}
               </div>
             </div>
           </div>

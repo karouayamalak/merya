@@ -8,12 +8,12 @@ import {
   Settings,
   LogOut,
   ExternalLink,
-  Bell,
-  CheckCircle2,
-  Sparkles
+  Bell
 } from 'lucide-react';
 import { useAdminAuth } from '../../context/AdminAuthContext';
 import { useWebSocket } from '../../context/WebSocketContext';
+import { useLanguage } from '../../context/LanguageContext';
+import LanguageSwitcher from '../../components/LanguageSwitcher';
 import DashboardOverview from './DashboardOverview';
 import OrdersManager from './OrdersManager';
 import ProductsManager from './ProductsManager';
@@ -24,6 +24,7 @@ import DeliverySettingsManager from './DeliverySettingsManager';
 export default function AdminLayout({ onExitAdmin }) {
   const { admin, logout } = useAdminAuth();
   const { subscribeAdmin } = useWebSocket();
+  const { t, isRtl, formatCurrency } = useLanguage();
 
   const [activeTab, setActiveTab] = useState('overview');
   const [liveNotification, setLiveNotification] = useState(null);
@@ -34,8 +35,8 @@ export default function AdminLayout({ onExitAdmin }) {
       console.log('[Admin WebSocket] Event received:', event);
       if (event.type === 'NEW_ORDER_RECEIVED') {
         setLiveNotification({
-          title: 'New Cash on Delivery Order Received!',
-          message: `${event.order.customerName} placed order #${event.order.orderCode} (${event.order.totalPrice.toLocaleString()} DZD)`,
+          title: t('confirmation.thankYou'),
+          message: `${event.order.customerName} (#${event.order.orderCode} - ${formatCurrency(event.order.totalPrice)})`,
           time: new Date().toLocaleTimeString()
         });
 
@@ -45,24 +46,24 @@ export default function AdminLayout({ onExitAdmin }) {
     });
 
     return () => unsubscribe();
-  }, [subscribeAdmin]);
+  }, [subscribeAdmin, t, formatCurrency]);
 
   const navItems = [
-    { id: 'overview', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'orders', label: 'Orders', icon: ShoppingBag },
-    { id: 'products', label: 'Products & Variants', icon: Layers },
-    { id: 'categories', label: 'Categories', icon: Tag },
-    { id: 'inventory', label: 'Inventory Stock', icon: Warehouse },
-    { id: 'settings', label: 'Delivery Settings', icon: Settings }
+    { id: 'overview', label: t('admin.nav.dashboard'), icon: LayoutDashboard },
+    { id: 'orders', label: t('admin.nav.orders'), icon: ShoppingBag },
+    { id: 'products', label: t('admin.nav.products'), icon: Layers },
+    { id: 'categories', label: t('admin.nav.categories'), icon: Tag },
+    { id: 'inventory', label: t('admin.nav.inventory'), icon: Warehouse },
+    { id: 'settings', label: t('admin.nav.delivery'), icon: Settings }
   ];
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: 'var(--color-bg-base)' }}>
+    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: 'var(--color-bg-base)' }} dir={isRtl ? 'rtl' : 'ltr'}>
       {/* Sidebar Navigation */}
       <aside style={{
         width: '260px',
         backgroundColor: 'var(--color-surface)',
-        borderRight: '1px solid var(--color-border)',
+        borderInlineEnd: '1px solid var(--color-border)',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'space-between',
@@ -84,7 +85,7 @@ export default function AdminLayout({ onExitAdmin }) {
             <div>
               <div style={{ fontSize: '0.88rem', fontWeight: '800', letterSpacing: '0.04em' }}>MERYA DZ</div>
               <div style={{ fontSize: '0.7rem', color: 'var(--color-primary-dark)', fontWeight: '700', textTransform: 'uppercase' }}>
-                Admin Portal
+                {t('admin.portalTitle')}
               </div>
             </div>
           </div>
@@ -109,7 +110,10 @@ export default function AdminLayout({ onExitAdmin }) {
                     backgroundColor: isActive ? 'var(--color-espresso)' : 'transparent',
                     color: isActive ? '#FFFFFF' : 'var(--color-espresso)',
                     transition: 'var(--transition-fast)',
-                    textAlign: 'left'
+                    textAlign: isRtl ? 'right' : 'left',
+                    width: '100%',
+                    border: 'none',
+                    cursor: 'pointer'
                   }}
                 >
                   <Icon size={18} />
@@ -122,8 +126,14 @@ export default function AdminLayout({ onExitAdmin }) {
 
         {/* User & Storefront Exit */}
         <div style={{ padding: '1rem', borderTop: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-          <div style={{ padding: '0.5rem', fontSize: '0.8rem', color: '#666' }}>
-            Logged in as <strong>{admin?.username || 'Store Owner'}</strong>
+          {/* Language Switcher */}
+          <div style={{ padding: '0.4rem 0.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: '0.75rem', color: '#777', fontWeight: '600' }}>{t('admin.language')}</span>
+            <LanguageSwitcher />
+          </div>
+
+          <div style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem', color: '#666' }}>
+            {t('admin.welcome').replace('{name}', admin?.username || 'Store Owner')}
           </div>
 
           <button
@@ -136,11 +146,13 @@ export default function AdminLayout({ onExitAdmin }) {
               borderRadius: 'var(--radius-md)',
               fontSize: '0.82rem',
               color: 'var(--color-espresso)',
-              backgroundColor: 'var(--color-bg-card)'
+              backgroundColor: 'var(--color-bg-card)',
+              border: '1px solid var(--color-border)',
+              cursor: 'pointer'
             }}
           >
-            <ExternalLink size={15} />
-            <span>View Public Store</span>
+            <ExternalLink size={15} className="rtl-flip" />
+            <span>{t('admin.backToStore')}</span>
           </button>
 
           <button
@@ -152,11 +164,14 @@ export default function AdminLayout({ onExitAdmin }) {
               padding: '0.65rem 1rem',
               borderRadius: 'var(--radius-md)',
               fontSize: '0.82rem',
-              color: 'var(--color-danger)'
+              color: 'var(--color-danger)',
+              backgroundColor: 'transparent',
+              border: 'none',
+              cursor: 'pointer'
             }}
           >
-            <LogOut size={15} />
-            <span>Sign Out</span>
+            <LogOut size={15} className="rtl-flip" />
+            <span>{t('admin.logout')}</span>
           </button>
         </div>
       </aside>
@@ -168,7 +183,7 @@ export default function AdminLayout({ onExitAdmin }) {
           <div style={{
             position: 'fixed',
             bottom: '24px',
-            right: '24px',
+            [isRtl ? 'left' : 'right']: '24px',
             backgroundColor: 'var(--color-espresso)',
             color: '#FFFFFF',
             borderRadius: 'var(--radius-lg)',

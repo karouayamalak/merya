@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Warehouse, Plus, Minus, Save, Check, AlertCircle, Loader2 } from 'lucide-react';
 import { adminGetProducts, adminAdjustStock } from '../../services/api';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function InventoryManager() {
+  const { t, isRtl } = useLanguage();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState(null);
@@ -110,10 +112,10 @@ export default function InventoryManager() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
         <div>
           <h1 className="heading-display" style={{ fontSize: '1.8rem', color: 'var(--color-espresso)' }}>
-            INVENTORY STOCK MANAGEMENT
+            {t('admin.inventory.title').toUpperCase()}
           </h1>
           <p style={{ fontSize: '0.85rem', color: '#666', marginTop: '0.2rem' }}>
-            Direct atomic inventory tracking by Product → Color Variant → Size. Type exact quantities directly.
+            {t('admin.nav.inventory')}
           </p>
         </div>
       </div>
@@ -130,15 +132,15 @@ export default function InventoryManager() {
             <Loader2 size={32} className="animate-spin" style={{ margin: '0 auto' }} />
           </div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: isRtl ? 'right' : 'left', fontSize: '0.88rem' }}>
             <thead>
               <tr style={{ backgroundColor: 'var(--color-bg-card)', borderBottom: '1px solid var(--color-border)' }}>
-                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Product</th>
-                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Color</th>
-                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Size</th>
-                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Stock Status</th>
-                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Available Units (Type to Edit)</th>
-                <th style={{ padding: '1rem', textAlign: 'right' }}>Quick Adjust</th>
+                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.products.productName')}</th>
+                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('cart.color')}</th>
+                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('cart.size')}</th>
+                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.products.status')}</th>
+                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.inventory.currentStock')}</th>
+                <th style={{ padding: '1rem', textAlign: isRtl ? 'left' : 'right' }}>{t('admin.inventory.quickAdjust')}</th>
               </tr>
             </thead>
             <tbody>
@@ -174,11 +176,11 @@ export default function InventoryManager() {
 
                     <td style={{ padding: '1rem' }}>
                       {v.stock <= 0 ? (
-                        <span className="badge badge-cancelled">Out of Stock</span>
+                        <span className="badge badge-cancelled">{t('product.soldOut')}</span>
                       ) : v.stock <= 3 ? (
-                        <span className="badge badge-pending">Low Stock ({v.stock})</span>
+                        <span className="badge badge-pending">{t('admin.inventory.lowStockAlert')} ({v.stock})</span>
                       ) : (
-                        <span className="badge badge-delivered">Healthy ({v.stock})</span>
+                        <span className="badge badge-delivered">{t('product.inStock').replace('{count}', v.stock)}</span>
                       )}
                     </td>
 
@@ -215,15 +217,15 @@ export default function InventoryManager() {
                             backgroundColor: hasChanged ? 'var(--color-espresso)' : '#888',
                             opacity: (hasChanged || isSaving) ? 1 : 0.6
                           }}
-                          title="Save typed number directly to stock"
+                          title={t('common.save')}
                         >
                           {isSaving ? <Loader2 size={13} className="animate-spin" /> : isSuccess ? <Check size={13} /> : <Save size={13} />}
-                          <span style={{ marginLeft: '0.25rem' }}>{isSaving ? 'Saving' : isSuccess ? 'Saved' : 'Save'}</span>
+                          <span style={{ marginInlineStart: '0.25rem' }}>{isSaving ? t('common.saving') : isSuccess ? t('common.save') : t('common.save')}</span>
                         </button>
                       </div>
                     </td>
 
-                    <td style={{ padding: '1rem', textAlign: 'right' }}>
+                    <td style={{ padding: '1rem', textAlign: isRtl ? 'left' : 'right' }}>
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
                         <button
                           onClick={() => {
@@ -234,7 +236,7 @@ export default function InventoryManager() {
                           disabled={v.stock <= 0 || isSaving}
                           className="btn btn-secondary btn-sm"
                           style={{ padding: '0.3rem 0.6rem' }}
-                          title="Decrement stock by 1"
+                          title="-1"
                         >
                           <Minus size={13} />
                         </button>
@@ -248,7 +250,7 @@ export default function InventoryManager() {
                           disabled={isSaving}
                           className="btn btn-secondary btn-sm"
                           style={{ padding: '0.3rem 0.6rem' }}
-                          title="Increment stock by 1"
+                          title="+1"
                         >
                           <Plus size={13} />
                         </button>

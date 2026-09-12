@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Search, SlidersHorizontal, ArrowUpDown } from 'lucide-react';
 import ProductCard from '../components/ProductCard';
 import { fetchProducts, fetchCategories } from '../services/api';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function Shop({ selectedCategory, setSelectedCategory, onSelectProduct }) {
+  const { t, isRtl } = useLanguage();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [search, setSearch] = useState('');
@@ -69,10 +71,10 @@ export default function Shop({ selectedCategory, setSelectedCategory, onSelectPr
         {/* Title Header */}
         <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
           <h1 className="heading-display" style={{ fontSize: 'clamp(2rem, 4vw, 3rem)', color: 'var(--color-espresso)' }}>
-            OUR MODEST COLLECTION
+            {t('shop.title')}
           </h1>
           <p style={{ fontSize: '1rem', color: '#666', marginTop: '0.5rem' }}>
-            Graceful, modest silhouettes tailored for everyday elegance and special occasions.
+            {t('shop.subtitle')}
           </p>
         </div>
 
@@ -106,7 +108,7 @@ export default function Shop({ selectedCategory, setSelectedCategory, onSelectPr
                 transition: 'var(--transition-fast)'
               }}
             >
-              All Pieces
+              {t('shop.allPieces')}
             </button>
 
             {categories.map((cat) => (
@@ -150,13 +152,13 @@ export default function Shop({ selectedCategory, setSelectedCategory, onSelectPr
               flex: 1,
               maxWidth: '380px'
             }}>
-              <Search size={18} color="#888" style={{ marginRight: '0.5rem' }} />
+              <Search size={18} color="#888" style={{ marginInlineEnd: '0.5rem' }} />
               <input
                 type="text"
-                placeholder="Search abayas, khimars, sets..."
+                placeholder={t('shop.searchPlaceholder')}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%' }}
+                style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', textAlign: 'start' }}
               />
             </div>
 
@@ -175,9 +177,9 @@ export default function Shop({ selectedCategory, setSelectedCategory, onSelectPr
                   fontSize: '0.85rem'
                 }}
               >
-                <option value="newest">Sort: Newest First</option>
-                <option value="price-asc">Price: Low to High</option>
-                <option value="price-desc">Price: High to Low</option>
+                <option value="newest">{t('shop.newestFirst')}</option>
+                <option value="price-asc">{t('shop.priceLowHigh')}</option>
+                <option value="price-desc">{t('shop.priceHighLow')}</option>
               </select>
             </div>
           </div>
@@ -206,13 +208,13 @@ export default function Shop({ selectedCategory, setSelectedCategory, onSelectPr
             borderRadius: 'var(--radius-xl)',
             marginTop: '2rem'
           }}>
-            <h3 style={{ fontSize: '1.3rem', fontWeight: '700', marginBottom: '0.5rem' }}>No products found</h3>
-            <p style={{ color: '#666', marginBottom: '1.5rem' }}>Try clearing your search query or selecting a different category.</p>
+            <h3 style={{ fontSize: '1.3rem', fontWeight: '700', marginBottom: '0.5rem' }}>{t('shop.noProducts')}</h3>
+            <p style={{ color: '#666', marginBottom: '1.5rem' }}>{t('shop.noProductsDesc')}</p>
             <button
               onClick={() => { setSearch(''); setSelectedCategory('all'); }}
               className="btn btn-primary"
             >
-              Reset Filters
+              {t('shop.resetFilters')}
             </button>
           </div>
         ) : (

@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
-import { ShoppingBag, Search, Compass, Menu, X, ShieldCheck } from 'lucide-react';
+import { ShoppingBag, Compass, Menu, X } from 'lucide-react';
 import { useCart } from '../context/CartContext';
+import { useLanguage } from '../context/LanguageContext';
+import LanguageSwitcher from './LanguageSwitcher';
 
 export default function Header({ currentView, setCurrentView }) {
   const { totalQuantity, setIsDrawerOpen } = useCart();
+  const { t, isRtl } = useLanguage();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
@@ -27,7 +30,7 @@ export default function Header({ currentView, setCurrentView }) {
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           style={{ display: 'none', padding: '0.5rem' }}
           className="mobile-only"
-          aria-label="Toggle menu"
+          aria-label={t('nav.menu')}
         >
           {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
@@ -58,32 +61,32 @@ export default function Header({ currentView, setCurrentView }) {
             style={{
               fontSize: '0.85rem',
               fontWeight: currentView === 'home' ? '700' : '500',
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
+              letterSpacing: isRtl ? '0' : '0.08em',
+              textTransform: isRtl ? 'none' : 'uppercase',
               color: currentView === 'home' ? 'var(--color-primary-dark)' : 'var(--color-espresso)'
             }}
           >
-            Home
+            {t('nav.home')}
           </button>
           <button
             onClick={() => { setCurrentView('shop'); window.scrollTo(0,0); }}
             style={{
               fontSize: '0.85rem',
               fontWeight: currentView === 'shop' ? '700' : '500',
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
+              letterSpacing: isRtl ? '0' : '0.08em',
+              textTransform: isRtl ? 'none' : 'uppercase',
               color: currentView === 'shop' ? 'var(--color-primary-dark)' : 'var(--color-espresso)'
             }}
           >
-            Collection
+            {t('nav.collection')}
           </button>
           <button
             onClick={() => { setCurrentView('tracking'); window.scrollTo(0,0); }}
             style={{
               fontSize: '0.85rem',
               fontWeight: currentView === 'tracking' ? '700' : '500',
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
+              letterSpacing: isRtl ? '0' : '0.08em',
+              textTransform: isRtl ? 'none' : 'uppercase',
               color: currentView === 'tracking' ? 'var(--color-primary-dark)' : 'var(--color-espresso)',
               display: 'flex',
               alignItems: 'center',
@@ -91,15 +94,17 @@ export default function Header({ currentView, setCurrentView }) {
             }}
           >
             <Compass size={15} />
-            Track Order
+            {t('nav.trackOrder')}
           </button>
         </nav>
 
-        {/* Action icons */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+        {/* Action icons & Language switcher */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <LanguageSwitcher compact />
+
           <button
             onClick={() => { setCurrentView('tracking'); window.scrollTo(0,0); }}
-            title="Track Your Order"
+            title={t('nav.trackOrder')}
             style={{ color: 'var(--color-espresso)', padding: '0.4rem' }}
             className="mobile-only"
           >
@@ -117,14 +122,15 @@ export default function Header({ currentView, setCurrentView }) {
               color: 'var(--color-espresso)',
               transition: 'var(--transition-fast)'
             }}
-            aria-label="Open Shopping Bag"
+            aria-label={t('nav.cart')}
           >
             <ShoppingBag size={22} />
             {totalQuantity > 0 && (
               <span style={{
                 position: 'absolute',
                 top: '0px',
-                right: '0px',
+                right: isRtl ? 'auto' : '0px',
+                left: isRtl ? '0px' : 'auto',
                 backgroundColor: 'var(--color-espresso)',
                 color: '#FFFFFF',
                 borderRadius: '50%',
@@ -155,22 +161,22 @@ export default function Header({ currentView, setCurrentView }) {
         }}>
           <button
             onClick={() => { setCurrentView('home'); setMobileMenuOpen(false); }}
-            style={{ textAlign: 'left', fontSize: '1rem', fontWeight: '600', textTransform: 'uppercase' }}
+            style={{ textAlign: 'start', fontSize: '1rem', fontWeight: '600', textTransform: isRtl ? 'none' : 'uppercase' }}
           >
-            Home
+            {t('nav.home')}
           </button>
           <button
             onClick={() => { setCurrentView('shop'); setMobileMenuOpen(false); }}
-            style={{ textAlign: 'left', fontSize: '1rem', fontWeight: '600', textTransform: 'uppercase' }}
+            style={{ textAlign: 'start', fontSize: '1rem', fontWeight: '600', textTransform: isRtl ? 'none' : 'uppercase' }}
           >
-            Collection
+            {t('nav.collection')}
           </button>
           <button
             onClick={() => { setCurrentView('tracking'); setMobileMenuOpen(false); }}
-            style={{ textAlign: 'left', fontSize: '1rem', fontWeight: '600', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            style={{ textAlign: 'start', fontSize: '1rem', fontWeight: '600', textTransform: isRtl ? 'none' : 'uppercase', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
           >
             <Compass size={18} />
-            Track Order
+            {t('nav.trackOrder')}
           </button>
         </div>
       )}

@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { getImageUrl } from '../services/api';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function ProductCard({ product, onSelect }) {
+  const { t, formatCurrency, isRtl } = useLanguage();
   // Active selected color for preview
   const [selectedColorIndex, setSelectedColorIndex] = useState(0);
 
@@ -52,7 +54,7 @@ export default function ProductCard({ product, onSelect }) {
           <span style={{
             position: 'absolute',
             top: '14px',
-            right: '14px',
+            [isRtl ? 'left' : 'right']: '14px',
             backgroundColor: '#DC2626',
             color: '#FFFFFF',
             fontSize: '0.72rem',
@@ -72,18 +74,18 @@ export default function ProductCard({ product, onSelect }) {
           <span style={{
             position: 'absolute',
             top: '14px',
-            left: '14px',
+            [isRtl ? 'right' : 'left']: '14px',
             backgroundColor: 'var(--color-espresso)',
             color: '#FFFFFF',
             fontSize: '0.68rem',
             fontWeight: '700',
-            letterSpacing: '0.06em',
-            textTransform: 'uppercase',
+            letterSpacing: isRtl ? '0' : '0.06em',
+            textTransform: isRtl ? 'none' : 'uppercase',
             padding: '0.35rem 0.75rem',
             borderRadius: 'var(--radius-full)',
             zIndex: 2
           }}>
-            Best Seller
+            {t('home.newArrivals')}
           </span>
         )}
 
@@ -117,7 +119,7 @@ export default function ProductCard({ product, onSelect }) {
             className="btn btn-primary btn-sm"
             style={{ width: '100%', borderRadius: 'var(--radius-md)', padding: '0.7rem' }}
           >
-            Select Color & Size
+            {t('product.selectSize')}
           </button>
         </div>
       </div>
@@ -147,11 +149,6 @@ export default function ProductCard({ product, onSelect }) {
                 }}
               />
             ))}
-            {product.colors.length > 1 && (
-              <span style={{ fontSize: '0.72rem', color: '#777', marginLeft: '0.25rem' }}>
-                {product.colors.length} colors
-              </span>
-            )}
           </div>
         )}
 
@@ -173,7 +170,7 @@ export default function ProductCard({ product, onSelect }) {
               color: '#DC2626',
               letterSpacing: '-0.01em'
             }}>
-              {effectivePrice.toLocaleString()} DZD
+              {formatCurrency(effectivePrice)}
             </span>
             <span style={{
               fontSize: '0.85rem',
@@ -181,7 +178,7 @@ export default function ProductCard({ product, onSelect }) {
               textDecoration: 'line-through',
               fontWeight: '500'
             }}>
-              {product.sellingPrice.toLocaleString()} DZD
+              {formatCurrency(product.sellingPrice)}
             </span>
           </div>
         ) : (
@@ -191,7 +188,7 @@ export default function ProductCard({ product, onSelect }) {
             color: 'var(--color-espresso)',
             letterSpacing: '-0.01em'
           }}>
-            {product.sellingPrice.toLocaleString()} DZD
+            {formatCurrency(product.sellingPrice)}
           </div>
         )}
       </div>

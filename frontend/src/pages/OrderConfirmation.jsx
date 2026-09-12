@@ -1,8 +1,12 @@
-import React, { useEffect } from 'react';
-import { CheckCircle, Copy, Compass, ArrowRight, Package } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { CheckCircle, Copy, Compass } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function OrderConfirmation({ orderData, onTrackOrder, onContinueShopping }) {
+  const { t, isRtl, formatCurrency } = useLanguage();
+  const [copied, setCopied] = useState(false);
+
   useEffect(() => {
     // Fire celebratory confetti on arrival
     try {
@@ -22,11 +26,12 @@ export default function OrderConfirmation({ orderData, onTrackOrder, onContinueS
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(orderCode);
-    alert(`Order code ${orderCode} copied to clipboard!`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
   };
 
   return (
-    <div style={{ paddingTop: '4rem', paddingBottom: '7rem' }}>
+    <div style={{ paddingTop: '4rem', paddingBottom: '7rem' }} dir={isRtl ? 'rtl' : 'ltr'}>
       <div className="container" style={{ maxWidth: '680px', textAlign: 'center' }}>
         {/* Success Icon */}
         <div style={{
@@ -44,15 +49,20 @@ export default function OrderConfirmation({ orderData, onTrackOrder, onContinueS
         </div>
 
         <span style={{ fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--color-primary-dark)' }}>
-          Order Confirmed
+          {t('confirmation.orderConfirmed')}
         </span>
 
         <h1 className="heading-display" style={{ fontSize: 'clamp(2rem, 4vw, 2.8rem)', color: 'var(--color-espresso)', marginTop: '0.35rem', marginBottom: '1rem' }}>
-          THANK YOU FOR YOUR ORDER
+          {t('confirmation.thankYou')}
         </h1>
 
         <p style={{ fontSize: '1rem', color: '#666', lineHeight: 1.6, marginBottom: '2.5rem' }}>
-          Your order has been recorded successfully. Our customer support will contact you at <strong>{customer.phone}</strong> to confirm dispatch.
+          {t('confirmation.orderPlaced')}{' '}
+          {customer.phone && (
+            <span>
+              {t('confirmation.callNoticeWithPhone').replace('{phone}', customer.phone)}
+            </span>
+          )}
         </p>
 
         {/* Order Code Callout Box */}
@@ -65,7 +75,7 @@ export default function OrderConfirmation({ orderData, onTrackOrder, onContinueS
           marginBottom: '2.5rem'
         }}>
           <div style={{ fontSize: '0.85rem', color: '#777', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.5rem' }}>
-            Your Official Tracking Code
+            {t('confirmation.orderCode')}
           </div>
 
           <div style={{
@@ -88,19 +98,28 @@ export default function OrderConfirmation({ orderData, onTrackOrder, onContinueS
             <button
               onClick={handleCopyCode}
               style={{
-                padding: '0.5rem',
+                padding: '0.5rem 0.75rem',
                 borderRadius: 'var(--radius-md)',
-                backgroundColor: 'var(--color-bg-card)',
-                color: 'var(--color-espresso)'
+                backgroundColor: copied ? 'var(--color-success)' : 'var(--color-bg-card)',
+                color: copied ? '#fff' : 'var(--color-espresso)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                fontSize: '0.8rem',
+                fontWeight: '600',
+                transition: 'all 0.2s ease',
+                border: '1px solid var(--color-border)',
+                cursor: 'pointer'
               }}
-              title="Copy Code"
+              title={t('confirmation.copyCode')}
             >
-              <Copy size={18} />
+              <Copy size={16} />
+              <span>{copied ? t('confirmation.codeCopied') : t('confirmation.copyCode')}</span>
             </button>
           </div>
 
           <p style={{ fontSize: '0.82rem', color: '#666' }}>
-            Save this code! You can use this code and your phone number anytime to track live delivery status.
+            {t('confirmation.orderCodeHelp')}
           </p>
         </div>
 
@@ -109,25 +128,25 @@ export default function OrderConfirmation({ orderData, onTrackOrder, onContinueS
           backgroundColor: 'var(--color-bg-card)',
           borderRadius: 'var(--radius-lg)',
           padding: '1.75rem',
-          textAlign: 'left',
+          textAlign: isRtl ? 'right' : 'left',
           marginBottom: '2.5rem'
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-            <span style={{ fontSize: '0.9rem', color: '#666' }}>Recipient</span>
+            <span style={{ fontSize: '0.9rem', color: '#666' }}>{t('common.recipient')}</span>
             <span style={{ fontSize: '0.9rem', fontWeight: '600' }}>{customer.fullName}</span>
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-            <span style={{ fontSize: '0.9rem', color: '#666' }}>Delivery Destination</span>
+            <span style={{ fontSize: '0.9rem', color: '#666' }}>{t('confirmation.recapTitle')}</span>
             <span style={{ fontSize: '0.9rem', fontWeight: '600' }}>
-              Wilaya {customer.wilaya?.code} - {customer.wilaya?.name} ({customer.deliveryMethod === 'agency' ? 'Agency Pickup' : 'Home Delivery'})
+              {customer.wilaya?.code ? `${t('confirmation.wilaya')} ${customer.wilaya?.code} - ${customer.wilaya?.name}` : ''} ({customer.deliveryMethod === 'agency' ? t('checkout.agency') : t('checkout.home')})
             </span>
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--color-border)', paddingTop: '0.75rem' }}>
-            <span style={{ fontSize: '1.05rem', fontWeight: '700' }}>Total (Cash on Delivery)</span>
+            <span style={{ fontSize: '1.05rem', fontWeight: '700' }}>{t('checkout.totalToPayCod')}</span>
             <span style={{ fontSize: '1.15rem', fontWeight: '800', color: 'var(--color-espresso)' }}>
-              {orderData?.totalPrice?.toLocaleString()} DZD
+              {formatCurrency(orderData?.totalPrice || 0)}
             </span>
           </div>
         </div>
@@ -139,8 +158,8 @@ export default function OrderConfirmation({ orderData, onTrackOrder, onContinueS
             className="btn btn-primary"
             style={{ padding: '1rem 2rem' }}
           >
-            <Compass size={18} />
-            <span>Track Order Live</span>
+            <Compass size={18} className="rtl-flip" />
+            <span>{t('confirmation.trackCta')}</span>
           </button>
 
           <button
@@ -148,7 +167,7 @@ export default function OrderConfirmation({ orderData, onTrackOrder, onContinueS
             className="btn btn-secondary"
             style={{ padding: '1rem 1.75rem' }}
           >
-            <span>Continue Shopping</span>
+            <span>{t('cart.continueShopping')}</span>
           </button>
         </div>
       </div>

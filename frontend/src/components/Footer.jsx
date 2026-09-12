@@ -1,7 +1,9 @@
 import React from 'react';
-import { ShieldCheck } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function Footer({ setCurrentView }) {
+  const { t, isRtl } = useLanguage();
+
   return (
     <footer style={{
       backgroundColor: 'var(--color-bg-card)',
@@ -27,34 +29,35 @@ export default function Footer({ setCurrentView }) {
               style={{ height: '92px', width: 'auto', marginBottom: '1.25rem' }}
             />
             <p style={{ fontSize: '0.85rem', color: '#666', lineHeight: 1.7, maxWidth: '320px' }}>
-              Dedicated to designing graceful, modest, and timeless silhouettes for the contemporary Algerian woman. Handcrafted with authentic Saudi Medina silk, washed linen, and flowing wool peach fabrics.
+              {t('footer.description')}
             </p>
           </div>
 
           {/* Quick Links */}
           <div>
-            <h4 style={{ fontSize: '0.85rem', fontWeight: '700', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '1.25rem' }}>
-              Collection
+            <h4 style={{
+              fontSize: '0.85rem',
+              fontWeight: '700',
+              letterSpacing: isRtl ? '0' : '0.08em',
+              textTransform: isRtl ? 'none' : 'uppercase',
+              marginBottom: '1.25rem'
+            }}>
+              {t('footer.collection')}
             </h4>
             <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.85rem', color: '#555' }}>
               <li>
                 <button onClick={() => { setCurrentView('shop'); window.scrollTo(0,0); }} style={{ color: 'inherit' }}>
-                  Dresses
+                  {t('home.viewCollection')}
                 </button>
               </li>
               <li>
                 <button onClick={() => { setCurrentView('shop'); window.scrollTo(0,0); }} style={{ color: 'inherit' }}>
-                  Tops
+                  {t('home.newArrivals')}
                 </button>
               </li>
               <li>
                 <button onClick={() => { setCurrentView('shop'); window.scrollTo(0,0); }} style={{ color: 'inherit' }}>
-                  Skirts
-                </button>
-              </li>
-              <li>
-                <button onClick={() => { setCurrentView('shop'); window.scrollTo(0,0); }} style={{ color: 'inherit' }}>
-                  Ensembles
+                  {t('home.featuredCategories')}
                 </button>
               </li>
             </ul>
@@ -62,18 +65,24 @@ export default function Footer({ setCurrentView }) {
 
           {/* Customer Service */}
           <div>
-            <h4 style={{ fontSize: '0.85rem', fontWeight: '700', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '1.25rem' }}>
-              Customer Support
+            <h4 style={{
+              fontSize: '0.85rem',
+              fontWeight: '700',
+              letterSpacing: isRtl ? '0' : '0.08em',
+              textTransform: isRtl ? 'none' : 'uppercase',
+              marginBottom: '1.25rem'
+            }}>
+              {t('footer.support')}
             </h4>
             <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.85rem', color: '#555' }}>
               <li>
                 <button onClick={() => { setCurrentView('tracking'); window.scrollTo(0,0); }} style={{ color: 'inherit', fontWeight: '600' }}>
-                  Track Your Order
+                  {t('footer.trackOrder')}
                 </button>
               </li>
-              <li>Delivery to all 58 Wilayas</li>
-              <li>Care Guide for Medina Silk</li>
-              <li>Direct WhatsApp / Phone Support</li>
+              <li>{t('footer.allWilayas')}</li>
+              <li>{t('footer.careGuide')}</li>
+              <li>{t('footer.directSupport')}</li>
             </ul>
           </div>
         </div>
@@ -90,11 +99,11 @@ export default function Footer({ setCurrentView }) {
           fontSize: '0.78rem',
           color: '#888'
         }}>
-          <div>© {new Date().getFullYear()} MERYA DZ. All Rights Reserved. Modest Fashion Algeria.</div>
-          <div style={{ display: 'flex', gap: '1.5rem' }}>
-            <span>Privacy Policy</span>
-            <span>Terms of Service</span>
-            <span>Cash on Delivery Guarantee</span>
+          <div>© {new Date().getFullYear()} MERYA DZ. {t('footer.allRightsReserved')}</div>
+          <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
+            <span>{t('footer.privacy')}</span>
+            <span>{t('footer.terms')}</span>
+            <span>{t('footer.codGuarantee')}</span>
           </div>
         </div>
       </div>
