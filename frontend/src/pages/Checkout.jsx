@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   ArrowLeft,
   ShieldCheck,
@@ -48,6 +48,12 @@ export default function Checkout({ onBack, onOrderSuccess }) {
   const [errorMessage, setErrorMessage] = useState('');
   const [idempotencyKey, setIdempotencyKey] = useState(() => `idemp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`);
 
+  // Server live-quote state — authoritative display values once a quote is obtained
+  // null = no quote yet / loading; populated once server responds
+  const [liveQuote, setLiveQuote] = useState(null);
+  const [liveQuoteLoading, setLiveQuoteLoading] = useState(false);
+  const liveQuoteDebounceRef = useRef(null);
+
   const loadSettings = async () => {
     setLoadingSettings(true);
     setSettingsError(null);
@@ -87,27 +93,70 @@ export default function Checkout({ onBack, onOrderSuccess }) {
     loadSettings();
   }, []);
 
-  // Revalidate cart prices against live server products on page mount
+  /**
+   * Reactive live-quote effect.
+   *
+   * Triggers whenever the delivery selection (wilaya, method) or cart items change
+   * AND delivery settings are loaded. Uses a 300 ms debounce to avoid rapid
+   * re-fetches when the user scrolls through the Wilaya selector.
+   *
+   * Responsibility:
+   *   - Keeps the order-summary financial display in sync with server-authoritative data.
+   *   - Detects stale client prices and silently updates the cart.
+   *   - Does NOT gate checkout — the final POST /orders/quote at submit time is the
+   *     authoritative gate.
+   */
   useEffect(() => {
-    let isMounted = true;
-    async function syncCartOnMount() {
-      if (!items || items.length === 0) return;
-      setIsValidatingCart(true);
-      const res = await revalidateCartWithServer(items);
-      if (!isMounted) return;
-      setIsValidatingCart(false);
-
-      if (!res.success && res.issues.length > 0) {
-        setErrorMessage(res.issues.join(' • '));
-      } else if (res.pricesChanged) {
-        updateCartItems(res.updatedItems);
-        setCartNotice('Le prix de certains articles a été mis à jour. Votre panier a été actualisé.');
-      }
+    // Do not run until settings have been loaded successfully
+    if (loadingSettings || settingsError || !selectedWilayaCode || wilayas.length !== 58) return;
+    if (!items || items.length === 0) {
+      setLiveQuote(null);
+      return;
     }
 
-    syncCartOnMount();
-    return () => { isMounted = false; };
-  }, []);
+    let isMounted = true;
+
+    // Clear any pending debounce
+    if (liveQuoteDebounceRef.current) clearTimeout(liveQuoteDebounceRef.current);
+
+    liveQuoteDebounceRef.current = setTimeout(async () => {
+      setLiveQuoteLoading(true);
+      try {
+        const res = await revalidateCartWithServer(items, {
+          wilayaCode: selectedWilayaCode,
+          deliveryMethod
+        });
+
+        if (!isMounted) return;
+        setLiveQuoteLoading(false);
+
+        if (res.pricesChanged && res.updatedItems.length > 0) {
+          updateCartItems(res.updatedItems);
+          setCartNotice('Le prix de certains articles a été mis à jour. Votre panier a été actualisé.');
+        }
+
+        if (!res.success && res.issues.length > 0) {
+          // Cart has stock/availability issues — surface the error but keep quote data
+          setErrorMessage(res.issues.join(' • '));
+        }
+
+        // Store quote result regardless of validity — the delivery fees and
+        // totals returned by the server are still authoritative for display.
+        setLiveQuote(res);
+      } catch {
+        if (!isMounted) return;
+        setLiveQuoteLoading(false);
+        // On error: clear live quote so UI falls back to local calculation.
+        setLiveQuote(null);
+      }
+    }, 300);
+
+    return () => {
+      isMounted = false;
+      if (liveQuoteDebounceRef.current) clearTimeout(liveQuoteDebounceRef.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedWilayaCode, deliveryMethod, items, loadingSettings, settingsError]);
 
   // Look up selected Wilaya strictly from validated server data — NO hardcoded fallback values
   const selectedWilayaObj = (!loadingSettings && !settingsError && selectedWilayaCode !== null && wilayas.length === 58)
@@ -141,6 +190,29 @@ export default function Checkout({ onBack, onOrderSuccess }) {
   );
 
   const estimatedTotal = activeDeliveryFee !== null ? subtotal + activeDeliveryFee : null;
+
+  // ── Server-authoritative display values ─────────────────────────────────────
+  // Once a live quote is available from the server, use it as the display source
+  // of truth for subtotal, delivery fee, free-delivery status, and total.
+  // While loading or before the first quote completes, fall back to local calculation.
+  const hasLiveQuote = liveQuote !== null && typeof liveQuote.subtotal === 'number';
+  const displaySubtotal  = hasLiveQuote ? liveQuote.subtotal  : subtotal;
+  const displayDeliveryFee = hasLiveQuote && typeof liveQuote.deliveryFee === 'number'
+    ? liveQuote.deliveryFee
+    : activeDeliveryFee;
+  const displayIsFreeDelivery = hasLiveQuote
+    ? Boolean(liveQuote.isFreeDelivery)
+    : isFreeDelivery;
+  const displayFreeThreshold = hasLiveQuote && typeof liveQuote.freeDeliveryThreshold === 'number'
+    ? liveQuote.freeDeliveryThreshold
+    : freeDeliveryThreshold;
+  const displayTotal = hasLiveQuote && typeof liveQuote.totalPrice === 'number'
+    ? liveQuote.totalPrice
+    : estimatedTotal;
+  // The raw fee (before free-delivery override) for the strikethrough display
+  const displayRawFee = hasLiveQuote && displayIsFreeDelivery
+    ? (rawDeliveryFee !== null ? rawDeliveryFee : (displayDeliveryFee === 0 ? null : displayDeliveryFee))
+    : rawDeliveryFee;
 
   const isSubmitDisabled =
     loadingSettings === true ||
@@ -999,7 +1071,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                         <>
                           <CheckCircle2 size={19} />
                           <span>
-                            Confirmer ma commande {estimatedTotal !== null ? `(${estimatedTotal.toLocaleString()} DZD)` : ''}
+                            Confirmer ma commande {displayTotal !== null ? `(${displayTotal.toLocaleString()} DZD)` : ''}
                           </span>
                         </>
                       )}
@@ -1205,7 +1277,12 @@ export default function Checkout({ onBack, onOrderSuccess }) {
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem', color: '#666' }}>
                 <span>Sous-total articles</span>
-                <span style={{ fontWeight: '600', color: '#2A241F' }}>{subtotal.toLocaleString()} DZD</span>
+                <span style={{ fontWeight: '600', color: '#2A241F' }}>
+                  {liveQuoteLoading
+                    ? <span style={{ fontSize: '0.8rem', color: '#9F8268' }}>Calcul en cours...</span>
+                    : `${displaySubtotal.toLocaleString()} DZD`
+                  }
+                </span>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem', color: '#666' }}>
@@ -1213,21 +1290,25 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                   <Truck size={15} color="#9F8268" />
                   Livraison ({deliveryMethod === 'agency' ? 'Stopdesk' : 'À domicile'} {selectedWilayaObj ? `- Wilaya ${selectedWilayaObj.code}` : ''})
                 </span>
-                <span style={{ fontWeight: '600', color: isFreeDelivery ? '#16A34A' : '#2A241F' }}>
+                <span style={{ fontWeight: '600', color: displayIsFreeDelivery ? '#16A34A' : '#2A241F' }}>
                   {loadingSettings ? (
                     <span style={{ fontSize: '0.8rem', color: '#9F8268' }}>Calcul en cours...</span>
-                  ) : Boolean(settingsError) ? (
+                  ) : settingsError ? (
                     <span style={{ fontSize: '0.8rem', color: '#DC2626' }}>Non disponible</span>
-                  ) : activeDeliveryFee !== null ? (
-                    isFreeDelivery ? (
+                  ) : liveQuoteLoading ? (
+                    <span style={{ fontSize: '0.8rem', color: '#9F8268' }}>Calcul en cours...</span>
+                  ) : displayDeliveryFee !== null ? (
+                    displayIsFreeDelivery ? (
                       <span style={{ color: '#16A34A', fontWeight: '700', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
                         <span>Livraison offerte</span>
-                        <span style={{ fontSize: '0.75rem', textDecoration: 'line-through', color: '#999', fontWeight: '400' }}>
-                          +{rawDeliveryFee.toLocaleString()} DZD
-                        </span>
+                        {displayRawFee !== null && (
+                          <span style={{ fontSize: '0.75rem', textDecoration: 'line-through', color: '#999', fontWeight: '400' }}>
+                            +{displayRawFee.toLocaleString()} DZD
+                          </span>
+                        )}
                       </span>
                     ) : (
-                      `+${activeDeliveryFee.toLocaleString()} DZD`
+                      `+${displayDeliveryFee.toLocaleString()} DZD`
                     )
                   ) : (
                     '—'
@@ -1236,7 +1317,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
               </div>
 
               {/* Free delivery badge or threshold hint */}
-              {isFreeDelivery && (
+              {displayIsFreeDelivery && (
                 <div style={{
                   fontSize: '0.78rem',
                   color: '#16A34A',
@@ -1250,11 +1331,11 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                   fontWeight: '600'
                 }}>
                   <span>🎁</span>
-                  <span>Livraison offerte appliquée (seuil de {freeDeliveryThreshold.toLocaleString()} DZD atteint)</span>
+                  <span>Livraison offerte appliquée (seuil de {displayFreeThreshold.toLocaleString()} DZD atteint)</span>
                 </div>
               )}
 
-              {!isFreeDelivery && freeDeliveryThreshold > 0 && subtotal < freeDeliveryThreshold && isSettingsReady && (
+              {!displayIsFreeDelivery && displayFreeThreshold > 0 && displaySubtotal < displayFreeThreshold && isSettingsReady && (
                 <div style={{
                   fontSize: '0.76rem',
                   color: '#9F8268',
@@ -1268,7 +1349,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                 }}>
                   <span>💡</span>
                   <span>
-                    Plus que <strong>{(freeDeliveryThreshold - subtotal).toLocaleString()} DZD</strong> pour bénéficier de la <strong>livraison offerte</strong> !
+                    Plus que <strong>{(displayFreeThreshold - displaySubtotal).toLocaleString()} DZD</strong> pour bénéficier de la <strong>livraison offerte</strong> !
                   </span>
                 </div>
               )}
@@ -1286,8 +1367,10 @@ export default function Checkout({ onBack, onOrderSuccess }) {
               }}>
                 <span>Total à régler (COD)</span>
                 <span style={{ color: '#9F8268', fontSize: '1.35rem' }}>
-                  {estimatedTotal !== null ? (
-                    `${estimatedTotal.toLocaleString()} DZD`
+                  {liveQuoteLoading ? (
+                    <span style={{ fontSize: '0.95rem', color: '#9F8268', fontWeight: '600' }}>Calcul en cours...</span>
+                  ) : displayTotal !== null ? (
+                    `${displayTotal.toLocaleString()} DZD`
                   ) : loadingSettings ? (
                     <span style={{ fontSize: '0.95rem', color: '#9F8268', fontWeight: '600' }}>Calcul en cours...</span>
                   ) : (

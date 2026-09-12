@@ -737,6 +737,213 @@ describe('MERYA DZ Price Consistency & Free Delivery Hardening', () => {
       assert.strictEqual(res.body.isValid, false);
       assert.ok(res.body.issues[0].includes('Stock insuffisant'));
     });
+
+    test('Quote endpoint rejects product that is inactive (isActive: false)', async () => {
+      const { getCartQuote } = await import('../src/controllers/orderController.js');
+      // Temporarily mark product inactive
+      await Product.findByIdAndUpdate(testProduct._id, { isActive: false });
+      const res = mockRes();
+      await getCartQuote({ body: { items: [{ productId: testProduct._id, colorName: 'Noir', size: 'M', quantity: 1 }] } }, res, () => {});
+      assert.strictEqual(res.body.isValid, false);
+      const hasIssue = res.body.issues.some(i => i.includes('n\'est plus disponible') || i.includes('disponible'));
+      assert.ok(hasIssue, 'Inactive product must generate an availability issue');
+      const quoted = res.body.items.find(i => String(i.productId) === String(testProduct._id));
+      assert.ok(quoted, 'Quote must include the item entry even when unavailable');
+      assert.strictEqual(quoted.isAvailable, false);
+      // Restore
+      await Product.findByIdAndUpdate(testProduct._id, { isActive: true });
+    });
+
+    test('Quote endpoint rejects product that is archived (isArchived: true)', async () => {
+      const { getCartQuote } = await import('../src/controllers/orderController.js');
+      await Product.findByIdAndUpdate(testProduct._id, { isArchived: true });
+      const res = mockRes();
+      await getCartQuote({ body: { items: [{ productId: testProduct._id, colorName: 'Noir', size: 'M', quantity: 1 }] } }, res, () => {});
+      assert.strictEqual(res.body.isValid, false);
+      const hasIssue = res.body.issues.some(i => i.includes('n\'est plus disponible') || i.includes('disponible'));
+      assert.ok(hasIssue, 'Archived product must generate an availability issue');
+      // Restore
+      await Product.findByIdAndUpdate(testProduct._id, { isArchived: false });
+    });
+
+    test('Quote endpoint handles invalid color name', async () => {
+      const { getCartQuote } = await import('../src/controllers/orderController.js');
+      const res = mockRes();
+      await getCartQuote({ body: { items: [{ productId: testProduct._id, colorName: 'NonExistentColor', size: 'M', quantity: 1 }] } }, res, () => {});
+      assert.strictEqual(res.body.isValid, false);
+      assert.ok(res.body.issues.some(i => i.includes('couleur') || i.includes('NonExistentColor')));
+    });
+
+    test('Quote endpoint handles invalid size', async () => {
+      const { getCartQuote } = await import('../src/controllers/orderController.js');
+      const res = mockRes();
+      await getCartQuote({ body: { items: [{ productId: testProduct._id, colorName: 'Noir', size: 'XXXL', quantity: 1 }] } }, res, () => {});
+      assert.strictEqual(res.body.isValid, false);
+      assert.ok(res.body.issues.some(i => i.includes('taille') || i.includes('XXXL')));
+    });
+
+    test('Quote endpoint with agency delivery returns agencyFee (not homeFee)', async () => {
+      const { getCartQuote } = await import('../src/controllers/orderController.js');
+      // subtotal = 1 * 6500 = 6500 < 10000 threshold, so fee applies
+      const res = mockRes();
+      await getCartQuote({
+        body: {
+          items: [{ productId: testProduct._id, colorName: 'Noir', size: 'M', quantity: 1 }],
+          wilayaCode: 16,
+          deliveryMethod: 'agency'
+        }
+      }, res, () => {});
+      assert.strictEqual(res.body.success, true);
+      assert.strictEqual(res.body.deliveryFee, 500, 'Agency fee for Wilaya 16 must be 500 DZD');
+      assert.strictEqual(res.body.isFreeDelivery, false);
+      assert.strictEqual(res.body.totalPrice, 6500 + 500);
+    });
+
+    test('Quote endpoint with home delivery returns homeFee (not agencyFee)', async () => {
+      const { getCartQuote } = await import('../src/controllers/orderController.js');
+      const res = mockRes();
+      await getCartQuote({
+        body: {
+          items: [{ productId: testProduct._id, colorName: 'Noir', size: 'M', quantity: 1 }],
+          wilayaCode: 16,
+          deliveryMethod: 'home'
+        }
+      }, res, () => {});
+      assert.strictEqual(res.body.success, true);
+      assert.strictEqual(res.body.deliveryFee, 800, 'Home fee for Wilaya 16 must be 800 DZD');
+      assert.strictEqual(res.body.isFreeDelivery, false);
+      assert.strictEqual(res.body.totalPrice, 6500 + 800);
+    });
+
+    test('Quote endpoint applies active promotion price', async () => {
+      const { getCartQuote } = await import('../src/controllers/orderController.js');
+      // Enable promotion on testProduct (promotionalPrice = 6500 < sellingPrice 8000)
+      await Product.findByIdAndUpdate(testProduct._id, { 'promotion.active': true });
+      const res = mockRes();
+      await getCartQuote({
+        body: { items: [{ productId: testProduct._id, colorName: 'Noir', size: 'M', quantity: 1 }] }
+      }, res, () => {});
+      assert.strictEqual(res.body.success, true);
+      assert.strictEqual(res.body.items[0].unitPrice, 6500, 'Quote must return promotional price 6500 DZD');
+      assert.strictEqual(res.body.items[0].originalPrice, 8000, 'Quote must return original selling price 8000 DZD');
+      // Restore
+      await Product.findByIdAndUpdate(testProduct._id, { 'promotion.active': false });
+    });
+
+    test('Quote endpoint uses sellingPrice when promotion is inactive', async () => {
+      const { getCartQuote } = await import('../src/controllers/orderController.js');
+      await Product.findByIdAndUpdate(testProduct._id, { 'promotion.active': false });
+      const res = mockRes();
+      await getCartQuote({
+        body: { items: [{ productId: testProduct._id, colorName: 'Noir', size: 'M', quantity: 1 }] }
+      }, res, () => {});
+      assert.strictEqual(res.body.items[0].unitPrice, 8000, 'Inactive promotion: quote must return sellingPrice 8000 DZD');
+    });
+
+    test('Quote for invalid Wilaya code returns deliveryFee null (ignores unknown Wilaya)', async () => {
+      const { getCartQuote } = await import('../src/controllers/orderController.js');
+      const res = mockRes();
+      await getCartQuote({
+        body: {
+          items: [{ productId: testProduct._id, colorName: 'Noir', size: 'M', quantity: 1 }],
+          wilayaCode: 99,  // non-existent Wilaya code
+          deliveryMethod: 'home'
+        }
+      }, res, () => {});
+      assert.strictEqual(res.body.success, true);
+      // Quote still succeeds for the item, but deliveryFee must be null (wilaya not found)
+      assert.strictEqual(res.body.deliveryFee, null, 'Unknown Wilaya must yield null deliveryFee in quote');
+    });
+
+    test('Quote for unavailable Wilaya returns deliveryFee null', async () => {
+      const { getCartQuote } = await import('../src/controllers/orderController.js');
+      // Mark Wilaya 58 unavailable
+      await DeliverySetting.updateOne(
+        { 'wilayaRates.wilayaCode': 58 },
+        { $set: { 'wilayaRates.$.isAvailable': false } }
+      );
+
+      const res = mockRes();
+      await getCartQuote({
+        body: {
+          items: [{ productId: testProduct._id, colorName: 'Noir', size: 'M', quantity: 1 }],
+          wilayaCode: 58,
+          deliveryMethod: 'home'
+        }
+      }, res, () => {});
+      assert.strictEqual(res.body.success, true);
+      assert.strictEqual(res.body.deliveryFee, null, 'Unavailable Wilaya must yield null deliveryFee in quote');
+
+      // Restore
+      await DeliverySetting.updateOne(
+        { 'wilayaRates.wilayaCode': 58 },
+        { $set: { 'wilayaRates.$.isAvailable': true } }
+      );
+    });
+
+    test('Delivery synchronization: switching wilaya produces different deliveryFee in quote', async () => {
+      const { getCartQuote } = await import('../src/controllers/orderController.js');
+      // Set different fees for two Wilayas in test settings (already 800/500 for all)
+      await DeliverySetting.updateOne(
+        { 'wilayaRates.wilayaCode': 2 },
+        { $set: { 'wilayaRates.$.homeFee': 1200 } }
+      );
+
+      const resW16 = mockRes();
+      await getCartQuote({
+        body: { items: [{ productId: testProduct._id, colorName: 'Noir', size: 'M', quantity: 1 }], wilayaCode: 16, deliveryMethod: 'home' }
+      }, resW16, () => {});
+
+      const resW2 = mockRes();
+      await getCartQuote({
+        body: { items: [{ productId: testProduct._id, colorName: 'Noir', size: 'M', quantity: 1 }], wilayaCode: 2, deliveryMethod: 'home' }
+      }, resW2, () => {});
+
+      assert.strictEqual(resW16.body.deliveryFee, 800, 'Wilaya 16 home fee must be 800 DZD');
+      assert.strictEqual(resW2.body.deliveryFee, 1200, 'Wilaya 2 home fee must be 1200 DZD after update');
+      assert.notStrictEqual(resW16.body.deliveryFee, resW2.body.deliveryFee, 'Different Wilayas must produce different delivery fees');
+
+      // Restore Wilaya 2 fee
+      await DeliverySetting.updateOne(
+        { 'wilayaRates.wilayaCode': 2 },
+        { $set: { 'wilayaRates.$.homeFee': 800 } }
+      );
+    });
+
+    test('Delivery synchronization: switching agency vs home produces different deliveryFee', async () => {
+      const { getCartQuote } = await import('../src/controllers/orderController.js');
+
+      const resHome = mockRes();
+      await getCartQuote({
+        body: { items: [{ productId: testProduct._id, colorName: 'Noir', size: 'M', quantity: 1 }], wilayaCode: 16, deliveryMethod: 'home' }
+      }, resHome, () => {});
+
+      const resAgency = mockRes();
+      await getCartQuote({
+        body: { items: [{ productId: testProduct._id, colorName: 'Noir', size: 'M', quantity: 1 }], wilayaCode: 16, deliveryMethod: 'agency' }
+      }, resAgency, () => {});
+
+      assert.strictEqual(resHome.body.deliveryFee, 800);
+      assert.strictEqual(resAgency.body.deliveryFee, 500);
+      assert.notStrictEqual(resHome.body.deliveryFee, resAgency.body.deliveryFee, 'Home vs agency delivery must produce different fees');
+    });
+
+    test('Quote with empty items array returns HTTP 400', async () => {
+      const { getCartQuote } = await import('../src/controllers/orderController.js');
+      const res = mockRes();
+      await getCartQuote({ body: { items: [] } }, res, () => {});
+      assert.strictEqual(res.statusCode, 400);
+      assert.strictEqual(res.body.success, false);
+    });
+
+    test('Quote with invalid item parameters (missing productId) reports issue without crashing', async () => {
+      const { getCartQuote } = await import('../src/controllers/orderController.js');
+      const res = mockRes();
+      await getCartQuote({ body: { items: [{ colorName: 'Noir', size: 'M', quantity: 1 }] } }, res, () => {});
+      assert.strictEqual(res.body.success, true);
+      assert.strictEqual(res.body.isValid, false);
+      assert.ok(res.body.issues.length > 0);
+    });
   });
 
   describe('7. WebSocket Admin Session Revocation Hardening', () => {

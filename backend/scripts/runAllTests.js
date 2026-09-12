@@ -38,7 +38,8 @@ const testSuite = [
   { name: 'securityVerification.js', isNodeTest: false, desc: 'Security guards, JWT secrets, environment startup' },
   { name: 'statusConcurrencyTest.js', isNodeTest: false, desc: 'Simultaneous status transitions & return/deduct concurrency' },
   { name: 'websocketReconnectResubscriptionTest.js', isNodeTest: false, desc: 'WebSocket reconnect, auto-resubscription & timer deduplication' },
-  { name: 'e2eVerification.js', isNodeTest: false, desc: 'E2E verification with WebSocket push notification' }
+  { name: 'e2eVerification.js', isNodeTest: false, desc: 'E2E verification with WebSocket push notification' },
+  { name: 'promotionsAndWilayas69Test.js', isNodeTest: false, desc: '58-Wilaya boundary checks, promotions lifecycle & historical price protection' }
 ];
 
 console.log('================================================================');
