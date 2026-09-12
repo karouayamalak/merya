@@ -52,6 +52,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
   // null = no quote yet / loading; populated once server responds
   const [liveQuote, setLiveQuote] = useState(null);
   const [liveQuoteLoading, setLiveQuoteLoading] = useState(false);
+  const [liveQuoteError, setLiveQuoteError] = useState('');
   const liveQuoteDebounceRef = useRef(null);
 
   const loadSettings = async () => {
@@ -80,7 +81,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
           setSelectedWilayaCode(firstAvailable ? firstAvailable.code : (validation.wilayas[0]?.code || null));
         }
       }
-    } catch (err) {
+    } catch {
       setLoadingSettings(false);
       setSettingsError('Impossible de charger les informations de livraison. Veuillez réessayer.');
       setWilayas([]);
@@ -103,14 +104,15 @@ export default function Checkout({ onBack, onOrderSuccess }) {
    * Responsibility:
    *   - Keeps the order-summary financial display in sync with server-authoritative data.
    *   - Detects stale client prices and silently updates the cart.
-   *   - Does NOT gate checkout — the final POST /orders/quote at submit time is the
-   *     authoritative gate.
+   *   - Does NOT gate checkout alone — the final POST /orders/quote at submit time is the
+   *     authoritative hard gate.
    */
   useEffect(() => {
     // Do not run until settings have been loaded successfully
     if (loadingSettings || settingsError || !selectedWilayaCode || wilayas.length !== 58) return;
     if (!items || items.length === 0) {
       setLiveQuote(null);
+      setLiveQuoteError('');
       return;
     }
 
@@ -121,6 +123,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
 
     liveQuoteDebounceRef.current = setTimeout(async () => {
       setLiveQuoteLoading(true);
+      setLiveQuoteError('');
       try {
         const res = await revalidateCartWithServer(items, {
           wilayaCode: selectedWilayaCode,
@@ -135,19 +138,23 @@ export default function Checkout({ onBack, onOrderSuccess }) {
           setCartNotice('Le prix de certains articles a été mis à jour. Votre panier a été actualisé.');
         }
 
-        if (!res.success && res.issues.length > 0) {
-          // Cart has stock/availability issues — surface the error but keep quote data
-          setErrorMessage(res.issues.join(' • '));
+        if (res.success && res.isValid) {
+          setLiveQuote(res);
+          setLiveQuoteError('');
+        } else {
+          // Quote unavailable or invalid
+          setLiveQuote(null);
+          const errMsg = res.issues && res.issues.length > 0
+            ? res.issues.join(' • ')
+            : 'Impossible de vérifier les prix actuels et le montant total de la commande.';
+          setLiveQuoteError(errMsg);
+          setErrorMessage(errMsg);
         }
-
-        // Store quote result regardless of validity — the delivery fees and
-        // totals returned by the server are still authoritative for display.
-        setLiveQuote(res);
       } catch {
         if (!isMounted) return;
         setLiveQuoteLoading(false);
-        // On error: clear live quote so UI falls back to local calculation.
         setLiveQuote(null);
+        setLiveQuoteError('Impossible de vérifier les prix actuels et le montant total de la commande. Veuillez vérifier votre connexion.');
       }
     }, 300);
 
@@ -192,25 +199,30 @@ export default function Checkout({ onBack, onOrderSuccess }) {
   const estimatedTotal = activeDeliveryFee !== null ? subtotal + activeDeliveryFee : null;
 
   // ── Server-authoritative display values ─────────────────────────────────────
-  // Once a live quote is available from the server, use it as the display source
-  // of truth for subtotal, delivery fee, free-delivery status, and total.
-  // While loading or before the first quote completes, fall back to local calculation.
-  const hasLiveQuote = liveQuote !== null && typeof liveQuote.subtotal === 'number';
-  const displaySubtotal  = hasLiveQuote ? liveQuote.subtotal  : subtotal;
-  const displayDeliveryFee = hasLiveQuote && typeof liveQuote.deliveryFee === 'number'
+  // Server quote is the STRICT source of truth for financial display.
+  // If quote is unavailable, invalid, or loading, we do NOT display potentially stale
+  // local estimates as if they were authoritative.
+  const hasValidLiveQuote = Boolean(
+    liveQuote &&
+    liveQuote.success &&
+    liveQuote.isValid &&
+    typeof liveQuote.subtotal === 'number' &&
+    typeof liveQuote.totalPrice === 'number'
+  );
+
+  const displaySubtotal = hasValidLiveQuote ? liveQuote.subtotal : null;
+  const displayDeliveryFee = hasValidLiveQuote && typeof liveQuote.deliveryFee === 'number'
     ? liveQuote.deliveryFee
-    : activeDeliveryFee;
-  const displayIsFreeDelivery = hasLiveQuote
+    : null;
+  const displayIsFreeDelivery = hasValidLiveQuote
     ? Boolean(liveQuote.isFreeDelivery)
-    : isFreeDelivery;
-  const displayFreeThreshold = hasLiveQuote && typeof liveQuote.freeDeliveryThreshold === 'number'
+    : false;
+  const displayFreeThreshold = hasValidLiveQuote && typeof liveQuote.freeDeliveryThreshold === 'number'
     ? liveQuote.freeDeliveryThreshold
     : freeDeliveryThreshold;
-  const displayTotal = hasLiveQuote && typeof liveQuote.totalPrice === 'number'
-    ? liveQuote.totalPrice
-    : estimatedTotal;
+  const displayTotal = hasValidLiveQuote ? liveQuote.totalPrice : null;
   // The raw fee (before free-delivery override) for the strikethrough display
-  const displayRawFee = hasLiveQuote && displayIsFreeDelivery
+  const displayRawFee = hasValidLiveQuote && displayIsFreeDelivery
     ? (rawDeliveryFee !== null ? rawDeliveryFee : (displayDeliveryFee === 0 ? null : displayDeliveryFee))
     : rawDeliveryFee;
 
@@ -223,7 +235,9 @@ export default function Checkout({ onBack, onOrderSuccess }) {
     !isWilayaAvailable ||
     items.length === 0 ||
     isSubmitting === true ||
-    isValidatingCart === true;
+    isValidatingCart === true ||
+    liveQuoteLoading === true ||
+    !hasValidLiveQuote;
 
   const handleSubmitOrder = async (e) => {
     e.preventDefault();
@@ -1067,6 +1081,16 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                           <AlertCircle size={19} />
                           <span>Wilaya non desservie</span>
                         </>
+                      ) : liveQuoteLoading ? (
+                        <>
+                          <Loader2 size={19} className="animate-spin" />
+                          <span>Calcul du montant en cours...</span>
+                        </>
+                      ) : !hasValidLiveQuote ? (
+                        <>
+                          <AlertCircle size={19} />
+                          <span>Vérification du panier requise</span>
+                        </>
                       ) : (
                         <>
                           <CheckCircle2 size={19} />
@@ -1275,13 +1299,34 @@ export default function Checkout({ onBack, onOrderSuccess }) {
               flexDirection: 'column',
               gap: '0.75rem'
             }}>
+              {liveQuoteError && !liveQuoteLoading && (
+                <div style={{
+                  fontSize: '0.78rem',
+                  color: '#DC2626',
+                  backgroundColor: '#FEF2F2',
+                  border: '1px solid #FECACA',
+                  borderRadius: '10px',
+                  padding: '0.55rem 0.75rem',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '0.45rem',
+                  lineHeight: '1.4'
+                }}>
+                  <AlertCircle size={15} style={{ flexShrink: 0, marginTop: '0.1rem' }} />
+                  <span>{liveQuoteError}</span>
+                </div>
+              )}
+
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem', color: '#666' }}>
                 <span>Sous-total articles</span>
                 <span style={{ fontWeight: '600', color: '#2A241F' }}>
-                  {liveQuoteLoading
-                    ? <span style={{ fontSize: '0.8rem', color: '#9F8268' }}>Calcul en cours...</span>
-                    : `${displaySubtotal.toLocaleString()} DZD`
-                  }
+                  {liveQuoteLoading ? (
+                    <span style={{ fontSize: '0.8rem', color: '#9F8268' }}>Calcul en cours...</span>
+                  ) : displaySubtotal !== null ? (
+                    `${displaySubtotal.toLocaleString()} DZD`
+                  ) : (
+                    <span style={{ fontSize: '0.8rem', color: '#DC2626' }}>Indisponible</span>
+                  )}
                 </span>
               </div>
 
@@ -1291,12 +1336,10 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                   Livraison ({deliveryMethod === 'agency' ? 'Stopdesk' : 'À domicile'} {selectedWilayaObj ? `- Wilaya ${selectedWilayaObj.code}` : ''})
                 </span>
                 <span style={{ fontWeight: '600', color: displayIsFreeDelivery ? '#16A34A' : '#2A241F' }}>
-                  {loadingSettings ? (
+                  {loadingSettings || liveQuoteLoading ? (
                     <span style={{ fontSize: '0.8rem', color: '#9F8268' }}>Calcul en cours...</span>
                   ) : settingsError ? (
                     <span style={{ fontSize: '0.8rem', color: '#DC2626' }}>Non disponible</span>
-                  ) : liveQuoteLoading ? (
-                    <span style={{ fontSize: '0.8rem', color: '#9F8268' }}>Calcul en cours...</span>
                   ) : displayDeliveryFee !== null ? (
                     displayIsFreeDelivery ? (
                       <span style={{ color: '#16A34A', fontWeight: '700', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -1311,7 +1354,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                       `+${displayDeliveryFee.toLocaleString()} DZD`
                     )
                   ) : (
-                    '—'
+                    <span style={{ fontSize: '0.8rem', color: '#DC2626' }}>Indisponible</span>
                   )}
                 </span>
               </div>
@@ -1335,7 +1378,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                 </div>
               )}
 
-              {!displayIsFreeDelivery && displayFreeThreshold > 0 && displaySubtotal < displayFreeThreshold && isSettingsReady && (
+              {!displayIsFreeDelivery && displayFreeThreshold > 0 && displaySubtotal !== null && displaySubtotal < displayFreeThreshold && isSettingsReady && (
                 <div style={{
                   fontSize: '0.76rem',
                   color: '#9F8268',
@@ -1371,10 +1414,8 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                     <span style={{ fontSize: '0.95rem', color: '#9F8268', fontWeight: '600' }}>Calcul en cours...</span>
                   ) : displayTotal !== null ? (
                     `${displayTotal.toLocaleString()} DZD`
-                  ) : loadingSettings ? (
-                    <span style={{ fontSize: '0.95rem', color: '#9F8268', fontWeight: '600' }}>Calcul en cours...</span>
                   ) : (
-                    <span style={{ fontSize: '0.95rem', color: '#DC2626', fontWeight: '600' }}>En attente</span>
+                    <span style={{ fontSize: '0.95rem', color: '#DC2626', fontWeight: '600' }}>Indisponible</span>
                   )}
                 </span>
               </div>

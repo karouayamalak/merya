@@ -175,39 +175,138 @@ export async function revalidateCartWithServer(
 
     const quoteRes = await quoteFn(quotePayload);
 
+    const failClosed = (reason) => ({
+      success: false,
+      isValid: false,
+      issues: [reason || 'Impossible de vérifier votre panier. Veuillez réessayer.'],
+      pricesChanged: false,
+      updatedItems: [],
+      subtotal: null,
+      deliveryFee: null,
+      freeDeliveryThreshold: 0,
+      isFreeDelivery: false,
+      totalPrice: null
+    });
+
     // 2. Strict response structure validation (fail closed if malformed or invalid)
     if (
       !quoteRes ||
       typeof quoteRes !== 'object' ||
       quoteRes.success !== true ||
       !Array.isArray(quoteRes.items) ||
-      typeof quoteRes.subtotal !== 'number'
+      typeof quoteRes.subtotal !== 'number' ||
+      !Number.isFinite(quoteRes.subtotal) ||
+      quoteRes.subtotal < 0
     ) {
+      return failClosed('Réponse du serveur invalide ou corrompue.');
+    }
+
+    if (quoteRes.freeDeliveryThreshold !== undefined && quoteRes.freeDeliveryThreshold !== null) {
+      if (
+        typeof quoteRes.freeDeliveryThreshold !== 'number' ||
+        !Number.isFinite(quoteRes.freeDeliveryThreshold) ||
+        quoteRes.freeDeliveryThreshold < 0
+      ) {
+        return failClosed('Seuil de livraison offerte retourné par le serveur invalide.');
+      }
+    }
+
+    if (quoteRes.isFreeDelivery !== undefined && typeof quoteRes.isFreeDelivery !== 'boolean') {
+      return failClosed('Statut de livraison offerte retourné par le serveur invalide.');
+    }
+
+    const deliverySupplied = (options.wilayaCode !== undefined && options.wilayaCode !== null) || Boolean(options.deliveryMethod);
+    if (deliverySupplied && quoteRes.isValid === true) {
+      if (
+        typeof quoteRes.deliveryFee !== 'number' ||
+        !Number.isFinite(quoteRes.deliveryFee) ||
+        quoteRes.deliveryFee < 0
+      ) {
+        return failClosed('Frais de livraison retournés par le serveur invalides pour la wilaya spécifiée.');
+      }
+      if (
+        typeof quoteRes.totalPrice !== 'number' ||
+        !Number.isFinite(quoteRes.totalPrice) ||
+        quoteRes.totalPrice < quoteRes.subtotal
+      ) {
+        return failClosed('Total commande retourné par le serveur invalide.');
+      }
+    }
+
+    const issues = Array.isArray(quoteRes.issues) ? quoteRes.issues : [];
+
+    // If server authoritatively reported cart issues or isValid: false, return server issues
+    if (quoteRes.isValid === false || issues.length > 0) {
       return {
         success: false,
-        issues: ['Impossible de vérifier votre panier. Veuillez réessayer.'],
+        isValid: false,
+        issues: issues.length > 0 ? issues : ['Le panier contient des articles non valides.'],
         pricesChanged: false,
         updatedItems: [],
-        subtotal: null,
-        deliveryFee: null,
-        freeDeliveryThreshold: 0,
-        isFreeDelivery: false,
-        totalPrice: null
+        subtotal: quoteRes.subtotal,
+        deliveryFee: typeof quoteRes.deliveryFee === 'number' && Number.isFinite(quoteRes.deliveryFee) ? quoteRes.deliveryFee : null,
+        freeDeliveryThreshold: (typeof quoteRes.freeDeliveryThreshold === 'number' && Number.isFinite(quoteRes.freeDeliveryThreshold)) ? quoteRes.freeDeliveryThreshold : 0,
+        isFreeDelivery: Boolean(quoteRes.isFreeDelivery),
+        totalPrice: typeof quoteRes.totalPrice === 'number' && Number.isFinite(quoteRes.totalPrice) ? quoteRes.totalPrice : quoteRes.subtotal
       };
     }
 
-    // 3. Map server-authoritative quoted items and detect price adjustments
-    let pricesChanged = false;
+    // Ensure 1-to-1 line matching between requested cart items and quoted items
+    if (quoteRes.items.length !== cartItems.length) {
+      return failClosed('Nombre d\'articles retournés par le serveur incorrect.');
+    }
+
+    const matchedQuoteIndices = new Set();
     const updatedItems = [];
+    let pricesChanged = false;
 
     for (const item of cartItems) {
-      const quoted = quoteRes.items.find(q =>
-        String(q.productId) === String(item.productId) &&
-        q.colorName === item.colorName &&
-        q.size === item.size
-      );
+      const matchingIndices = [];
+      quoteRes.items.forEach((q, idx) => {
+        if (
+          q &&
+          String(q.productId) === String(item.productId) &&
+          q.colorName === item.colorName &&
+          q.size === item.size
+        ) {
+          matchingIndices.push(idx);
+        }
+      });
 
-      if (!quoted || !quoted.isAvailable || !quoted.inStock) {
+      if (matchingIndices.length !== 1) {
+        return failClosed(
+          matchingIndices.length === 0
+            ? `Article manquant dans la réponse du serveur : ${item.productName || item.productId}.`
+            : `Article dupliqué dans la réponse du serveur : ${item.productName || item.productId}.`
+        );
+      }
+
+      const matchIdx = matchingIndices[0];
+      if (matchedQuoteIndices.has(matchIdx)) {
+        return failClosed('Article serveur associé plusieurs fois.');
+      }
+      matchedQuoteIndices.add(matchIdx);
+
+      const quoted = quoteRes.items[matchIdx];
+
+      if (typeof quoted.isAvailable !== 'boolean' || typeof quoted.inStock !== 'boolean') {
+        return failClosed('Disponibilité d\'article invalide dans la réponse du serveur.');
+      }
+
+      if (quoted.isAvailable) {
+        if (
+          typeof quoted.unitPrice !== 'number' ||
+          !Number.isFinite(quoted.unitPrice) ||
+          quoted.unitPrice < 0 ||
+          typeof quoted.originalPrice !== 'number' ||
+          !Number.isFinite(quoted.originalPrice) ||
+          quoted.originalPrice < 0
+        ) {
+          return failClosed('Tarification unitaire invalide dans la réponse du serveur.');
+        }
+      }
+
+      if (!quoted.isAvailable || !quoted.inStock) {
         continue;
       }
 
@@ -224,25 +323,28 @@ export async function revalidateCartWithServer(
       });
     }
 
-    const issues = Array.isArray(quoteRes.issues) ? quoteRes.issues : [];
     const isCartValid = Boolean(quoteRes.isValid) && issues.length === 0;
 
     return {
       success: isCartValid,
+      isValid: isCartValid,
       issues,
       pricesChanged,
       updatedItems,
       subtotal: quoteRes.subtotal,
-      deliveryFee: typeof quoteRes.deliveryFee === 'number' ? quoteRes.deliveryFee : null,
-      freeDeliveryThreshold: typeof quoteRes.freeDeliveryThreshold === 'number' ? quoteRes.freeDeliveryThreshold : 0,
+      deliveryFee: typeof quoteRes.deliveryFee === 'number' && Number.isFinite(quoteRes.deliveryFee) ? quoteRes.deliveryFee : null,
+      freeDeliveryThreshold: (typeof quoteRes.freeDeliveryThreshold === 'number' && Number.isFinite(quoteRes.freeDeliveryThreshold)) ? quoteRes.freeDeliveryThreshold : 0,
       isFreeDelivery: Boolean(quoteRes.isFreeDelivery),
-      totalPrice: typeof quoteRes.totalPrice === 'number' ? quoteRes.totalPrice : quoteRes.subtotal
+      totalPrice: typeof quoteRes.totalPrice === 'number' && Number.isFinite(quoteRes.totalPrice)
+        ? quoteRes.totalPrice
+        : (typeof quoteRes.deliveryFee === 'number' ? quoteRes.subtotal + quoteRes.deliveryFee : quoteRes.subtotal)
     };
   } catch (err) {
     console.warn('[Cart Quote Error]:', err?.message || err);
     // FAIL CLOSED: Network errors, HTTP 500, or unusable responses must NEVER allow checkout
     return {
       success: false,
+      isValid: false,
       issues: ['Impossible de vérifier votre panier. Veuillez réessayer.'],
       pricesChanged: false,
       updatedItems: [],

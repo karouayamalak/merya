@@ -9,6 +9,7 @@ import { normalizeAlgerianPhone } from '../utils/phone.js';
 import { deductStockAtomic, restoreStockAtomic } from './inventoryService.js';
 import { wsService } from './websocketService.js';
 import { withTransactionRetry } from '../utils/transactionRetry.js';
+import { resolveAuthoritativeDelivery, validateCartItem } from './deliveryService.js';
 
 /**
  * Deterministic fingerprint of order payload for strict idempotency checking.
@@ -142,45 +143,14 @@ export async function placeOrder({ customer, items, idempotencyKey }) {
   }
 
   let deliverySetting = await DeliverySetting.findOne();
-  if (!deliverySetting) {
-    const err = new Error('Delivery configuration is not initialized. Please configure delivery settings before placing orders.');
-    err.statusCode = 400;
-    err.code = 'DELIVERY_CONFIGURATION_MISSING';
-    throw err;
-  }
-
-  const wilayaRate = deliverySetting.wilayaRates?.find(r => r.wilayaCode === codeNum);
-  if (!wilayaRate) {
-    const err = new Error(`Delivery configuration missing for Wilaya ${codeNum} (${canonicalWilaya.name})`);
-    err.statusCode = 400;
-    err.code = 'DELIVERY_CONFIGURATION_MISSING';
-    throw err;
-  }
-
-  if (wilayaRate.isAvailable === false) {
-    const err = new Error(`Wilaya ${codeNum} (${canonicalWilaya.name}) is currently unavailable for delivery.`);
-    err.statusCode = 400;
-    err.code = 'WILAYA_UNAVAILABLE';
-    throw err;
-  }
-
-  let authoritativeFee;
-  if (customer.deliveryMethod === DELIVERY_METHODS.AGENCY) {
-    authoritativeFee = wilayaRate.agencyFee;
-  } else if (customer.deliveryMethod === DELIVERY_METHODS.HOME) {
-    authoritativeFee = wilayaRate.homeFee;
-  } else {
-    const err = new Error(`Invalid delivery method "${customer.deliveryMethod}". Must be "agency" or "home".`);
-    err.statusCode = 400;
-    throw err;
-  }
-
-  if (typeof authoritativeFee !== 'number' || !Number.isInteger(authoritativeFee) || authoritativeFee < 0) {
-    const err = new Error(`Authoritative delivery fee is not configured for Wilaya ${codeNum} (${canonicalWilaya.name}) with method "${customer.deliveryMethod}".`);
-    err.statusCode = 400;
-    err.code = 'DELIVERY_FEE_NOT_CONFIGURED';
-    throw err;
-  }
+  const deliveryResolution = await resolveAuthoritativeDelivery({
+    wilayaCode: codeNum,
+    deliveryMethod: customer.deliveryMethod,
+    subtotal: 0,
+    deliverySetting,
+    throwOnError: true
+  });
+  let authoritativeFee = deliveryResolution.rawFee;
 
   // ─── CHECKOUT TRANSACTION (WITH BOUNDED RETRY SAFETY) ───────────────────────
   let txResult;
@@ -204,12 +174,13 @@ export async function placeOrder({ customer, items, idempotencyKey }) {
       const itemSnapshots = [];
       let subtotal = 0;
 
-      for (const item of items) {
-        const { productId, colorName, size, quantity } = item;
-
-        if (!productId || !colorName || !size || !quantity || quantity <= 0) {
-          throw new Error('Invalid item parameters');
+      for (let idx = 0; idx < items.length; idx++) {
+        const item = items[idx];
+        const validation = validateCartItem(item, idx);
+        if (!validation.valid) {
+          throw new Error(`Invalid item parameters: ${validation.issue}`);
         }
+        const { productId, colorName, size, quantity } = item;
 
         const product = await Product.findOne({ _id: productId, isActive: true, isArchived: false }, null, sessionOpt);
         if (!product) {
@@ -251,15 +222,16 @@ export async function placeOrder({ customer, items, idempotencyKey }) {
         });
       }
 
-      // 4. Dynamic Delivery Fee calculation from database
-      let deliveryFee = authoritativeFee;
-
-      // Free delivery threshold check if active
-      if (deliverySetting.freeDeliveryThreshold && deliverySetting.freeDeliveryThreshold > 0 && subtotal >= deliverySetting.freeDeliveryThreshold) {
-        deliveryFee = 0;
-      }
-
-      const totalPrice = subtotal + deliveryFee;
+      // 4. Dynamic Delivery Fee calculation from database using shared rule
+      const resolvedDelivery = await resolveAuthoritativeDelivery({
+        wilayaCode: codeNum,
+        deliveryMethod: customer.deliveryMethod,
+        subtotal,
+        deliverySetting,
+        throwOnError: true
+      });
+      const deliveryFee = resolvedDelivery.deliveryFee;
+      const totalPrice = resolvedDelivery.totalPrice;
 
       // 5. Deduct all inventory atomically within the session
       await deductStockAtomic(items, session);

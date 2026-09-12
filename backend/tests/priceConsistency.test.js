@@ -509,6 +509,84 @@ describe('MERYA DZ Price Consistency & Free Delivery Hardening', () => {
       assert.strictEqual(res.issues[0], 'L\'article "Robe Merya" n\'est plus disponible.');
     });
 
+    test('Fail-Closed: Quote response with missing item fails closed', async () => {
+      const mockMissingItem = async () => ({
+        success: true,
+        isValid: true,
+        subtotal: 9500,
+        issues: [],
+        items: [] // 0 items returned for 1 requested item
+      });
+
+      const res = await revalidateCartWithServer([{
+        productId: 'p1', colorName: 'Beige', size: 'M', quantity: 1
+      }], mockMissingItem);
+
+      assert.strictEqual(res.success, false);
+      assert.strictEqual(res.isValid, false);
+      assert.ok(res.issues[0].includes('Nombre d\'articles') || res.issues[0].includes('manquant'));
+    });
+
+    test('Fail-Closed: Quote response with duplicate quoted item fails closed', async () => {
+      const mockDuplicateItem = async () => ({
+        success: true,
+        isValid: true,
+        subtotal: 19000,
+        issues: [],
+        items: [
+          { productId: 'p1', colorName: 'Beige', size: 'M', quantity: 1, unitPrice: 9500, originalPrice: 9500, isAvailable: true, inStock: true },
+          { productId: 'p1', colorName: 'Beige', size: 'M', quantity: 1, unitPrice: 9500, originalPrice: 9500, isAvailable: true, inStock: true }
+        ]
+      });
+
+      const res = await revalidateCartWithServer([{
+        productId: 'p1', colorName: 'Beige', size: 'M', quantity: 1
+      }], mockDuplicateItem);
+
+      assert.strictEqual(res.success, false);
+      assert.strictEqual(res.isValid, false);
+    });
+
+    test('Fail-Closed: Quote response with NaN unitPrice fails closed', async () => {
+      const mockNaNPrice = async () => ({
+        success: true,
+        isValid: true,
+        subtotal: 9500,
+        issues: [],
+        items: [{
+          productId: 'p1', colorName: 'Beige', size: 'M', quantity: 1, unitPrice: NaN, originalPrice: 9500, isAvailable: true, inStock: true
+        }]
+      });
+
+      const res = await revalidateCartWithServer([{
+        productId: 'p1', colorName: 'Beige', size: 'M', quantity: 1
+      }], mockNaNPrice);
+
+      assert.strictEqual(res.success, false);
+      assert.strictEqual(res.isValid, false);
+    });
+
+    test('Fail-Closed: Quote response with negative delivery fee fails closed', async () => {
+      const mockNegFee = async () => ({
+        success: true,
+        isValid: true,
+        subtotal: 9500,
+        deliveryFee: -500,
+        totalPrice: 9000,
+        issues: [],
+        items: [{
+          productId: 'p1', colorName: 'Beige', size: 'M', quantity: 1, unitPrice: 9500, originalPrice: 9500, isAvailable: true, inStock: true
+        }]
+      });
+
+      const res = await revalidateCartWithServer([{
+        productId: 'p1', colorName: 'Beige', size: 'M', quantity: 1
+      }], { wilayaCode: 16, deliveryMethod: 'home' }, mockNegFee);
+
+      assert.strictEqual(res.success, false);
+      assert.strictEqual(res.isValid, false);
+    });
+
     test('Confirm NONE of the quote failures trigger a /products full-catalog fallback', async () => {
       let catalogFetchAttempted = false;
       const fakeCatalog = () => { catalogFetchAttempted = true; return { success: true, products: [] }; };
@@ -840,7 +918,7 @@ describe('MERYA DZ Price Consistency & Free Delivery Hardening', () => {
       assert.strictEqual(res.body.items[0].unitPrice, 8000, 'Inactive promotion: quote must return sellingPrice 8000 DZD');
     });
 
-    test('Quote for invalid Wilaya code returns deliveryFee null (ignores unknown Wilaya)', async () => {
+    test('Quote for invalid Wilaya code returns isValid: false and deliveryFee null', async () => {
       const { getCartQuote } = await import('../src/controllers/orderController.js');
       const res = mockRes();
       await getCartQuote({
@@ -851,11 +929,12 @@ describe('MERYA DZ Price Consistency & Free Delivery Hardening', () => {
         }
       }, res, () => {});
       assert.strictEqual(res.body.success, true);
-      // Quote still succeeds for the item, but deliveryFee must be null (wilaya not found)
-      assert.strictEqual(res.body.deliveryFee, null, 'Unknown Wilaya must yield null deliveryFee in quote');
+      assert.strictEqual(res.body.isValid, false, 'Invalid Wilaya must fail quote validity');
+      assert.strictEqual(res.body.deliveryFee, null);
+      assert.ok(res.body.issues.some(i => i.toLowerCase().includes('wilaya')));
     });
 
-    test('Quote for unavailable Wilaya returns deliveryFee null', async () => {
+    test('Quote for unavailable Wilaya returns isValid: false and deliveryFee null', async () => {
       const { getCartQuote } = await import('../src/controllers/orderController.js');
       // Mark Wilaya 58 unavailable
       await DeliverySetting.updateOne(
@@ -872,13 +951,113 @@ describe('MERYA DZ Price Consistency & Free Delivery Hardening', () => {
         }
       }, res, () => {});
       assert.strictEqual(res.body.success, true);
-      assert.strictEqual(res.body.deliveryFee, null, 'Unavailable Wilaya must yield null deliveryFee in quote');
+      assert.strictEqual(res.body.isValid, false, 'Unavailable Wilaya must fail quote validity');
+      assert.strictEqual(res.body.deliveryFee, null);
+      assert.ok(res.body.issues.some(i => i.toLowerCase().includes('disponible') || i.toLowerCase().includes('wilaya')));
 
       // Restore
       await DeliverySetting.updateOne(
         { 'wilayaRates.wilayaCode': 58 },
         { $set: { 'wilayaRates.$.isAvailable': true } }
       );
+    });
+
+    test('Quote with missing deliveryMethod when wilayaCode is provided returns isValid: false', async () => {
+      const { getCartQuote } = await import('../src/controllers/orderController.js');
+      const res = mockRes();
+      await getCartQuote({
+        body: {
+          items: [{ productId: testProduct._id, colorName: 'Noir', size: 'M', quantity: 1 }],
+          wilayaCode: 16
+        }
+      }, res, () => {});
+      assert.strictEqual(res.body.success, true);
+      assert.strictEqual(res.body.isValid, false);
+      assert.strictEqual(res.body.deliveryFee, null);
+      assert.ok(res.body.issues.some(i => i.toLowerCase().includes('livraison')));
+    });
+
+    test('Quote with missing wilayaCode when deliveryMethod is provided returns isValid: false', async () => {
+      const { getCartQuote } = await import('../src/controllers/orderController.js');
+      const res = mockRes();
+      await getCartQuote({
+        body: {
+          items: [{ productId: testProduct._id, colorName: 'Noir', size: 'M', quantity: 1 }],
+          deliveryMethod: 'home'
+        }
+      }, res, () => {});
+      assert.strictEqual(res.body.success, true);
+      assert.strictEqual(res.body.isValid, false);
+      assert.strictEqual(res.body.deliveryFee, null);
+      assert.ok(res.body.issues.some(i => i.toLowerCase().includes('wilaya')));
+    });
+
+    test('Quote with invalid deliveryMethod returns isValid: false', async () => {
+      const { getCartQuote } = await import('../src/controllers/orderController.js');
+      const res = mockRes();
+      await getCartQuote({
+        body: {
+          items: [{ productId: testProduct._id, colorName: 'Noir', size: 'M', quantity: 1 }],
+          wilayaCode: 16,
+          deliveryMethod: 'helicopter'
+        }
+      }, res, () => {});
+      assert.strictEqual(res.body.success, true);
+      assert.strictEqual(res.body.isValid, false);
+      assert.strictEqual(res.body.deliveryFee, null);
+      assert.ok(res.body.issues.some(i => i.toLowerCase().includes('livraison') || i.toLowerCase().includes('delivery')));
+    });
+
+    test('Quote with fractional quantity (1.5) returns isValid: false and reports issue', async () => {
+      const { getCartQuote } = await import('../src/controllers/orderController.js');
+      const res = mockRes();
+      await getCartQuote({
+        body: {
+          items: [{ productId: testProduct._id, colorName: 'Noir', size: 'M', quantity: 1.5 }]
+        }
+      }, res, () => {});
+      assert.strictEqual(res.body.success, true);
+      assert.strictEqual(res.body.isValid, false);
+      assert.ok(res.body.issues.some(i => i.toLowerCase().includes('quantité') || i.toLowerCase().includes('entier')));
+    });
+
+    test('Quote with quantity 0 returns isValid: false and reports issue', async () => {
+      const { getCartQuote } = await import('../src/controllers/orderController.js');
+      const res = mockRes();
+      await getCartQuote({
+        body: {
+          items: [{ productId: testProduct._id, colorName: 'Noir', size: 'M', quantity: 0 }]
+        }
+      }, res, () => {});
+      assert.strictEqual(res.body.success, true);
+      assert.strictEqual(res.body.isValid, false);
+      assert.ok(res.body.issues.length > 0);
+    });
+
+    test('Quote with negative quantity (-1) returns isValid: false and reports issue', async () => {
+      const { getCartQuote } = await import('../src/controllers/orderController.js');
+      const res = mockRes();
+      await getCartQuote({
+        body: {
+          items: [{ productId: testProduct._id, colorName: 'Noir', size: 'M', quantity: -1 }]
+        }
+      }, res, () => {});
+      assert.strictEqual(res.body.success, true);
+      assert.strictEqual(res.body.isValid, false);
+      assert.ok(res.body.issues.length > 0);
+    });
+
+    test('Quote with quantity exceeding maximum limit (> 20) returns isValid: false', async () => {
+      const { getCartQuote } = await import('../src/controllers/orderController.js');
+      const res = mockRes();
+      await getCartQuote({
+        body: {
+          items: [{ productId: testProduct._id, colorName: 'Noir', size: 'M', quantity: 25 }]
+        }
+      }, res, () => {});
+      assert.strictEqual(res.body.success, true);
+      assert.strictEqual(res.body.isValid, false);
+      assert.ok(res.body.issues.some(i => i.toLowerCase().includes('maximale') || i.toLowerCase().includes('dépassée')));
     });
 
     test('Delivery synchronization: switching wilaya produces different deliveryFee in quote', async () => {

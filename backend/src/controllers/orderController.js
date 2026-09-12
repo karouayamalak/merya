@@ -5,6 +5,7 @@ import { placeOrder, updateOrderStatus, updateOrderItemsService } from '../servi
 import { setStockAtomic } from '../services/inventoryService.js';
 import { ALGERIA_WILAYAS, DELIVERY_METHODS, ORDER_STATUS } from '../config/constants.js';
 import { normalizeAlgerianPhone } from '../utils/phone.js';
+import { resolveAuthoritativeDelivery, validateCartItem, MAX_ITEM_QUANTITY } from '../services/deliveryService.js';
 
 // Public: Checkout order
 export const checkout = async (req, res, next) => {
@@ -88,20 +89,30 @@ export const getCartQuote = async (req, res, next) => {
     let subtotal = 0;
     const quotedItems = [];
 
-    // Load delivery settings for threshold comparison
+    // Load delivery settings for threshold comparison and delivery validation
     const setting = await DeliverySetting.findOne();
-    const freeDeliveryThreshold = (setting && typeof setting.freeDeliveryThreshold === 'number')
+    const freeDeliveryThreshold = (setting && typeof setting.freeDeliveryThreshold === 'number' && setting.freeDeliveryThreshold > 0)
       ? setting.freeDeliveryThreshold
       : 0;
 
     for (let idx = 0; idx < items.length; idx++) {
       const item = items[idx];
-      const { productId, colorName, size, quantity } = item;
-
-      if (!productId || !colorName || !size || !quantity || quantity <= 0) {
-        issues.push(`Article #${idx + 1} : paramètres invalides.`);
+      const validation = validateCartItem(item, idx, { maxQuantity: MAX_ITEM_QUANTITY });
+      if (!validation.valid) {
+        issues.push(validation.issue);
+        quotedItems.push({
+          productId: item?.productId,
+          colorName: item?.colorName,
+          size: item?.size,
+          quantity: item?.quantity,
+          isAvailable: false,
+          inStock: false,
+          error: validation.issue
+        });
         continue;
       }
+
+      const { productId, colorName, size, quantity } = item;
 
       const product = await Product.findOne({ _id: productId, isActive: true, isArchived: false });
       if (!product) {
@@ -188,35 +199,47 @@ export const getCartQuote = async (req, res, next) => {
       });
     }
 
-    // Delivery fee calculation
+    // Delivery fee validation and calculation
     let deliveryFee = null;
     let isFreeDelivery = false;
     let totalPrice = subtotal;
 
-    if (wilayaCode !== undefined && deliveryMethod && setting) {
-      const codeNum = Number(wilayaCode);
-      const wilayaRate = Array.isArray(setting.wilayaRates)
-        ? setting.wilayaRates.find(w => w.wilayaCode === codeNum)
-        : null;
+    const deliveryAttempted = wilayaCode !== undefined || deliveryMethod !== undefined;
 
-      if (wilayaRate && wilayaRate.isAvailable !== false) {
-        const rawFee = deliveryMethod === 'agency' ? wilayaRate.agencyFee : wilayaRate.homeFee;
-        if (typeof rawFee === 'number') {
-          if (freeDeliveryThreshold > 0 && subtotal >= freeDeliveryThreshold) {
-            deliveryFee = 0;
-            isFreeDelivery = true;
-          } else {
-            deliveryFee = rawFee;
-            isFreeDelivery = false;
-          }
+    if (deliveryAttempted) {
+      if (wilayaCode === undefined || wilayaCode === null || wilayaCode === '') {
+        issues.push('Le code wilaya est requis lorsque le mode de livraison est spécifié.');
+      }
+      if (!deliveryMethod) {
+        issues.push('Le mode de livraison (agency ou home) est requis lorsque la wilaya est spécifiée.');
+      }
+
+      if (wilayaCode !== undefined && wilayaCode !== null && wilayaCode !== '' && deliveryMethod) {
+        const deliveryRes = await resolveAuthoritativeDelivery({
+          wilayaCode,
+          deliveryMethod,
+          subtotal,
+          deliverySetting: setting,
+          throwOnError: false
+        });
+
+        if (!deliveryRes.success) {
+          issues.push(deliveryRes.error);
+          deliveryFee = null;
+          isFreeDelivery = false;
+        } else {
+          deliveryFee = deliveryRes.deliveryFee;
+          isFreeDelivery = deliveryRes.isFreeDelivery;
           totalPrice = subtotal + deliveryFee;
         }
       }
     }
 
+    const isCartValid = issues.length === 0;
+
     res.json({
       success: true,
-      isValid: issues.length === 0,
+      isValid: isCartValid,
       subtotal,
       deliveryFee,
       freeDeliveryThreshold,
