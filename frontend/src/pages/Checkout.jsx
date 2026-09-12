@@ -101,9 +101,9 @@ function validateDeliverySettingsResponse(data) {
 export default function Checkout({ onBack, onOrderSuccess }) {
   const { items, subtotal, clearCart } = useCart();
 
-  // Explicit delivery status: 'loading' | 'loaded' | 'failed'
-  const [deliveryStatus, setDeliveryStatus] = useState('loading');
-  const [deliveryErrorMessage, setDeliveryErrorMessage] = useState('');
+  // Explicit delivery settings state
+  const [loadingSettings, setLoadingSettings] = useState(true);
+  const [settingsError, setSettingsError] = useState(null);
   const [deliverySettings, setDeliverySettings] = useState(null);
   const [wilayas, setWilayas] = useState([]);
 
@@ -123,21 +123,21 @@ export default function Checkout({ onBack, onOrderSuccess }) {
   const [idempotencyKey, setIdempotencyKey] = useState(() => `idemp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`);
 
   const loadSettings = async () => {
-    setDeliveryStatus('loading');
-    setDeliveryErrorMessage('');
+    setLoadingSettings(true);
+    setSettingsError(null);
     try {
       const res = await fetchDeliverySettings();
       const validation = validateDeliverySettingsResponse(res);
       if (!validation.valid) {
-        setDeliveryStatus('failed');
-        setDeliveryErrorMessage(validation.error || 'Impossible de charger les informations de livraison. Veuillez réessayer.');
+        setLoadingSettings(false);
+        setSettingsError(validation.error || 'Impossible de charger les informations de livraison. Veuillez réessayer.');
         setWilayas([]);
         setDeliverySettings(null);
         setSelectedWilayaCode(null);
       } else {
         setWilayas(validation.wilayas);
         setDeliverySettings(validation.settings);
-        setDeliveryStatus('loaded');
+        setLoadingSettings(false);
 
         // Select Wilaya 16 (Alger) if available, otherwise pick first available canonical Wilaya
         const wilaya16 = validation.wilayas.find(w => w.code === 16 && w.isAvailable);
@@ -145,12 +145,12 @@ export default function Checkout({ onBack, onOrderSuccess }) {
           setSelectedWilayaCode(16);
         } else {
           const firstAvailable = validation.wilayas.find(w => w.isAvailable);
-          setSelectedWilayaCode(firstAvailable ? firstAvailable.code : validation.wilayas[0]?.code || null);
+          setSelectedWilayaCode(firstAvailable ? firstAvailable.code : (validation.wilayas[0]?.code || null));
         }
       }
     } catch (err) {
-      setDeliveryStatus('failed');
-      setDeliveryErrorMessage('Impossible de charger les informations de livraison. Veuillez réessayer.');
+      setLoadingSettings(false);
+      setSettingsError('Impossible de charger les informations de livraison. Veuillez réessayer.');
       setWilayas([]);
       setDeliverySettings(null);
       setSelectedWilayaCode(null);
@@ -162,11 +162,11 @@ export default function Checkout({ onBack, onOrderSuccess }) {
   }, []);
 
   // Look up selected Wilaya strictly from validated server data — NO hardcoded fallback values
-  const selectedWilayaObj = (deliveryStatus === 'loaded' && selectedWilayaCode !== null && wilayas.length === 58)
+  const selectedWilayaObj = (!loadingSettings && !settingsError && selectedWilayaCode !== null && wilayas.length === 58)
     ? (wilayas.find(w => w.code === Number(selectedWilayaCode)) || null)
     : null;
 
-  const isSettingsReady = deliveryStatus === 'loaded' && wilayas.length === 58 && selectedWilayaObj !== null;
+  const isSettingsReady = !loadingSettings && !settingsError && wilayas.length === 58 && selectedWilayaObj !== null;
   const isWilayaAvailable = selectedWilayaObj ? selectedWilayaObj.isAvailable : false;
 
   // Derive fee strictly from server configuration
@@ -177,21 +177,24 @@ export default function Checkout({ onBack, onOrderSuccess }) {
   const estimatedTotal = activeDeliveryFee !== null ? subtotal + activeDeliveryFee : null;
 
   const isSubmitDisabled =
-    isSubmitting ||
-    deliveryStatus !== 'loaded' ||
-    !isSettingsReady ||
+    loadingSettings === true ||
+    Boolean(settingsError) ||
+    !deliverySettings ||
+    wilayas.length !== 58 ||
+    !selectedWilayaObj ||
     !isWilayaAvailable ||
-    items.length === 0;
+    items.length === 0 ||
+    isSubmitting === true;
 
   const handleSubmitOrder = async (e) => {
     e.preventDefault();
     setErrorMessage('');
 
-    if (deliveryStatus === 'loading') {
+    if (loadingSettings) {
       setErrorMessage('Veuillez patienter pendant le chargement des tarifs de livraison.');
       return;
     }
-    if (deliveryStatus === 'failed' || !isSettingsReady || !selectedWilayaObj) {
+    if (settingsError || !isSettingsReady || !selectedWilayaObj) {
       setErrorMessage('Impossible de passer la commande : tarifs de livraison indisponibles. Veuillez réessayer.');
       return;
     }
@@ -286,7 +289,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
       <style>{`
         .checkout-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+          grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
           gap: 2.5rem;
           align-items: flex-start;
           width: 100%;
@@ -327,9 +330,10 @@ export default function Checkout({ onBack, onOrderSuccess }) {
         }
         .checkout-names-row {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
           gap: 1rem;
           width: 100%;
+          box-sizing: border-box;
         }
         .checkout-input {
           width: 100%;
@@ -385,9 +389,9 @@ export default function Checkout({ onBack, onOrderSuccess }) {
           box-shadow: 0 2px 6px rgba(159, 130, 104, 0.25);
           border: 1.5px solid #F5EFEB;
         }
-        @media (max-width: 768px) {
+        @media (max-width: 860px) {
           .checkout-grid {
-            grid-template-columns: 1fr !important;
+            grid-template-columns: minmax(0, 1fr) !important;
             gap: 1.5rem !important;
           }
           .checkout-form-card {
@@ -406,8 +410,10 @@ export default function Checkout({ onBack, onOrderSuccess }) {
             top: -22px !important;
             right: -15px !important;
           }
+        }
+        @media (max-width: 520px) {
           .checkout-names-row {
-            grid-template-columns: 1fr !important;
+            grid-template-columns: minmax(0, 1fr) !important;
           }
         }
       `}</style>
@@ -613,7 +619,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
               </div>
 
               {/* Delivery Settings Error with Retry Button */}
-              {deliveryStatus === 'failed' && (
+              {Boolean(settingsError) && (
                 <div style={{
                   backgroundColor: '#FEF2F2',
                   border: '1.5px solid #FCA5A5',
@@ -630,7 +636,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.84rem' }}>
                     <AlertCircle size={18} flexShrink={0} />
-                    <span>{deliveryErrorMessage || "Impossible de charger les informations de livraison. Veuillez réessayer."}</span>
+                    <span>{settingsError || "Impossible de charger les informations de livraison. Veuillez réessayer."}</span>
                   </div>
                   <button
                     type="button"
@@ -728,7 +734,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                       <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', color: '#2A241F', marginBottom: '0.25rem' }}>
                         Wilaya (58 Wilayas) : <span style={{ color: '#A86450' }}>*</span>
                       </label>
-                      {deliveryStatus === 'loading' ? (
+                      {loadingSettings ? (
                         <div style={{
                           display: 'flex',
                           alignItems: 'center',
@@ -746,10 +752,10 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                       ) : (
                         <select
                           value={selectedWilayaCode || ''}
-                          disabled={deliveryStatus !== 'loaded' || wilayas.length === 0}
+                          disabled={loadingSettings || Boolean(settingsError) || wilayas.length === 0}
                           onChange={(e) => setSelectedWilayaCode(Number(e.target.value))}
                           className="checkout-input"
-                          style={{ cursor: deliveryStatus === 'loaded' ? 'pointer' : 'not-allowed', fontWeight: '600' }}
+                          style={{ cursor: isSettingsReady ? 'pointer' : 'not-allowed', fontWeight: '600' }}
                         >
                           {wilayas.length === 0 ? (
                             <option value="">Paramètres de livraison non disponibles</option>
@@ -833,7 +839,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                           }}
                         >
                           <span>
-                            À domicile {selectedWilayaObj ? `(+${selectedWilayaObj.homeFee.toLocaleString()} DA)` : (deliveryStatus === 'loading' ? '(Chargement...)' : '')}
+                            À domicile {selectedWilayaObj ? `(+${selectedWilayaObj.homeFee.toLocaleString()} DA)` : (loadingSettings ? '(Chargement...)' : '')}
                           </span>
                         </button>
 
@@ -860,7 +866,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                           }}
                         >
                           <span>
-                            Au bureau / Stopdesk {selectedWilayaObj ? `(+${selectedWilayaObj.agencyFee.toLocaleString()} DA)` : (deliveryStatus === 'loading' ? '(Chargement...)' : '')}
+                            Au bureau / Stopdesk {selectedWilayaObj ? `(+${selectedWilayaObj.agencyFee.toLocaleString()} DA)` : (loadingSettings ? '(Chargement...)' : '')}
                           </span>
                         </button>
                       </div>
@@ -962,12 +968,12 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                           <Loader2 size={19} className="animate-spin" />
                           <span>Confirmation de votre commande...</span>
                         </>
-                      ) : deliveryStatus === 'loading' ? (
+                      ) : loadingSettings ? (
                         <>
                           <Loader2 size={19} className="animate-spin" />
                           <span>Chargement des tarifs de livraison...</span>
                         </>
-                      ) : deliveryStatus === 'failed' ? (
+                      ) : Boolean(settingsError) ? (
                         <>
                           <AlertCircle size={19} />
                           <span>Tarifs indisponibles (Vérifier connexion)</span>
@@ -1196,9 +1202,9 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                   Livraison ({deliveryMethod === 'agency' ? 'Stopdesk' : 'À domicile'} {selectedWilayaObj ? `- Wilaya ${selectedWilayaObj.code}` : ''})
                 </span>
                 <span style={{ fontWeight: '600', color: '#2A241F' }}>
-                  {deliveryStatus === 'loading' ? (
+                  {loadingSettings ? (
                     <span style={{ fontSize: '0.8rem', color: '#9F8268' }}>Calcul en cours...</span>
-                  ) : deliveryStatus === 'failed' ? (
+                  ) : Boolean(settingsError) ? (
                     <span style={{ fontSize: '0.8rem', color: '#DC2626' }}>Non disponible</span>
                   ) : activeDeliveryFee !== null ? (
                     `+${activeDeliveryFee.toLocaleString()} DZD`
@@ -1223,7 +1229,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                 <span style={{ color: '#9F8268', fontSize: '1.35rem' }}>
                   {estimatedTotal !== null ? (
                     `${estimatedTotal.toLocaleString()} DZD`
-                  ) : deliveryStatus === 'loading' ? (
+                  ) : loadingSettings ? (
                     <span style={{ fontSize: '0.95rem', color: '#9F8268', fontWeight: '600' }}>Calcul en cours...</span>
                   ) : (
                     <span style={{ fontSize: '0.95rem', color: '#DC2626', fontWeight: '600' }}>En attente</span>
