@@ -67,6 +67,21 @@ export const createBanner = async (req, res, next) => {
       displayOrder
     } = req.body;
 
+    const isComplete = Boolean(
+      title && typeof title === 'object' && title.fr?.trim() && title.ar?.trim() && title.en?.trim()
+    );
+
+    // Publishing requires complete French, Arabic, and English translations
+    if (isActive === true && !isComplete) {
+      return res.status(400).json({
+        success: false,
+        code: 'TRANSLATIONS_INCOMPLETE',
+        message: 'Cannot publish banner: complete translations in French, Arabic, and English are required before publishing. Please provide all translations or save as an unpublished draft.'
+      });
+    }
+
+    const effectiveIsActive = isActive !== undefined ? Boolean(isActive) : true;
+
     const banner = new Banner({
       title,
       subtitle,
@@ -75,7 +90,7 @@ export const createBanner = async (req, res, next) => {
       link: link || '/shop',
       image: image || '',
       placement: placement || 'top_announcement',
-      isActive: isActive !== undefined ? isActive : true,
+      isActive: effectiveIsActive,
       displayOrder: displayOrder ?? 0
     });
 
@@ -127,6 +142,22 @@ export const updateBanner = async (req, res, next) => {
     if (subtitle !== undefined) banner.subtitle = mergeField(subtitle, banner.subtitle);
     if (badgeText !== undefined) banner.badgeText = mergeField(badgeText, banner.badgeText);
     if (buttonText !== undefined) banner.buttonText = mergeField(buttonText, banner.buttonText);
+
+    // Require complete translations if attempting to publish
+    if (isActive === true) {
+      const candidateTitle = banner.title;
+      const isComplete = Boolean(
+        candidateTitle && typeof candidateTitle === 'object' &&
+        candidateTitle.fr?.trim() && candidateTitle.ar?.trim() && candidateTitle.en?.trim()
+      );
+      if (!isComplete) {
+        return res.status(400).json({
+          success: false,
+          code: 'TRANSLATIONS_INCOMPLETE',
+          message: 'Cannot publish banner: complete translations in French, Arabic, and English are required before publishing. Please provide all translations or save as an unpublished draft.'
+        });
+      }
+    }
 
     if (link !== undefined) banner.link = link;
     if (image !== undefined) banner.image = image;

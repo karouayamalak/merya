@@ -196,12 +196,21 @@ productSchema.index({ "name.en": 1 });
 productSchema.virtual('translationStatus').get(function() {
   const n = this.name;
   if (!n || typeof n !== 'object') return { fr: false, ar: false, en: false };
+  const fr = Boolean(n.fr && n.fr.trim().length > 0);
+  const ar = Boolean(n.ar && n.ar.trim().length > 0);
+  const en = Boolean(n.en && n.en.trim().length > 0);
   return {
-    fr: Boolean(n.fr && n.fr.trim().length > 0),
-    ar: Boolean(n.ar && n.ar.trim().length > 0),
-    en: Boolean(n.en && n.en.trim().length > 0)
+    fr,
+    ar,
+    en
   };
 });
+
+// Helper: check if product has complete FR, AR, EN translations
+export function isProductFullyTranslated(product) {
+  const n = typeof product.name === 'object' && product.name !== null ? product.name : { fr: product.name || '' };
+  return Boolean(n.fr && n.fr.trim().length > 0 && n.ar && n.ar.trim().length > 0 && n.en && n.en.trim().length > 0);
+}
 
 // Virtual: denormalized total stock across all colors and sizes
 productSchema.virtual('totalStock').get(function() {

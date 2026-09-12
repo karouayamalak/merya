@@ -47,11 +47,21 @@ const gameSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['quiz', 'wheel', 'scratch', 'style_matcher'],
-    default: 'quiz'
+    enum: ['wheel', 'quiz', 'scratch', 'style_matcher'],
+    default: 'wheel'
+  },
+  gameType: {
+    type: String,
+    enum: ['wheel', 'quiz', 'scratch', 'style_matcher'],
+    default: 'wheel'
+  },
+  coverImage: {
+    type: String,
+    default: ''
   },
   description: localizedSubSchema,
   instructions: localizedSubSchema,
+  rules: localizedSubSchema,
   winnerMessage: localizedSubSchema,
   loserMessage: localizedSubSchema,
   reward: {
@@ -62,7 +72,7 @@ const gameSchema = new mongoose.Schema({
   questions: [gameQuestionSchema],
   isActive: {
     type: Boolean,
-    default: true,
+    default: false,
     index: true
   },
   displayOrder: {
@@ -75,6 +85,44 @@ const gameSchema = new mongoose.Schema({
   toObject: { virtuals: true, getters: true }
 });
 
+// Pre-validate synchronization: ensure instructions & rules, type & gameType stay mutually coherent
+gameSchema.pre('validate', function(next) {
+  if (this.gameType && !this.type) this.type = this.gameType;
+  if (this.type && !this.gameType) this.gameType = this.type;
+
+  // If rules is provided but instructions is blank, copy rules -> instructions
+  if ((!this.instructions?.fr && !this.instructions?.ar && !this.instructions?.en) &&
+      (this.rules?.fr || this.rules?.ar || this.rules?.en)) {
+    this.instructions = this.rules;
+  }
+  // If instructions is provided but rules is blank, copy instructions -> rules
+  if ((!this.rules?.fr && !this.rules?.ar && !this.rules?.en) &&
+      (this.instructions?.fr || this.instructions?.ar || this.instructions?.en)) {
+    this.rules = this.instructions;
+  }
+  next();
+});
+
 gameSchema.index({ isActive: 1, displayOrder: 1 });
+
+// Virtual: translation completeness status for admin UI badges
+gameSchema.virtual('translationStatus').get(function() {
+  const t = this.title;
+  if (!t || typeof t !== 'object') return { fr: false, ar: false, en: false };
+  const fr = Boolean(t.fr && t.fr.trim().length > 0);
+  const ar = Boolean(t.ar && t.ar.trim().length > 0);
+  const en = Boolean(t.en && t.en.trim().length > 0);
+  return {
+    fr,
+    ar,
+    en
+  };
+});
+
+// Helper: check if game has complete FR, AR, EN translations
+export function isGameFullyTranslated(game) {
+  const t = typeof game.title === 'object' && game.title !== null ? game.title : { fr: game.title || '' };
+  return Boolean(t.fr && t.fr.trim().length > 0 && t.ar && t.ar.trim().length > 0 && t.en && t.en.trim().length > 0);
+}
 
 export const Game = mongoose.model('Game', gameSchema);

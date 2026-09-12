@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Archive, Search, Check, X, Image as ImageIcon, Trash2, Upload, Loader2, AlertTriangle } from 'lucide-react';
+import { Plus, Edit2, Search, Check, X, Trash2, Upload, Loader2, AlertTriangle } from 'lucide-react';
 import { adminGetProducts, adminCreateProduct, adminUpdateProduct, adminArchiveProduct, adminGetCategories, adminUploadImage } from '../../services/api';
 import { useLanguage } from '../../context/LanguageContext';
 
@@ -205,11 +205,15 @@ export default function ProductsManager() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setModalError('');
-
     if (!name.fr.trim() && !name.ar.trim() && !name.en.trim()) {
       return setModalError('Product name is required in at least one language (French recommended)');
     }
+
+    const isNameComplete = Boolean(name.fr?.trim() && name.ar?.trim() && name.en?.trim());
+    if (isActive && !isNameComplete) {
+      return setModalError('Cannot publish product: French, Arabic, and English translations are required before publishing. Please complete all translations or uncheck "Active in Store" to save as a draft.');
+    }
+
     if (!categoryId) return setModalError('Category is required');
     if (sellingPrice <= 0) return setModalError('Selling price must be greater than 0');
     if (costPrice < 0) return setModalError('Cost price cannot be negative');
@@ -569,14 +573,33 @@ export default function ProductsManager() {
                   <label htmlFor="bestSellerCheck" style={{ fontSize: '0.85rem', fontWeight: '600' }}>Best Seller</label>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', paddingTop: '1.2rem' }}>
-                  <input
-                    type="checkbox"
-                    id="activeCheck"
-                    checked={isActive}
-                    onChange={(e) => setIsActive(e.target.checked)}
-                  />
-                  <label htmlFor="activeCheck" style={{ fontSize: '0.85rem', fontWeight: '600' }}>Active in Store</label>
+                <div style={{ paddingTop: '1.2rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <input
+                      type="checkbox"
+                      id="activeCheck"
+                      checked={isActive}
+                      onChange={(e) => {
+                        const complete = Boolean(name.fr?.trim() && name.ar?.trim() && name.en?.trim());
+                        if (e.target.checked && !complete) {
+                          setModalError('Cannot publish product: French, Arabic, and English translations are required before publishing. Incomplete products are saved as draft.');
+                          setIsActive(false);
+                        } else {
+                          setModalError('');
+                          setIsActive(e.target.checked);
+                        }
+                      }}
+                    />
+                    <label htmlFor="activeCheck" style={{ fontSize: '0.85rem', fontWeight: '600', cursor: 'pointer' }}>
+                      Active (Published to store)
+                    </label>
+                  </div>
+                  {(!name.fr?.trim() || !name.ar?.trim() || !name.en?.trim()) && (
+                    <div style={{ fontSize: '0.74rem', color: '#D97706', marginTop: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                      <AlertTriangle size={12} />
+                      <span>Missing translations: will be saved as Draft</span>
+                    </div>
+                  )}
                 </div>
               </div>
 

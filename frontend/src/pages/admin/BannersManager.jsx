@@ -154,6 +154,12 @@ export default function BannersManager() {
     if (!title.fr.trim() && !title.ar.trim() && !title.en.trim()) {
       return setError('Please enter a banner title in at least one language');
     }
+
+    const isTitleComplete = Boolean(title.fr?.trim() && title.ar?.trim() && title.en?.trim());
+    if (isActive && !isTitleComplete) {
+      return setError('Cannot publish banner: complete French, Arabic, and English translations are required before publishing. Please complete all translations or uncheck "Active" to save as a draft.');
+    }
+
     if (!image.trim()) return setError('Please upload a banner image');
 
     setModalLoading(true);
@@ -463,9 +469,16 @@ export default function BannersManager() {
                     style={{ width: '100%', padding: '0.65rem', borderRadius: '6px', border: '1px solid var(--color-border)' }}
                   />
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', paddingTop: '1.2rem' }}>
-                  <input type="checkbox" id="bannerActive" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
-                  <label htmlFor="bannerActive" style={{ fontSize: '0.85rem', fontWeight: '600' }}>Active</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', paddingTop: '1.2rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <input type="checkbox" id="bannerActive" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
+                    <label htmlFor="bannerActive" style={{ fontSize: '0.85rem', fontWeight: '600' }}>Active (Published)</label>
+                  </div>
+                  {(!title.fr?.trim() || !title.ar?.trim() || !title.en?.trim()) && (
+                    <span style={{ fontSize: '0.72rem', color: '#b45309', fontWeight: '500' }}>
+                      Requires complete FR, AR & EN titles to publish. Otherwise save as draft.
+                    </span>
+                  )}
                 </div>
               </div>
 

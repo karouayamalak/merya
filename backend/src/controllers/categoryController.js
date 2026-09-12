@@ -69,17 +69,34 @@ export const createCategory = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Category name in at least French or default language is required' });
     }
 
-    const slug = baseName
+    const baseSlug = baseName
       .toLowerCase()
       .trim()
       .replace(/[^\w\s-]/g, '')
       .replace(/[\s_-]+/g, '-')
       .replace(/^-+|-+$/g, '') || `cat-${Date.now()}`;
 
-    const existing = await Category.findOne({ slug });
-    if (existing) {
-      return res.status(400).json({ success: false, message: 'Category with this name/slug already exists' });
+    let slug = baseSlug;
+    let counter = 1;
+    while (await Category.findOne({ slug })) {
+      slug = `${baseSlug}-${counter}`;
+      counter++;
     }
+
+    const isComplete = Boolean(
+      name && typeof name === 'object' && name.fr?.trim() && name.ar?.trim() && name.en?.trim()
+    );
+
+    // Publishing requires complete French, Arabic, and English translations
+    if (isActive === true && !isComplete) {
+      return res.status(400).json({
+        success: false,
+        code: 'TRANSLATIONS_INCOMPLETE',
+        message: 'Cannot publish category: complete translations in French, Arabic, and English are required before publishing. Please provide all translations or save as an unpublished draft.'
+      });
+    }
+
+    const effectiveIsActive = isActive !== undefined ? Boolean(isActive) : true;
 
     const category = new Category({
       name,
@@ -87,7 +104,7 @@ export const createCategory = async (req, res, next) => {
       description,
       image,
       displayOrder: displayOrder ?? 0,
-      isActive: isActive !== undefined ? isActive : true
+      isActive: effectiveIsActive
     });
 
     await category.save();
@@ -132,6 +149,22 @@ export const updateCategory = async (req, res, next) => {
           .replace(/[^\w\s-]/g, '')
           .replace(/[\s_-]+/g, '-')
           .replace(/^-+|-+$/g, '') || category.slug;
+      }
+    }
+
+    // Require complete translations if attempting to publish
+    if (isActive === true) {
+      const candidateName = category.name;
+      const isComplete = Boolean(
+        candidateName && typeof candidateName === 'object' &&
+        candidateName.fr?.trim() && candidateName.ar?.trim() && candidateName.en?.trim()
+      );
+      if (!isComplete) {
+        return res.status(400).json({
+          success: false,
+          code: 'TRANSLATIONS_INCOMPLETE',
+          message: 'Cannot publish category: complete translations in French, Arabic, and English are required before publishing. Please provide all translations or save as an unpublished draft.'
+        });
       }
     }
 

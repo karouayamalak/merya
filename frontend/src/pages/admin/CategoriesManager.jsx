@@ -128,6 +128,12 @@ export default function CategoriesManager() {
     if (!name.fr.trim() && !name.ar.trim() && !name.en.trim()) {
       return setError('Please enter a category name in at least one language (French recommended)');
     }
+
+    const isNameComplete = Boolean(name.fr?.trim() && name.ar?.trim() && name.en?.trim());
+    if (isActive && !isNameComplete) {
+      return setError('Cannot publish category: French, Arabic, and English translations are required before publishing. Please complete all translations or uncheck "Active" to save as a draft.');
+    }
+
     if (!image.trim()) return setError('Please upload an image for the category');
 
     setModalLoading(true);
@@ -423,9 +429,33 @@ export default function CategoriesManager() {
                     style={{ width: '100%', padding: '0.65rem', borderRadius: '6px', border: '1px solid var(--color-border)' }}
                   />
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', paddingTop: '1.2rem' }}>
-                  <input type="checkbox" id="catActive" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
-                  <label htmlFor="catActive" style={{ fontSize: '0.85rem', fontWeight: '600' }}>{t('admin.products.active')}</label>
+                <div style={{ paddingTop: '1.2rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <input
+                      type="checkbox"
+                      id="catActive"
+                      checked={isActive}
+                      onChange={(e) => {
+                        const complete = Boolean(name.fr?.trim() && name.ar?.trim() && name.en?.trim());
+                        if (e.target.checked && !complete) {
+                          setError('Cannot publish category: French, Arabic, and English translations are required before publishing. Incomplete categories are saved as draft.');
+                          setIsActive(false);
+                        } else {
+                          setError('');
+                          setIsActive(e.target.checked);
+                        }
+                      }}
+                    />
+                    <label htmlFor="catActive" style={{ fontSize: '0.85rem', fontWeight: '600', cursor: 'pointer' }}>
+                      {t('admin.products.active')} (Published)
+                    </label>
+                  </div>
+                  {(!name.fr?.trim() || !name.ar?.trim() || !name.en?.trim()) && (
+                    <div style={{ fontSize: '0.74rem', color: '#D97706', marginTop: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                      <AlertTriangle size={12} />
+                      <span>Missing translations: will be saved as Draft</span>
+                    </div>
+                  )}
                 </div>
               </div>
 

@@ -256,6 +256,21 @@ export const createProduct = async (req, res, next) => {
       parsedPromotion = { active: true, promotionalPrice: pPrice };
     }
 
+    const isComplete = Boolean(
+      name && typeof name === 'object' && name.fr?.trim() && name.ar?.trim() && name.en?.trim()
+    );
+
+    // Publishing requires complete French, Arabic, and English translations
+    if (isActive === true && !isComplete) {
+      return res.status(400).json({
+        success: false,
+        code: 'TRANSLATIONS_INCOMPLETE',
+        message: 'Cannot publish product: complete translations in French, Arabic, and English are required before publishing. Please provide all translations or save as an unpublished draft.'
+      });
+    }
+
+    const effectiveIsActive = isActive !== undefined ? Boolean(isActive) : true;
+
     const product = new Product({
       name,
       slug,
@@ -264,7 +279,7 @@ export const createProduct = async (req, res, next) => {
       sellingPrice: effectiveBasePrice,
       costPrice,
       promotion: parsedPromotion,
-      isActive: isActive !== undefined ? isActive : true,
+      isActive: effectiveIsActive,
       isBestSeller: !!isBestSeller,
       colors: sanitizedColors
     });
@@ -327,6 +342,22 @@ export const updateProduct = async (req, res, next) => {
           counter++;
         }
         product.slug = newSlug;
+      }
+    }
+
+    // Require complete translations if attempting to publish
+    if (isActive === true) {
+      const candidateName = product.name;
+      const isComplete = Boolean(
+        candidateName && typeof candidateName === 'object' &&
+        candidateName.fr?.trim() && candidateName.ar?.trim() && candidateName.en?.trim()
+      );
+      if (!isComplete) {
+        return res.status(400).json({
+          success: false,
+          code: 'TRANSLATIONS_INCOMPLETE',
+          message: 'Cannot publish product: complete translations in French, Arabic, and English are required before publishing. Please provide all translations or save as an unpublished draft.'
+        });
       }
     }
 

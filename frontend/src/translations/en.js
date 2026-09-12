@@ -38,6 +38,7 @@ export default {
   nav: {
     home: 'Home',
     collection: 'Collection',
+    games: 'Games & Rewards',
     trackOrder: 'Track Order',
     cart: 'Bag',
     admin: 'Admin Portal',
@@ -392,6 +393,32 @@ export default {
       agencyFee: 'Agency Fee (DZD)',
       available: 'Available'
     }
+  },
+  games: {
+    title: 'Interactive Games & Rewards',
+    subtitle: 'Participate in our exclusive interactive games, have fun, and unlock special discount vouchers for your orders.',
+    noGames: 'No games are active right now. Please check back soon for exciting surprises!',
+    playNow: 'Play Now',
+    spin: 'Spin the Wheel',
+    spinning: 'Spinning...',
+    scratch: 'Scratch to Reveal',
+    reveal: 'Reveal Prize',
+    answerQuestion: 'Select your answer:',
+    nextQuestion: 'Next Question',
+    finishQuiz: 'Finish Quiz',
+    score: 'Your Score',
+    congratulations: 'Congratulations! You won a prize!',
+    betterLuck: 'Better luck next time!',
+    yourReward: 'Your Reward Code',
+    copyCode: 'Copy Code',
+    codeCopied: 'Code copied to clipboard!',
+    useAtCheckout: 'Enter this discount code during checkout to enjoy your gift.',
+    rules: 'Game Rules',
+    instructions: 'How to Play',
+    discount: 'Discount',
+    minOrder: 'Min order',
+    playAgain: 'Play Again',
+    backToGames: 'Back to Games'
   },
   footer: {
     description: 'Dedicated to designing graceful, modest, and timeless silhouettes for the contemporary Algerian woman. Handcrafted with Medina silk, washed linen, and premium crepe.',

@@ -25,10 +25,15 @@ const extractBaseTitle = (title) => {
   return title.fr || title.en || title.ar || '';
 };
 
-// Public: Get active games
+// Public: Get active, fully-translated games
 export const getGames = async (req, res, next) => {
   try {
-    const games = await Game.find({ isActive: true }).sort({ displayOrder: 1, createdAt: 1 });
+    const games = await Game.find({
+      isActive: true,
+      'title.fr': { $exists: true, $ne: '' },
+      'title.ar': { $exists: true, $ne: '' },
+      'title.en': { $exists: true, $ne: '' }
+    }).sort({ displayOrder: 1, createdAt: 1 });
     res.json({ success: true, count: games.length, games });
   } catch (error) {
     next(error);
@@ -39,7 +44,13 @@ export const getGames = async (req, res, next) => {
 export const getGameBySlug = async (req, res, next) => {
   try {
     const { slug } = req.params;
-    const game = await Game.findOne({ slug, isActive: true });
+    const game = await Game.findOne({
+      slug,
+      isActive: true,
+      'title.fr': { $exists: true, $ne: '' },
+      'title.ar': { $exists: true, $ne: '' },
+      'title.en': { $exists: true, $ne: '' }
+    });
     if (!game) {
       return res.status(404).json({ success: false, message: 'Game not found' });
     }
@@ -72,12 +83,15 @@ export const createGame = async (req, res, next) => {
     const {
       title,
       type,
+      gameType,
       description,
       instructions,
+      rules,
       winnerMessage,
       loserMessage,
       reward,
       questions,
+      coverImage,
       isActive,
       displayOrder
     } = req.body;
@@ -87,29 +101,50 @@ export const createGame = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Game title in at least one language is required' });
     }
 
-    const slug = baseTitle
+    let slug = baseTitle
       .toLowerCase()
       .trim()
       .replace(/[^\w\s-]/g, '')
       .replace(/[\s_-]+/g, '-')
       .replace(/^-+|-+$/g, '') || `game-${Date.now()}`;
 
-    const existing = await Game.findOne({ slug });
-    if (existing) {
-      return res.status(400).json({ success: false, message: 'Game with this title/slug already exists' });
+    const baseSlug = slug;
+    let counter = 1;
+    while (await Game.findOne({ slug })) {
+      slug = `${baseSlug}-${counter}`;
+      counter++;
     }
+
+    const isComplete = Boolean(
+      title && typeof title === 'object' && title.fr?.trim() && title.ar?.trim() && title.en?.trim()
+    );
+
+    // Publishing requires complete French, Arabic, and English translations
+    if (isActive === true && !isComplete) {
+      return res.status(400).json({
+        success: false,
+        code: 'TRANSLATIONS_INCOMPLETE',
+        message: 'Cannot publish game: complete translations in French, Arabic, and English are required before publishing. Please provide all translations or save as an unpublished draft.'
+      });
+    }
+
+    const effectiveIsActive = isActive !== undefined ? Boolean(isActive) : false;
+    const finalType = type || gameType || 'wheel';
 
     const game = new Game({
       title,
       slug,
-      type: type || 'quiz',
+      type: finalType,
+      gameType: finalType,
+      coverImage: coverImage || '',
       description,
-      instructions,
+      instructions: instructions || rules,
+      rules: rules || instructions,
       winnerMessage,
       loserMessage,
       reward,
       questions: questions || [],
-      isActive: isActive !== undefined ? isActive : true,
+      isActive: effectiveIsActive,
       displayOrder: displayOrder ?? 0
     });
 
@@ -130,12 +165,15 @@ export const updateGame = async (req, res, next) => {
     const {
       title,
       type,
+      gameType,
       description,
       instructions,
+      rules,
       winnerMessage,
       loserMessage,
       reward,
       questions,
+      coverImage,
       isActive,
       displayOrder
     } = req.body;
@@ -173,12 +211,35 @@ export const updateGame = async (req, res, next) => {
 
     if (description !== undefined) game.description = mergeField(description, game.description);
     if (instructions !== undefined) game.instructions = mergeField(instructions, game.instructions);
+    if (rules !== undefined) game.rules = mergeField(rules, game.rules);
     if (winnerMessage !== undefined) game.winnerMessage = mergeField(winnerMessage, game.winnerMessage);
     if (loserMessage !== undefined) game.loserMessage = mergeField(loserMessage, game.loserMessage);
 
-    if (type !== undefined) game.type = type;
+    if (coverImage !== undefined) game.coverImage = coverImage;
+    if (type !== undefined || gameType !== undefined) {
+      const selectedType = type || gameType;
+      game.type = selectedType;
+      game.gameType = selectedType;
+    }
     if (reward !== undefined) game.reward = { ...game.reward, ...reward };
     if (questions !== undefined) game.questions = questions;
+
+    // Require complete translations if attempting to publish
+    if (isActive === true) {
+      const candidateTitle = game.title;
+      const isComplete = Boolean(
+        candidateTitle && typeof candidateTitle === 'object' &&
+        candidateTitle.fr?.trim() && candidateTitle.ar?.trim() && candidateTitle.en?.trim()
+      );
+      if (!isComplete) {
+        return res.status(400).json({
+          success: false,
+          code: 'TRANSLATIONS_INCOMPLETE',
+          message: 'Cannot publish game: complete translations in French, Arabic, and English are required before publishing. Please provide all translations or save as an unpublished draft.'
+        });
+      }
+    }
+
     if (isActive !== undefined) game.isActive = isActive;
     if (displayOrder !== undefined) game.displayOrder = displayOrder;
 

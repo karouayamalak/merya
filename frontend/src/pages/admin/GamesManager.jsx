@@ -15,7 +15,7 @@ function TranslationBadge({ field }) {
   if (!field || typeof field !== 'object') return null;
   return (
     <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
-      {LANGS.map(({ code, label }) => {
+      {LANGS.map(({ code }) => {
         const has = Boolean(field[code] && field[code].trim());
         return (
           <span key={code} style={{
@@ -66,8 +66,15 @@ const normalize = (f) => {
   return { fr: f.fr || '', ar: f.ar || '', en: f.en || '' };
 };
 
+const GAME_TYPES = [
+  { value: 'wheel', label: '🎡 Wheel of Fortune' },
+  { value: 'quiz', label: '❓ Style & Fashion Quiz' },
+  { value: 'scratch', label: '🎁 Scratch & Reveal' },
+  { value: 'style_matcher', label: '✨ Style Matcher' }
+];
+
 export default function GamesManager() {
-  const { t, isRtl } = useLanguage();
+  const { isRtl } = useLanguage();
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -77,10 +84,18 @@ export default function GamesManager() {
 
   const [title, setTitle] = useState(emptyLocalized());
   const [description, setDescription] = useState(emptyLocalized());
+  const [instructions, setInstructions] = useState(emptyLocalized());
   const [rules, setRules] = useState(emptyLocalized());
+  const [winnerMessage, setWinnerMessage] = useState(emptyLocalized());
+  const [loserMessage, setLoserMessage] = useState(emptyLocalized());
+  const [gameType, setGameType] = useState('wheel');
   const [coverImage, setCoverImage] = useState('');
+  const [rewardCode, setRewardCode] = useState('MERYAVIP');
+  const [rewardPercent, setRewardPercent] = useState(10);
+  const [rewardMinOrder, setRewardMinOrder] = useState(0);
   const [isActive, setIsActive] = useState(true);
   const [displayOrder, setDisplayOrder] = useState(1);
+
   const [uploadingImage, setUploadingImage] = useState(false);
   const [modalLoading, setModalLoading] = useState(false);
   const [error, setError] = useState('');
@@ -103,8 +118,15 @@ export default function GamesManager() {
     setEditingGame(null);
     setTitle(emptyLocalized());
     setDescription(emptyLocalized());
+    setInstructions(emptyLocalized());
     setRules(emptyLocalized());
+    setWinnerMessage(emptyLocalized());
+    setLoserMessage(emptyLocalized());
+    setGameType('wheel');
     setCoverImage('');
+    setRewardCode('MERYAVIP');
+    setRewardPercent(10);
+    setRewardMinOrder(0);
     setIsActive(true);
     setDisplayOrder(games.length + 1);
     setActiveLang('fr');
@@ -116,9 +138,16 @@ export default function GamesManager() {
     setEditingGame(game);
     setTitle(normalize(game.title));
     setDescription(normalize(game.description));
-    setRules(normalize(game.rules));
+    setInstructions(normalize(game.instructions || game.rules));
+    setRules(normalize(game.rules || game.instructions));
+    setWinnerMessage(normalize(game.winnerMessage));
+    setLoserMessage(normalize(game.loserMessage));
+    setGameType(game.type || game.gameType || 'wheel');
     setCoverImage(game.coverImage || '');
-    setIsActive(game.isActive);
+    setRewardCode(game.reward?.discountCode || 'MERYAVIP');
+    setRewardPercent(game.reward?.discountPercent ?? 10);
+    setRewardMinOrder(game.reward?.minOrderAmount ?? 0);
+    setIsActive(Boolean(game.isActive));
     setDisplayOrder(game.displayOrder || 1);
     setActiveLang('fr');
     setError('');
@@ -144,9 +173,33 @@ export default function GamesManager() {
     if (!title.fr.trim() && !title.ar.trim() && !title.en.trim()) {
       return setError('Please enter a game title in at least one language');
     }
+
+    const isTitleComplete = Boolean(title.fr?.trim() && title.ar?.trim() && title.en?.trim());
+    if (isActive && !isTitleComplete) {
+      return setError('Cannot publish game: complete French, Arabic, and English translations are required before publishing. Please complete all translations or uncheck "Active" to save as a draft.');
+    }
+
     setModalLoading(true);
     try {
-      const payload = { title, description, rules, coverImage, isActive, displayOrder: Number(displayOrder) };
+      const payload = {
+        title,
+        description,
+        instructions: instructions.fr.trim() || instructions.ar.trim() || instructions.en.trim() ? instructions : rules,
+        rules: rules.fr.trim() || rules.ar.trim() || rules.en.trim() ? rules : instructions,
+        winnerMessage,
+        loserMessage,
+        type: gameType,
+        gameType,
+        coverImage,
+        reward: {
+          discountCode: rewardCode.trim().toUpperCase(),
+          discountPercent: Number(rewardPercent) || 10,
+          minOrderAmount: Number(rewardMinOrder) || 0
+        },
+        isActive,
+        displayOrder: Number(displayOrder)
+      };
+
       if (editingGame) {
         await adminUpdateGame(editingGame._id, payload);
       } else {
@@ -180,6 +233,7 @@ export default function GamesManager() {
   };
 
   const activeLangDir = LANGS.find(l => l.code === activeLang)?.dir || 'ltr';
+  const isTitleComplete = Boolean(title.fr?.trim() && title.ar?.trim() && title.en?.trim());
 
   return (
     <div>
@@ -189,7 +243,7 @@ export default function GamesManager() {
             GAMES MANAGER
           </h1>
           <p style={{ fontSize: '0.85rem', color: '#666', marginTop: '0.2rem' }}>
-            Manage customer-facing games and activities (multilingual)
+            Manage customer-facing games, rewards and activities (multilingual)
           </p>
         </div>
         <button onClick={openCreate} className="btn btn-primary btn-sm">
@@ -219,8 +273,9 @@ export default function GamesManager() {
               <tr style={{ backgroundColor: 'var(--color-bg-card)', borderBottom: '1px solid var(--color-border)' }}>
                 <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Image</th>
                 <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Title</th>
+                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Type</th>
+                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Reward</th>
                 <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Translations</th>
-                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Slug</th>
                 <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Order</th>
                 <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Status</th>
                 <th style={{ padding: '1rem', textAlign: isRtl ? 'left' : 'right' }}>Actions</th>
@@ -231,21 +286,38 @@ export default function GamesManager() {
                 <tr key={game._id} style={{ borderBottom: '1px solid var(--color-border)' }}>
                   <td style={{ padding: '1rem' }}>
                     {game.coverImage ? (
-                      <img src={game.coverImage} alt="" style={{ width: '50px', height: '65px', objectFit: 'cover', borderRadius: '4px' }} />
+                      <img src={game.coverImage} alt="" style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '6px' }} />
                     ) : (
-                      <div style={{ width: '50px', height: '65px', backgroundColor: 'var(--color-bg-card)', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ccc' }}>
+                      <div style={{ width: '50px', height: '50px', backgroundColor: 'var(--color-bg-card)', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem' }}>
                         🎮
                       </div>
                     )}
                   </td>
-                  <td style={{ padding: '1rem', fontWeight: '700' }}>{getDisplayTitle(game)}</td>
+                  <td style={{ padding: '1rem', fontWeight: '700' }}>
+                    <div>{getDisplayTitle(game)}</div>
+                    <span style={{ fontSize: '0.75rem', color: '#888', fontFamily: 'monospace' }}>/{game.slug}</span>
+                  </td>
+                  <td style={{ padding: '1rem' }}>
+                    <span style={{ fontSize: '0.78rem', fontWeight: '700', backgroundColor: 'var(--color-bg-card)', padding: '0.2rem 0.5rem', borderRadius: '4px' }}>
+                      {game.type || game.gameType || 'wheel'}
+                    </span>
+                  </td>
+                  <td style={{ padding: '1rem' }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--color-primary-dark)' }}>
+                      {game.reward?.discountPercent ? `-${game.reward.discountPercent}%` : 'Prize'}
+                    </span>
+                    {game.reward?.discountCode && (
+                      <span style={{ display: 'block', fontSize: '0.72rem', color: '#666', fontFamily: 'monospace' }}>
+                        {game.reward.discountCode}
+                      </span>
+                    )}
+                  </td>
                   <td style={{ padding: '1rem' }}><TranslationBadge field={game.title} /></td>
-                  <td style={{ padding: '1rem', color: '#666', fontFamily: 'monospace', fontSize: '0.82rem' }}>{game.slug}</td>
                   <td style={{ padding: '1rem' }}>{game.displayOrder}</td>
                   <td style={{ padding: '1rem' }}>
                     {game.isActive
                       ? <span className="badge badge-delivered">Active</span>
-                      : <span className="badge badge-cancelled">Inactive</span>
+                      : <span className="badge badge-cancelled">Draft</span>
                     }
                   </td>
                   <td style={{ padding: '1rem', textAlign: isRtl ? 'left' : 'right' }}>
@@ -274,7 +346,7 @@ export default function GamesManager() {
         }}>
           <div style={{
             backgroundColor: 'var(--color-surface)', borderRadius: 'var(--radius-xl)',
-            maxWidth: '600px', width: '100%', maxHeight: '90vh',
+            maxWidth: '650px', width: '100%', maxHeight: '90vh',
             overflowY: 'auto', padding: '2rem', boxShadow: 'var(--shadow-lg)'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid var(--color-border)', paddingBottom: '1rem' }}>
@@ -291,6 +363,22 @@ export default function GamesManager() {
             )}
 
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              {/* Game Type Selection */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>
+                  Game Type *
+                </label>
+                <select
+                  value={gameType}
+                  onChange={(e) => setGameType(e.target.value)}
+                  style={{ width: '100%', padding: '0.65rem', borderRadius: '6px', border: '1px solid var(--color-border)' }}
+                >
+                  {GAME_TYPES.map(gt => (
+                    <option key={gt.value} value={gt.value}>{gt.label}</option>
+                  ))}
+                </select>
+              </div>
+
               {/* Language Tabs */}
               <div>
                 <LangTabs activeLang={activeLang} onChange={setActiveLang} field={title} />
@@ -315,7 +403,7 @@ export default function GamesManager() {
                     Description ({activeLang.toUpperCase()})
                   </label>
                   <textarea
-                    rows={3}
+                    rows={2}
                     value={description[activeLang]}
                     onChange={(e) => setDescription(prev => ({ ...prev, [activeLang]: e.target.value }))}
                     dir={activeLangDir}
@@ -326,16 +414,99 @@ export default function GamesManager() {
 
                 <div>
                   <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>
-                    Rules / How to Play ({activeLang.toUpperCase()})
+                    Instructions / How to Play ({activeLang.toUpperCase()})
                   </label>
                   <textarea
-                    rows={4}
+                    rows={2}
+                    value={instructions[activeLang]}
+                    onChange={(e) => setInstructions(prev => ({ ...prev, [activeLang]: e.target.value }))}
+                    dir={activeLangDir}
+                    placeholder={activeLang === 'ar' ? 'تعليمات اللعبة' : activeLang === 'en' ? 'Instructions on how to play' : 'Instructions pour jouer'}
+                    style={{ width: '100%', padding: '0.65rem', borderRadius: '6px', border: '1px solid var(--color-border)', resize: 'vertical', textAlign: activeLang === 'ar' ? 'right' : 'left', marginBottom: '0.75rem' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>
+                    Rules & Conditions ({activeLang.toUpperCase()})
+                  </label>
+                  <textarea
+                    rows={2}
                     value={rules[activeLang]}
                     onChange={(e) => setRules(prev => ({ ...prev, [activeLang]: e.target.value }))}
                     dir={activeLangDir}
-                    placeholder={activeLang === 'ar' ? 'قواعد اللعبة' : activeLang === 'en' ? 'Rules / how to play' : 'Règles du jeu'}
-                    style={{ width: '100%', padding: '0.65rem', borderRadius: '6px', border: '1px solid var(--color-border)', resize: 'vertical', textAlign: activeLang === 'ar' ? 'right' : 'left' }}
+                    placeholder={activeLang === 'ar' ? 'شروط وقواعد اللعبة' : activeLang === 'en' ? 'Rules & conditions' : 'Règles et conditions'}
+                    style={{ width: '100%', padding: '0.65rem', borderRadius: '6px', border: '1px solid var(--color-border)', resize: 'vertical', textAlign: activeLang === 'ar' ? 'right' : 'left', marginBottom: '0.75rem' }}
                   />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>
+                      Winner Message ({activeLang.toUpperCase()})
+                    </label>
+                    <input
+                      type="text"
+                      value={winnerMessage[activeLang]}
+                      onChange={(e) => setWinnerMessage(prev => ({ ...prev, [activeLang]: e.target.value }))}
+                      dir={activeLangDir}
+                      placeholder={activeLang === 'ar' ? 'تهانينا! لقد فزت!' : activeLang === 'en' ? 'Congratulations! You won!' : 'Félicitations ! Vous avez gagné !'}
+                      style={{ width: '100%', padding: '0.65rem', borderRadius: '6px', border: '1px solid var(--color-border)', textAlign: activeLang === 'ar' ? 'right' : 'left' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>
+                      Try Again Message ({activeLang.toUpperCase()})
+                    </label>
+                    <input
+                      type="text"
+                      value={loserMessage[activeLang]}
+                      onChange={(e) => setLoserMessage(prev => ({ ...prev, [activeLang]: e.target.value }))}
+                      dir={activeLangDir}
+                      placeholder={activeLang === 'ar' ? 'حظ أوفر في المرة القادمة!' : activeLang === 'en' ? 'Better luck next time!' : 'Bonne chance pour la prochaine fois !'}
+                      style={{ width: '100%', padding: '0.65rem', borderRadius: '6px', border: '1px solid var(--color-border)', textAlign: activeLang === 'ar' ? 'right' : 'left' }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Reward Settings */}
+              <div style={{ padding: '1rem', backgroundColor: 'var(--color-bg-base)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }}>
+                <span style={{ display: 'block', fontSize: '0.82rem', fontWeight: '800', marginBottom: '0.75rem', color: 'var(--color-espresso)' }}>
+                  Prize / Reward Configuration
+                </span>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '0.2rem' }}>Discount Code</label>
+                    <input
+                      type="text"
+                      value={rewardCode}
+                      onChange={(e) => setRewardCode(e.target.value)}
+                      placeholder="MERYAVIP"
+                      style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--color-border)', fontFamily: 'monospace' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '0.2rem' }}>Discount %</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="100"
+                      value={rewardPercent}
+                      onChange={(e) => setRewardPercent(e.target.value)}
+                      style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--color-border)' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '0.2rem' }}>Min Order (DZD)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={rewardMinOrder}
+                      onChange={(e) => setRewardMinOrder(e.target.value)}
+                      style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--color-border)' }}
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -346,7 +517,7 @@ export default function GamesManager() {
                 </label>
                 {coverImage ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem', backgroundColor: 'var(--color-bg-base)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }}>
-                    <img src={coverImage} alt="" style={{ width: '70px', height: '90px', objectFit: 'cover', borderRadius: '6px' }} />
+                    <img src={coverImage} alt="" style={{ width: '70px', height: '70px', objectFit: 'cover', borderRadius: '6px' }} />
                     <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer' }}>
                       <Upload size={13} /> Change
                       <input type="file" accept="image/*" onChange={(e) => handleImageUpload(e.target.files[0])} style={{ display: 'none' }} />
@@ -371,9 +542,16 @@ export default function GamesManager() {
                     style={{ width: '100%', padding: '0.65rem', borderRadius: '6px', border: '1px solid var(--color-border)' }}
                   />
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', paddingTop: '1.2rem' }}>
-                  <input type="checkbox" id="gameActive" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
-                  <label htmlFor="gameActive" style={{ fontSize: '0.85rem', fontWeight: '600' }}>Active (visible to customers)</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', paddingTop: '1.2rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <input type="checkbox" id="gameActive" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
+                    <label htmlFor="gameActive" style={{ fontSize: '0.85rem', fontWeight: '600' }}>Active (Published)</label>
+                  </div>
+                  {!isTitleComplete && (
+                    <span style={{ fontSize: '0.72rem', color: '#b45309', fontWeight: '500' }}>
+                      Requires complete FR, AR & EN titles to publish. Otherwise save as draft.
+                    </span>
+                  )}
                 </div>
               </div>
 

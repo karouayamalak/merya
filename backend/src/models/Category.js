@@ -90,11 +90,20 @@ categorySchema.index({ "name.en": 1 });
 categorySchema.virtual('translationStatus').get(function() {
   const n = this.name;
   if (!n || typeof n !== 'object') return { fr: false, ar: false, en: false };
+  const fr = Boolean(n.fr && n.fr.trim().length > 0);
+  const ar = Boolean(n.ar && n.ar.trim().length > 0);
+  const en = Boolean(n.en && n.en.trim().length > 0);
   return {
-    fr: Boolean(n.fr && n.fr.trim().length > 0),
-    ar: Boolean(n.ar && n.ar.trim().length > 0),
-    en: Boolean(n.en && n.en.trim().length > 0)
+    fr,
+    ar,
+    en
   };
 });
+
+// Helper: check if category has complete FR, AR, EN translations
+export function isCategoryFullyTranslated(category) {
+  const n = typeof category.name === 'object' && category.name !== null ? category.name : { fr: category.name || '' };
+  return Boolean(n.fr && n.fr.trim().length > 0 && n.ar && n.ar.trim().length > 0 && n.en && n.en.trim().length > 0);
+}
 
 export const Category = mongoose.model('Category', categorySchema);

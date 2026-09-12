@@ -39,7 +39,7 @@ const bannerSchema = new mongoose.Schema({
   },
   placement: {
     type: String,
-    enum: ['home_hero', 'home_middle', 'top_announcement', 'promo_bar'],
+    enum: ['home_hero', 'home_middle', 'top_announcement', 'promo_bar', 'hero', 'homepage-strip', 'shop-top', 'sidebar', 'popup'],
     default: 'top_announcement',
     index: true
   },
@@ -59,5 +59,25 @@ const bannerSchema = new mongoose.Schema({
 });
 
 bannerSchema.index({ isActive: 1, placement: 1, displayOrder: 1 });
+
+// Virtual: translation completeness status for admin UI badges
+bannerSchema.virtual('translationStatus').get(function() {
+  const t = this.title;
+  if (!t || typeof t !== 'object') return { fr: false, ar: false, en: false };
+  const fr = Boolean(t.fr && t.fr.trim().length > 0);
+  const ar = Boolean(t.ar && t.ar.trim().length > 0);
+  const en = Boolean(t.en && t.en.trim().length > 0);
+  return {
+    fr,
+    ar,
+    en
+  };
+});
+
+// Helper: check if banner has complete FR, AR, EN translations
+export function isBannerFullyTranslated(banner) {
+  const t = typeof banner.title === 'object' && banner.title !== null ? banner.title : { fr: banner.title || '' };
+  return Boolean(t.fr && t.fr.trim().length > 0 && t.ar && t.ar.trim().length > 0 && t.en && t.en.trim().length > 0);
+}
 
 export const Banner = mongoose.model('Banner', bannerSchema);
