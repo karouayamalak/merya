@@ -79,6 +79,10 @@ export function CartProvider({ children }) {
     setItems([]);
   };
 
+  const updateCartItems = (updatedItems) => {
+    setItems(updatedItems);
+  };
+
   const totalQuantity = items.reduce((acc, i) => acc + i.quantity, 0);
   const subtotal = items.reduce((acc, i) => acc + i.unitPrice * i.quantity, 0);
 
@@ -90,6 +94,7 @@ export function CartProvider({ children }) {
         updateQuantity,
         removeFromCart,
         clearCart,
+        updateCartItems,
         totalQuantity,
         subtotal,
         isDrawerOpen,

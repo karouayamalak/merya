@@ -16,90 +16,14 @@ import {
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { fetchDeliverySettings, submitCheckout } from '../services/api';
-
-// Helper to strictly validate the server's 58-Wilaya delivery configuration
-function validateDeliverySettingsResponse(data) {
-  if (!data || !data.success) {
-    return { valid: false, error: data?.message || 'Impossible de récupérer les paramètres de livraison du serveur.' };
-  }
-
-  const rawWilayas = data.wilayas || data.settings?.wilayaRates;
-  if (!Array.isArray(rawWilayas)) {
-    return { valid: false, error: 'Format de réponse invalide : liste des wilayas manquante.' };
-  }
-
-  if (rawWilayas.length !== 58) {
-    return {
-      valid: false,
-      error: `Configuration des tarifs invalide : exactement 58 wilayas requises (${rawWilayas.length} reçues).`
-    };
-  }
-
-  const seenCodes = new Set();
-  const validatedWilayas = [];
-
-  for (let i = 0; i < rawWilayas.length; i++) {
-    const w = rawWilayas[i];
-    if (!w || typeof w !== 'object') {
-      return { valid: false, error: `Données de wilaya invalides à l'index ${i}.` };
-    }
-
-    const code = Number(w.wilayaCode !== undefined ? w.wilayaCode : w.code);
-    if (!Number.isInteger(code) || code < 1 || code > 58) {
-      return { valid: false, error: `Code de wilaya invalide : ${code} (attendu : entier entre 1 et 58).` };
-    }
-
-    if (seenCodes.has(code)) {
-      return { valid: false, error: `Code de wilaya dupliqué : ${code}. Chaque wilaya doit être unique.` };
-    }
-    seenCodes.add(code);
-
-    const name = String(w.wilayaName || w.name || '').trim();
-    if (!name) {
-      return { valid: false, error: `Nom canonique manquant pour la wilaya ${code}.` };
-    }
-
-    const homeFee = Number(w.homeFee);
-    if (!Number.isFinite(homeFee) || !Number.isInteger(homeFee) || homeFee < 0) {
-      return { valid: false, error: `Tarif de livraison à domicile invalide pour la wilaya ${code} (${name}).` };
-    }
-
-    const agencyFee = Number(w.agencyFee);
-    if (!Number.isFinite(agencyFee) || !Number.isInteger(agencyFee) || agencyFee < 0) {
-      return { valid: false, error: `Tarif de livraison en bureau / stopdesk invalide pour la wilaya ${code} (${name}).` };
-    }
-
-    validatedWilayas.push({
-      code,
-      wilayaCode: code,
-      name,
-      wilayaName: name,
-      nameAr: String(w.wilayaNameAr || w.nameAr || '').trim(),
-      wilayaNameAr: String(w.wilayaNameAr || w.nameAr || '').trim(),
-      homeFee,
-      agencyFee,
-      isAvailable: w.isAvailable !== false
-    });
-  }
-
-  // Ensure all codes 1–58 are present
-  for (let c = 1; c <= 58; c++) {
-    if (!seenCodes.has(c)) {
-      return { valid: false, error: `Wilaya manquante : code ${c} absent de la configuration.` };
-    }
-  }
-
-  validatedWilayas.sort((a, b) => a.code - b.code);
-
-  return {
-    valid: true,
-    wilayas: validatedWilayas,
-    settings: data.settings || {}
-  };
-}
+import {
+  validateDeliverySettingsResponse,
+  calculateDeliveryFee,
+  revalidateCartWithServer
+} from '../services/checkoutValidation';
 
 export default function Checkout({ onBack, onOrderSuccess }) {
-  const { items, subtotal, clearCart } = useCart();
+  const { items, subtotal, clearCart, updateCartItems } = useCart();
 
   // Explicit delivery settings state
   const [loadingSettings, setLoadingSettings] = useState(true);
@@ -117,8 +41,10 @@ export default function Checkout({ onBack, onOrderSuccess }) {
   const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
 
-  // Submitting & Double-click protection
+  // Submitting, Double-click protection & Cart notices
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isValidatingCart, setIsValidatingCart] = useState(false);
+  const [cartNotice, setCartNotice] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [idempotencyKey, setIdempotencyKey] = useState(() => `idemp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`);
 
@@ -161,18 +87,58 @@ export default function Checkout({ onBack, onOrderSuccess }) {
     loadSettings();
   }, []);
 
+  // Revalidate cart prices against live server products on page mount
+  useEffect(() => {
+    let isMounted = true;
+    async function syncCartOnMount() {
+      if (!items || items.length === 0) return;
+      setIsValidatingCart(true);
+      const res = await revalidateCartWithServer(items);
+      if (!isMounted) return;
+      setIsValidatingCart(false);
+
+      if (!res.success && res.issues.length > 0) {
+        setErrorMessage(res.issues.join(' • '));
+      } else if (res.pricesChanged) {
+        updateCartItems(res.updatedItems);
+        setCartNotice('Le prix de certains articles a été mis à jour. Votre panier a été actualisé.');
+      }
+    }
+
+    syncCartOnMount();
+    return () => { isMounted = false; };
+  }, []);
+
   // Look up selected Wilaya strictly from validated server data — NO hardcoded fallback values
   const selectedWilayaObj = (!loadingSettings && !settingsError && selectedWilayaCode !== null && wilayas.length === 58)
-    ? (wilayas.find(w => w.code === Number(selectedWilayaCode)) || null)
+    ? (wilayas.find(w => w.code === selectedWilayaCode) || null)
     : null;
 
   const isSettingsReady = !loadingSettings && !settingsError && wilayas.length === 58 && selectedWilayaObj !== null;
   const isWilayaAvailable = selectedWilayaObj ? selectedWilayaObj.isAvailable : false;
 
-  // Derive fee strictly from server configuration
-  const activeDeliveryFee = (isSettingsReady && isWilayaAvailable)
+  const freeDeliveryThreshold = (deliverySettings && typeof deliverySettings.freeDeliveryThreshold === 'number')
+    ? deliverySettings.freeDeliveryThreshold
+    : 0;
+
+  // Raw fee from server configuration
+  const rawDeliveryFee = (isSettingsReady && isWilayaAvailable)
     ? (deliveryMethod === 'agency' ? selectedWilayaObj.agencyFee : selectedWilayaObj.homeFee)
     : null;
+
+  // Authoritative delivery fee calculation applying freeDeliveryThreshold
+  const activeDeliveryFee = calculateDeliveryFee({
+    subtotal,
+    rawDeliveryFee,
+    freeDeliveryThreshold
+  });
+
+  const isFreeDelivery = (
+    rawDeliveryFee !== null &&
+    activeDeliveryFee === 0 &&
+    freeDeliveryThreshold > 0 &&
+    subtotal >= freeDeliveryThreshold
+  );
 
   const estimatedTotal = activeDeliveryFee !== null ? subtotal + activeDeliveryFee : null;
 
@@ -184,11 +150,13 @@ export default function Checkout({ onBack, onOrderSuccess }) {
     !selectedWilayaObj ||
     !isWilayaAvailable ||
     items.length === 0 ||
-    isSubmitting === true;
+    isSubmitting === true ||
+    isValidatingCart === true;
 
   const handleSubmitOrder = async (e) => {
     e.preventDefault();
     setErrorMessage('');
+    setCartNotice('');
 
     if (loadingSettings) {
       setErrorMessage('Veuillez patienter pendant le chargement des tarifs de livraison.');
@@ -223,7 +191,25 @@ export default function Checkout({ onBack, onOrderSuccess }) {
 
     setIsSubmitting(true);
 
+    // CRITICAL: Revalidate cart against server before final checkout
+    const reval = await revalidateCartWithServer(items);
+
+    if (!reval.success) {
+      setErrorMessage(reval.issues.join(' • '));
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (reval.pricesChanged) {
+      // Synchronize cart with current server prices
+      updateCartItems(reval.updatedItems);
+      setCartNotice('Le prix de certains articles a été mis à jour. Votre panier a été actualisé. Veuillez vérifier le montant avant de confirmer.');
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
+      // NOTE: Prices are NEVER sent in checkout payload — server is authoritative inside transaction
       const orderPayload = {
         idempotencyKey,
         customer: {
@@ -658,6 +644,29 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                 </div>
               )}
 
+              {/* Price update notice banner */}
+              {cartNotice && (
+                <div style={{
+                  backgroundColor: '#FEF3C7',
+                  border: '1.5px solid #F59E0B',
+                  color: '#92400E',
+                  padding: '0.9rem 1.1rem',
+                  borderRadius: '14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  marginBottom: '1.25rem',
+                  fontSize: '0.85rem',
+                  fontWeight: '600',
+                  lineHeight: 1.4,
+                  position: 'relative',
+                  zIndex: 2
+                }}>
+                  <AlertCircle size={20} flexShrink={0} color="#D97706" />
+                  <div style={{ flex: 1 }}>{cartNotice}</div>
+                </div>
+              )}
+
               {/* Error banner if any form error */}
               {errorMessage && (
                 <div style={{
@@ -839,7 +848,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                           }}
                         >
                           <span>
-                            À domicile {selectedWilayaObj ? `(+${selectedWilayaObj.homeFee.toLocaleString()} DA)` : (loadingSettings ? '(Chargement...)' : '')}
+                            À domicile {selectedWilayaObj ? (isFreeDelivery ? '(Livraison offerte)' : `(+${selectedWilayaObj.homeFee.toLocaleString()} DA)`) : (loadingSettings ? '(Chargement...)' : '')}
                           </span>
                         </button>
 
@@ -866,7 +875,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                           }}
                         >
                           <span>
-                            Au bureau / Stopdesk {selectedWilayaObj ? `(+${selectedWilayaObj.agencyFee.toLocaleString()} DA)` : (loadingSettings ? '(Chargement...)' : '')}
+                            Au bureau / Stopdesk {selectedWilayaObj ? (isFreeDelivery ? '(Livraison offerte)' : `(+${selectedWilayaObj.agencyFee.toLocaleString()} DA)`) : (loadingSettings ? '(Chargement...)' : '')}
                           </span>
                         </button>
                       </div>
@@ -1201,18 +1210,65 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                   <Truck size={15} color="#9F8268" />
                   Livraison ({deliveryMethod === 'agency' ? 'Stopdesk' : 'À domicile'} {selectedWilayaObj ? `- Wilaya ${selectedWilayaObj.code}` : ''})
                 </span>
-                <span style={{ fontWeight: '600', color: '#2A241F' }}>
+                <span style={{ fontWeight: '600', color: isFreeDelivery ? '#16A34A' : '#2A241F' }}>
                   {loadingSettings ? (
                     <span style={{ fontSize: '0.8rem', color: '#9F8268' }}>Calcul en cours...</span>
                   ) : Boolean(settingsError) ? (
                     <span style={{ fontSize: '0.8rem', color: '#DC2626' }}>Non disponible</span>
                   ) : activeDeliveryFee !== null ? (
-                    `+${activeDeliveryFee.toLocaleString()} DZD`
+                    isFreeDelivery ? (
+                      <span style={{ color: '#16A34A', fontWeight: '700', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <span>Livraison offerte</span>
+                        <span style={{ fontSize: '0.75rem', textDecoration: 'line-through', color: '#999', fontWeight: '400' }}>
+                          +{rawDeliveryFee.toLocaleString()} DZD
+                        </span>
+                      </span>
+                    ) : (
+                      `+${activeDeliveryFee.toLocaleString()} DZD`
+                    )
                   ) : (
                     '—'
                   )}
                 </span>
               </div>
+
+              {/* Free delivery badge or threshold hint */}
+              {isFreeDelivery && (
+                <div style={{
+                  fontSize: '0.78rem',
+                  color: '#16A34A',
+                  backgroundColor: '#F0FDF4',
+                  border: '1px solid #BBF7D0',
+                  borderRadius: '10px',
+                  padding: '0.45rem 0.75rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  fontWeight: '600'
+                }}>
+                  <span>🎁</span>
+                  <span>Livraison offerte appliquée (seuil de {freeDeliveryThreshold.toLocaleString()} DZD atteint)</span>
+                </div>
+              )}
+
+              {!isFreeDelivery && freeDeliveryThreshold > 0 && subtotal < freeDeliveryThreshold && isSettingsReady && (
+                <div style={{
+                  fontSize: '0.76rem',
+                  color: '#9F8268',
+                  backgroundColor: '#FAF5EE',
+                  border: '1px solid #EFE4D6',
+                  borderRadius: '10px',
+                  padding: '0.45rem 0.75rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem'
+                }}>
+                  <span>💡</span>
+                  <span>
+                    Plus que <strong>{(freeDeliveryThreshold - subtotal).toLocaleString()} DZD</strong> pour bénéficier de la <strong>livraison offerte</strong> !
+                  </span>
+                </div>
+              )}
 
               <div style={{
                 display: 'flex',

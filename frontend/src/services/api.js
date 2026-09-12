@@ -1,11 +1,11 @@
-const API_BASE = (import.meta.env.VITE_API_URL || '') + '/api/v1';
+const API_BASE = ((typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) || '') + '/api/v1';
 
 export function getImageUrl(imagePath) {
   if (!imagePath) return '';
   if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
     return imagePath;
   }
-  const backendBase = import.meta.env.VITE_BACKEND_URL || '';
+  const backendBase = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_BACKEND_URL) || '';
   return `${backendBase}${imagePath}`;
 }
 
