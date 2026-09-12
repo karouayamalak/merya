@@ -3,8 +3,8 @@ import { Settings, Building2, Home as HomeIcon, CheckCircle2, AlertCircle, Loade
 import { fetchDeliverySettings, adminUpdateDeliverySettings } from '../../services/api';
 
 export default function DeliverySettingsManager() {
-  const [agencyFee, setAgencyFee] = useState(500);
-  const [homeFee, setHomeFee] = useState(800);
+  const [agencyFee, setAgencyFee] = useState(0);
+  const [homeFee, setHomeFee] = useState(0);
   const [freeThreshold, setFreeThreshold] = useState(0);
   const [wilayaRates, setWilayaRates] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -23,9 +23,9 @@ export default function DeliverySettingsManager() {
       try {
         const res = await fetchDeliverySettings();
         if (res.success && res.settings) {
-          setAgencyFee(res.settings.agencyDeliveryFee || 500);
-          setHomeFee(res.settings.homeDeliveryFee || 800);
-          setFreeThreshold(res.settings.freeDeliveryThreshold || 0);
+          setAgencyFee(res.settings.agencyDeliveryFee ?? 0);
+          setHomeFee(res.settings.homeDeliveryFee ?? 0);
+          setFreeThreshold(res.settings.freeDeliveryThreshold ?? 0);
           setWilayaRates(res.settings.wilayaRates || res.wilayas || []);
         }
       } catch (err) {
