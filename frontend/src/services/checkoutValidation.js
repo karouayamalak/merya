@@ -1,4 +1,4 @@
-import { fetchProducts, quoteOrder } from './api.js';
+import { quoteOrder } from './api.js';
 
 /**
  * Strictly validates the server's 58-Wilaya delivery configuration.
@@ -118,188 +118,139 @@ export function calculateDeliveryFee({ subtotal, rawDeliveryFee, freeDeliveryThr
 }
 
 /**
- * Revalidates all cart items against live server product database:
- * - Uses preferred server-authoritative quote endpoint POST /orders/quote
- * - Detects deactivated/archived/deleted products
- * - Detects removed color or size variants
- * - Detects stock shortage
- * - Computes live effective price (promotional price if active, else selling price)
- * - Returns updated items and change detection flags
+ * Server-Authoritative Cart Validation:
+ * - Uses ONLY the server-authoritative quote endpoint POST /orders/quote
+ * - Sends only productId, colorName, size, quantity, and optional wilayaCode/deliveryMethod
+ * - NEVER sends client-calculated prices, fees, or subtotals
+ * - Trusts only server quote for availability, stock, and live prices
+ * - FAILS CLOSED on any error, 500, network failure, or malformed data
+ * - NO full-catalog or /products fallback
  */
 export async function revalidateCartWithServer(
   cartItems,
-  customQuoteOrder = quoteOrder,
-  customFetchProducts = fetchProducts
+  optionsOrQuoteFn = {},
+  customQuoteOrder = quoteOrder
 ) {
-  if (!Array.isArray(cartItems) || cartItems.length === 0) {
-    return { success: true, issues: [], pricesChanged: false, updatedItems: [] };
+  let options = {};
+  let quoteFn = customQuoteOrder;
+
+  if (typeof optionsOrQuoteFn === 'function') {
+    quoteFn = optionsOrQuoteFn;
+  } else if (optionsOrQuoteFn && typeof optionsOrQuoteFn === 'object') {
+    options = optionsOrQuoteFn;
   }
 
-  // 1. Attempt primary server-authoritative quote endpoint
+  if (!Array.isArray(cartItems) || cartItems.length === 0) {
+    return {
+      success: true,
+      issues: [],
+      pricesChanged: false,
+      updatedItems: [],
+      subtotal: 0,
+      deliveryFee: null,
+      freeDeliveryThreshold: 0,
+      isFreeDelivery: false,
+      totalPrice: 0
+    };
+  }
+
   try {
-    const quoteRes = await customQuoteOrder({
+    // 1. Send only productId, colorName, size, quantity, wilayaCode, deliveryMethod
+    // Client-calculated financial values (unitPrice, subtotal, deliveryFee, totalPrice) are NEVER sent.
+    const quotePayload = {
       items: cartItems.map(item => ({
         productId: item.productId,
-        productName: item.productName,
         colorName: item.colorName,
         size: item.size,
         quantity: item.quantity
       }))
-    });
+    };
 
-    if (quoteRes && quoteRes.success && Array.isArray(quoteRes.items)) {
-      let pricesChanged = false;
-      const updatedItems = [];
+    if (options.wilayaCode !== undefined && options.wilayaCode !== null) {
+      quotePayload.wilayaCode = options.wilayaCode;
+    }
+    if (options.deliveryMethod) {
+      quotePayload.deliveryMethod = options.deliveryMethod;
+    }
 
-      for (const item of cartItems) {
-        const quoted = quoteRes.items.find(q =>
-          String(q.productId) === String(item.productId) &&
-          q.colorName === item.colorName &&
-          q.size === item.size
-        );
+    const quoteRes = await quoteFn(quotePayload);
 
-        if (!quoted || !quoted.isAvailable) {
-          continue;
-        }
-
-        if (item.unitPrice !== quoted.unitPrice || item.originalPrice !== quoted.originalPrice) {
-          pricesChanged = true;
-        }
-
-        updatedItems.push({
-          ...item,
-          productName: quoted.productName || item.productName,
-          unitPrice: quoted.unitPrice,
-          originalPrice: quoted.originalPrice,
-          image: quoted.image || item.image
-        });
-      }
-
-      const issues = Array.isArray(quoteRes.issues) ? quoteRes.issues : [];
-
+    // 2. Strict response structure validation (fail closed if malformed or invalid)
+    if (
+      !quoteRes ||
+      typeof quoteRes !== 'object' ||
+      quoteRes.success !== true ||
+      !Array.isArray(quoteRes.items) ||
+      typeof quoteRes.subtotal !== 'number'
+    ) {
       return {
-        success: Boolean(quoteRes.isValid) && issues.length === 0,
-        issues,
-        pricesChanged,
-        updatedItems
+        success: false,
+        issues: ['Impossible de vérifier votre panier. Veuillez réessayer.'],
+        pricesChanged: false,
+        updatedItems: [],
+        subtotal: null,
+        deliveryFee: null,
+        freeDeliveryThreshold: 0,
+        isFreeDelivery: false,
+        totalPrice: null
       };
     }
-  } catch (quoteErr) {
-    console.warn('[Cart Quote Fallback] Using products catalog:', quoteErr?.message || quoteErr);
-  }
 
-  // 2. Resilient fallback via product catalog
-  try {
-    const firstRes = await customFetchProducts({ limit: 50, page: 1 });
-    let allProducts = Array.isArray(firstRes?.products) ? firstRes.products : [];
-    // Products API returns total under pagination.total, not top-level total
-    const total = Number(firstRes?.pagination?.total) || allProducts.length;
-
-    if (total > 50) {
-      const totalPages = Math.ceil(total / 50);
-      const pagePromises = [];
-      for (let p = 2; p <= totalPages; p++) {
-        pagePromises.push(customFetchProducts({ limit: 50, page: p }));
-      }
-      const extraPages = await Promise.all(pagePromises);
-      for (const ep of extraPages) {
-        if (Array.isArray(ep?.products)) {
-          allProducts = allProducts.concat(ep.products);
-        }
-      }
-    }
-
-    const productMap = new Map();
-    for (const p of allProducts) {
-      if (p && p._id) {
-        productMap.set(String(p._id), p);
-      }
-    }
-
-    const issues = [];
+    // 3. Map server-authoritative quoted items and detect price adjustments
     let pricesChanged = false;
     const updatedItems = [];
 
     for (const item of cartItems) {
-      const serverProduct = productMap.get(String(item.productId));
-
-      // Product missing or inactive/archived
-      if (!serverProduct) {
-        issues.push(`L'article "${item.productName || 'Sélectionné'}" n'est plus disponible.`);
-        continue;
-      }
-
-      // Color variant check
-      const colorVariant = Array.isArray(serverProduct.colors)
-        ? serverProduct.colors.find(c => c.colorName === item.colorName)
-        : null;
-      if (!colorVariant) {
-        issues.push(`La couleur "${item.colorName}" n'est plus disponible pour "${serverProduct.name}".`);
-        continue;
-      }
-
-      // Size variant check
-      const sizeVariant = Array.isArray(colorVariant.sizes)
-        ? colorVariant.sizes.find(s => s.size === item.size)
-        : null;
-      if (!sizeVariant) {
-        issues.push(`La taille "${item.size}" n'est plus disponible pour "${serverProduct.name}" (${item.colorName}).`);
-        continue;
-      }
-
-      // Stock check
-      if (typeof sizeVariant.stock === 'number' && sizeVariant.stock < item.quantity) {
-        if (sizeVariant.stock <= 0) {
-          issues.push(`"${serverProduct.name}" (${item.colorName}, ${item.size}) est actuellement en rupture de stock.`);
-        } else {
-          issues.push(`Stock insuffisant pour "${serverProduct.name}" (${item.colorName}, ${item.size}) : seulement ${sizeVariant.stock} disponible(s).`);
-        }
-        continue;
-      }
-
-      // Live authoritative price calculation
-      const livePromotionActive = Boolean(
-        serverProduct.promotion &&
-        serverProduct.promotion.active &&
-        typeof serverProduct.promotion.promotionalPrice === 'number' &&
-        serverProduct.promotion.promotionalPrice > 0 &&
-        serverProduct.promotion.promotionalPrice < serverProduct.sellingPrice
+      const quoted = quoteRes.items.find(q =>
+        String(q.productId) === String(item.productId) &&
+        q.colorName === item.colorName &&
+        q.size === item.size
       );
 
-      const effectiveUnitPrice = livePromotionActive
-        ? serverProduct.promotion.promotionalPrice
-        : serverProduct.sellingPrice;
+      if (!quoted || !quoted.isAvailable || !quoted.inStock) {
+        continue;
+      }
 
-      const effectiveOriginalPrice = serverProduct.sellingPrice;
-
-      if (item.unitPrice !== effectiveUnitPrice || item.originalPrice !== effectiveOriginalPrice) {
+      if (item.unitPrice !== quoted.unitPrice || item.originalPrice !== quoted.originalPrice) {
         pricesChanged = true;
       }
 
       updatedItems.push({
         ...item,
-        productName: serverProduct.name,
-        unitPrice: effectiveUnitPrice,
-        originalPrice: effectiveOriginalPrice,
-        image: (Array.isArray(colorVariant.images) && colorVariant.images[0]) || item.image
+        productName: quoted.productName || item.productName,
+        unitPrice: quoted.unitPrice,
+        originalPrice: quoted.originalPrice,
+        image: quoted.image || item.image
       });
     }
 
+    const issues = Array.isArray(quoteRes.issues) ? quoteRes.issues : [];
+    const isCartValid = Boolean(quoteRes.isValid) && issues.length === 0;
+
     return {
-      success: issues.length === 0,
+      success: isCartValid,
       issues,
       pricesChanged,
-      updatedItems
+      updatedItems,
+      subtotal: quoteRes.subtotal,
+      deliveryFee: typeof quoteRes.deliveryFee === 'number' ? quoteRes.deliveryFee : null,
+      freeDeliveryThreshold: typeof quoteRes.freeDeliveryThreshold === 'number' ? quoteRes.freeDeliveryThreshold : 0,
+      isFreeDelivery: Boolean(quoteRes.isFreeDelivery),
+      totalPrice: typeof quoteRes.totalPrice === 'number' ? quoteRes.totalPrice : quoteRes.subtotal
     };
   } catch (err) {
-    console.warn('[Cart Revalidation Error]:', err);
-    // FAIL-CLOSED: A network or server error during validation must NEVER be treated
-    // as a successful validation. Return failure so checkout remains disabled.
+    console.warn('[Cart Quote Error]:', err?.message || err);
+    // FAIL CLOSED: Network errors, HTTP 500, or unusable responses must NEVER allow checkout
     return {
       success: false,
       issues: ['Impossible de vérifier votre panier. Veuillez réessayer.'],
       pricesChanged: false,
-      updatedItems: []
+      updatedItems: [],
+      subtotal: null,
+      deliveryFee: null,
+      freeDeliveryThreshold: 0,
+      isFreeDelivery: false,
+      totalPrice: null
     };
   }
 }

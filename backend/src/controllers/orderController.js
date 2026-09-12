@@ -582,7 +582,7 @@ export const updateOrderCustomerDetails = async (req, res, next) => {
     if (!updatedOrder) {
       // Check if the order was concurrently marked Delivered
       const latestOrder = await Order.findById(id);
-      if (latestOrder && latestOrder.status === ORDER_STATUS.DELIVERED && financialsOrDeliveryAttempted) {
+      if (latestOrder && latestOrder.status === ORDER_STATUS.DELIVERED && wilayaOrMethodChanged) {
         return res.status(400).json({
           success: false,
           message: 'Historical financial values (delivery fee, subtotal, total) cannot be modified on Delivered orders.'

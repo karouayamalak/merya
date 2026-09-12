@@ -254,250 +254,318 @@ describe('MERYA DZ Price Consistency & Free Delivery Hardening', () => {
     });
   });
 
-  describe('4. Cart Revalidation Scenarios', () => {
-    const mockServerProducts = [
-      {
-        _id: 'p1',
-        name: 'Robe Merya',
-        sellingPrice: 12000,
-        promotion: { active: true, promotionalPrice: 9500 },
-        colors: [{ colorName: 'Beige', images: ['/beige.jpg'], sizes: [{ size: 'M', stock: 5 }, { size: 'S', stock: 0 }] }]
-      },
-      {
-        _id: 'p2',
-        name: 'Abaya Velvet',
-        sellingPrice: 15000,
-        promotion: { active: false, promotionalPrice: 13000 },
-        colors: [{ colorName: 'Bordeaux', images: ['/bordeaux.jpg'], sizes: [{ size: 'L', stock: 3 }] }]
-      }
-    ];
-    // mockFetch simulates the product catalog endpoint (used as customFetchProducts fallback)
-    const mockFetch = async () => ({ success: true, products: mockServerProducts, total: mockServerProducts.length });
-    // noopQuoteOrder: a stub that always rejects so revalidateCartWithServer falls through to catalog fallback
-    const noopQuoteOrder = async () => { throw new Error('quote endpoint not available in test'); };
+  describe('4. Server-Authoritative Cart Validation & Fail-Closed Scenarios', () => {
+    test('Quote success: valid cart returns valid server quote with live product price', async () => {
+      const mockQuote = async (payload) => ({
+        success: true,
+        isValid: true,
+        subtotal: 9500,
+        deliveryFee: 800,
+        totalPrice: 10300,
+        issues: [],
+        items: [{
+          productId: 'p1',
+          productName: 'Robe Merya',
+          colorName: 'Beige',
+          size: 'M',
+          quantity: 1,
+          unitPrice: 9500,
+          originalPrice: 12000,
+          availableStock: 5,
+          inStock: true,
+          isAvailable: true
+        }]
+      });
 
-    test('Normal price -> promotion detected and updated to server price', async () => {
       const res = await revalidateCartWithServer([{
         productId: 'p1', productName: 'Robe Merya', colorName: 'Beige', size: 'M', quantity: 1, unitPrice: 12000, originalPrice: 12000
-      }], noopQuoteOrder, mockFetch);
+      }], mockQuote);
+
       assert.strictEqual(res.success, true);
       assert.strictEqual(res.pricesChanged, true);
       assert.strictEqual(res.updatedItems[0].unitPrice, 9500);
       assert.strictEqual(res.updatedItems[0].originalPrice, 12000);
     });
 
-    test('Changed normal price detected and updated', async () => {
-      const catalogWithNewPrice = async () => ({
+    test('Quote success: promotion price is used when active', async () => {
+      const mockQuote = async () => ({
         success: true,
-        products: [{
-          _id: 'p2',
-          name: 'Abaya Velvet',
-          sellingPrice: 16500, // increased from 15000
-          promotion: { active: false },
-          colors: [{ colorName: 'Bordeaux', images: ['/bordeaux.jpg'], sizes: [{ size: 'L', stock: 3 }] }]
-        }],
-        pagination: { total: 1 }
+        isValid: true,
+        subtotal: 12500,
+        issues: [],
+        items: [{
+          productId: 'p2',
+          productName: 'Abaya Velvet',
+          colorName: 'Bordeaux',
+          size: 'L',
+          quantity: 1,
+          unitPrice: 12500,
+          originalPrice: 15000,
+          availableStock: 3,
+          inStock: true,
+          isAvailable: true
+        }]
       });
+
       const res = await revalidateCartWithServer([{
         productId: 'p2', productName: 'Abaya Velvet', colorName: 'Bordeaux', size: 'L', quantity: 1, unitPrice: 15000, originalPrice: 15000
-      }], noopQuoteOrder, catalogWithNewPrice);
+      }], mockQuote);
+
+      assert.strictEqual(res.success, true);
+      assert.strictEqual(res.pricesChanged, true);
+      assert.strictEqual(res.updatedItems[0].unitPrice, 12500);
+    });
+
+    test('Quote success: promotion removed restores regular selling price', async () => {
+      const mockQuote = async () => ({
+        success: true,
+        isValid: true,
+        subtotal: 15000,
+        issues: [],
+        items: [{
+          productId: 'p2',
+          productName: 'Abaya Velvet',
+          colorName: 'Bordeaux',
+          size: 'L',
+          quantity: 1,
+          unitPrice: 15000,
+          originalPrice: 15000,
+          availableStock: 3,
+          inStock: true,
+          isAvailable: true
+        }]
+      });
+
+      const res = await revalidateCartWithServer([{
+        productId: 'p2', productName: 'Abaya Velvet', colorName: 'Bordeaux', size: 'L', quantity: 1, unitPrice: 12500, originalPrice: 15000
+      }], mockQuote);
+
+      assert.strictEqual(res.success, true);
+      assert.strictEqual(res.pricesChanged, true);
+      assert.strictEqual(res.updatedItems[0].unitPrice, 15000);
+    });
+
+    test('Quote success: changed normal price detected and updated', async () => {
+      const mockQuote = async () => ({
+        success: true,
+        isValid: true,
+        subtotal: 16500,
+        issues: [],
+        items: [{
+          productId: 'p2',
+          productName: 'Abaya Velvet',
+          colorName: 'Bordeaux',
+          size: 'L',
+          quantity: 1,
+          unitPrice: 16500,
+          originalPrice: 16500,
+          availableStock: 3,
+          inStock: true,
+          isAvailable: true
+        }]
+      });
+
+      const res = await revalidateCartWithServer([{
+        productId: 'p2', productName: 'Abaya Velvet', colorName: 'Bordeaux', size: 'L', quantity: 1, unitPrice: 15000, originalPrice: 15000
+      }], mockQuote);
+
       assert.strictEqual(res.success, true);
       assert.strictEqual(res.pricesChanged, true);
       assert.strictEqual(res.updatedItems[0].unitPrice, 16500);
       assert.strictEqual(res.updatedItems[0].originalPrice, 16500);
     });
 
-    test('Newly activated promotion detected and applied', async () => {
-      const catalogWithPromo = async () => ({
+    test('Quote check: variant stock shortage detected', async () => {
+      const mockQuote = async () => ({
         success: true,
-        products: [{
-          _id: 'p2',
-          name: 'Abaya Velvet',
-          sellingPrice: 15000,
-          promotion: { active: true, promotionalPrice: 12500 },
-          colors: [{ colorName: 'Bordeaux', images: ['/bordeaux.jpg'], sizes: [{ size: 'L', stock: 3 }] }]
-        }],
-        pagination: { total: 1 }
+        isValid: false,
+        subtotal: 9500,
+        issues: ['Stock insuffisant pour "Robe Merya" (Beige, M) : seulement 2 restant(s).'],
+        items: [{
+          productId: 'p1',
+          productName: 'Robe Merya',
+          colorName: 'Beige',
+          size: 'M',
+          quantity: 5,
+          unitPrice: 9500,
+          originalPrice: 12000,
+          availableStock: 2,
+          inStock: false,
+          isAvailable: true
+        }]
       });
-      const res = await revalidateCartWithServer([{
-        productId: 'p2', productName: 'Abaya Velvet', colorName: 'Bordeaux', size: 'L', quantity: 1, unitPrice: 15000, originalPrice: 15000
-      }], noopQuoteOrder, catalogWithPromo);
-      assert.strictEqual(res.success, true);
-      assert.strictEqual(res.pricesChanged, true);
-      assert.strictEqual(res.updatedItems[0].unitPrice, 12500);
-    });
 
-    test('Promotion ended / removed -> normal price restored', async () => {
       const res = await revalidateCartWithServer([{
-        productId: 'p2', productName: 'Abaya Velvet', colorName: 'Bordeaux', size: 'L', quantity: 1, unitPrice: 13000, originalPrice: 15000
-      }], noopQuoteOrder, mockFetch);
-      assert.strictEqual(res.success, true);
-      assert.strictEqual(res.pricesChanged, true);
-      assert.strictEqual(res.updatedItems[0].unitPrice, 15000);
-    });
+        productId: 'p1', productName: 'Robe Merya', colorName: 'Beige', size: 'M', quantity: 5, unitPrice: 9500
+      }], mockQuote);
 
-    test('Missing, inactive, or archived product detected', async () => {
-      const res = await revalidateCartWithServer([{
-        productId: 'p-deleted', productName: 'Deleted Item', colorName: 'Noir', size: 'M', quantity: 1, unitPrice: 5000
-      }], noopQuoteOrder, mockFetch);
       assert.strictEqual(res.success, false);
-      assert.ok(res.issues[0].includes('plus disponible'));
+      assert.ok(res.issues[0].includes('Stock insuffisant'));
     });
 
-    test('Missing color variant detected', async () => {
-      const resColor = await revalidateCartWithServer([{
-        productId: 'p1', productName: 'Robe Merya', colorName: 'Rose', size: 'M', quantity: 1, unitPrice: 9500
-      }], noopQuoteOrder, mockFetch);
-      assert.strictEqual(resColor.success, false);
-      assert.ok(resColor.issues[0].includes('couleur'));
-    });
-
-    test('Missing size variant detected', async () => {
-      const resSize = await revalidateCartWithServer([{
-        productId: 'p1', productName: 'Robe Merya', colorName: 'Beige', size: 'XXL', quantity: 1, unitPrice: 9500
-      }], noopQuoteOrder, mockFetch);
-      assert.strictEqual(resSize.success, false);
-      assert.ok(resSize.issues[0].includes('taille'));
-    });
-
-    test('Insufficient stock detected (partial stock < requested)', async () => {
-      const resPartial = await revalidateCartWithServer([{
-        productId: 'p1', productName: 'Robe Merya', colorName: 'Beige', size: 'M', quantity: 10, unitPrice: 9500 // available is 5
-      }], noopQuoteOrder, mockFetch);
-      assert.strictEqual(resPartial.success, false);
-      assert.ok(resPartial.issues[0].includes('Stock insuffisant'));
-      assert.ok(resPartial.issues[0].includes('seulement 5 disponible'));
-    });
-
-    test('Zero stock detected (rupture de stock)', async () => {
-      const resOOS = await revalidateCartWithServer([{
-        productId: 'p1', productName: 'Robe Merya', colorName: 'Beige', size: 'S', quantity: 1, unitPrice: 9500
-      }], noopQuoteOrder, mockFetch);
-      assert.strictEqual(resOOS.success, false);
-      assert.ok(resOOS.issues[0].includes('rupture de stock'));
-    });
-
-    test('Fail-closed: Validation server/network failure returns success: false and customer message', async () => {
-      const networkFailFetch = async () => {
-        throw new Error('Network unreachable or server 500');
-      };
-      const res = await revalidateCartWithServer([{
-        productId: 'p1', productName: 'Robe Merya', colorName: 'Beige', size: 'M', quantity: 1, unitPrice: 9500
-      }], noopQuoteOrder, networkFailFetch);
-      assert.strictEqual(res.success, false, 'Failed server validation must NEVER succeed (fail-closed)');
-      assert.ok(res.issues.some(msg => msg.includes('Impossible de vérifier votre panier')));
-      assert.strictEqual(res.updatedItems.length, 0);
-    });
-
-    test('Product #51+ cart revalidation correctly traverses pagination using firstRes.pagination.total', async () => {
-      // Create a catalog with 60 products across 2 pages (50 on page 1, 10 on page 2)
-      // The target product is at index 55 (#56) on page 2
-      const page1Products = Array.from({ length: 50 }, (_, i) => ({
-        _id: `prod-p1-${i}`,
-        name: `Product P1-${i}`,
-        sellingPrice: 5000,
-        colors: [{ colorName: 'Noir', sizes: [{ size: 'M', stock: 10 }] }]
-      }));
-      const page2Products = Array.from({ length: 10 }, (_, i) => ({
-        _id: `prod-p2-${i}`,
-        name: `Product P2-${i}`,
-        sellingPrice: 7500,
-        colors: [{ colorName: 'Blanc', sizes: [{ size: 'L', stock: 8 }] }]
-      }));
-
-      const paginatedFetch = async ({ page = 1, limit = 50 }) => {
-        if (page === 1) {
-          return {
-            success: true,
-            products: page1Products,
-            pagination: { total: 60, page: 1, pages: 2 }
-          };
-        }
-        if (page === 2) {
-          return {
-            success: true,
-            products: page2Products,
-            pagination: { total: 60, page: 2, pages: 2 }
-          };
-        }
-        return { success: true, products: [], pagination: { total: 60, page, pages: 2 } };
-      };
-
-      // Item #55 is prod-p2-5 on page 2
-      const cartItems = [{
-        productId: 'prod-p2-5',
-        productName: 'Product P2-5',
-        colorName: 'Blanc',
-        size: 'L',
-        quantity: 2,
-        unitPrice: 7500
-      }];
-
-      const res = await revalidateCartWithServer(cartItems, noopQuoteOrder, paginatedFetch);
-      assert.strictEqual(res.success, true, 'Product #51+ on page 2 must be found via pagination');
-      assert.strictEqual(res.issues.length, 0);
-      assert.strictEqual(res.updatedItems[0].productName, 'Product P2-5');
-      assert.strictEqual(res.updatedItems[0].unitPrice, 7500);
-    });
-
-    test('Product #100+ cart revalidation traverses to page 3 using firstRes.pagination.total', async () => {
-      // 120 products across 3 pages: target product is at index 105 (#106) on page 3
-      const page1 = Array.from({ length: 50 }, (_, i) => ({
-        _id: `p1-${i}`,
-        name: `Item 1-${i}`,
-        sellingPrice: 3000,
-        colors: [{ colorName: 'Vert', sizes: [{ size: 'S', stock: 5 }] }]
-      }));
-      const page2 = Array.from({ length: 50 }, (_, i) => ({
-        _id: `p2-${i}`,
-        name: `Item 2-${i}`,
-        sellingPrice: 4000,
-        colors: [{ colorName: 'Vert', sizes: [{ size: 'S', stock: 5 }] }]
-      }));
-      const page3 = Array.from({ length: 20 }, (_, i) => ({
-        _id: `p3-${i}`,
-        name: `Item 3-${i}`,
-        sellingPrice: 9000,
-        colors: [{ colorName: 'Vert', sizes: [{ size: 'S', stock: 12 }] }]
-      }));
-
-      const multiPageFetch = async ({ page = 1 }) => {
-        const pagesMap = { 1: page1, 2: page2, 3: page3 };
+    test('Quote payload strictly never contains client prices, subtotal, delivery fee, or total', async () => {
+      let interceptedPayload = null;
+      const mockQuote = async (payload) => {
+        interceptedPayload = payload;
         return {
           success: true,
-          products: pagesMap[page] || [],
-          pagination: { total: 120, page, pages: 3 }
+          isValid: true,
+          subtotal: 9500,
+          issues: [],
+          items: [{
+            productId: 'p1',
+            colorName: 'Beige',
+            size: 'M',
+            quantity: 1,
+            unitPrice: 9500,
+            originalPrice: 12000,
+            availableStock: 5,
+            inStock: true,
+            isAvailable: true
+          }]
         };
       };
 
       const cartItems = [{
-        productId: 'p3-5', // Product #106
-        productName: 'Item 3-5',
-        colorName: 'Vert',
-        size: 'S',
-        quantity: 3,
-        unitPrice: 9000
+        productId: 'p1',
+        productName: 'Robe',
+        colorName: 'Beige',
+        size: 'M',
+        quantity: 1,
+        unitPrice: 9500,
+        originalPrice: 12000
       }];
 
-      const res = await revalidateCartWithServer(cartItems, noopQuoteOrder, multiPageFetch);
-      assert.strictEqual(res.success, true, 'Product #100+ on page 3 must be found via pagination');
-      assert.strictEqual(res.issues.length, 0);
-      assert.strictEqual(res.updatedItems[0].productName, 'Item 3-5');
-      assert.strictEqual(res.updatedItems[0].unitPrice, 9000);
+      await revalidateCartWithServer(cartItems, { wilayaCode: 16, deliveryMethod: 'home' }, mockQuote);
+
+      assert.ok(interceptedPayload, 'Quote endpoint must be called');
+      assert.strictEqual(interceptedPayload.items[0].productId, 'p1');
+      assert.strictEqual(interceptedPayload.items[0].colorName, 'Beige');
+      assert.strictEqual(interceptedPayload.items[0].size, 'M');
+      assert.strictEqual(interceptedPayload.items[0].quantity, 1);
+      assert.strictEqual(interceptedPayload.items[0].unitPrice, undefined, 'Client unitPrice must never be sent');
+      assert.strictEqual(interceptedPayload.items[0].originalPrice, undefined, 'Client originalPrice must never be sent');
+      assert.strictEqual(interceptedPayload.subtotal, undefined, 'Client subtotal must never be sent');
+      assert.strictEqual(interceptedPayload.deliveryFee, undefined, 'Client deliveryFee must never be sent');
+      assert.strictEqual(interceptedPayload.totalPrice, undefined, 'Client totalPrice must never be sent');
+      assert.strictEqual(interceptedPayload.wilayaCode, 16);
+      assert.strictEqual(interceptedPayload.deliveryMethod, 'home');
     });
 
-    test('Checkout payload never contains prices', () => {
-      const cartItems = [{ productId: 'p1', productName: 'Robe', colorName: 'Beige', size: 'M', quantity: 1, unitPrice: 9500, originalPrice: 12000 }];
-      const payloadItems = cartItems.map(item => ({
-        productId: item.productId,
-        colorName: item.colorName,
-        size: item.size,
-        quantity: item.quantity
+    test('Fail-Closed: /orders/quote returns HTTP 500 -> fails closed with user message', async () => {
+      const mockQuote500 = async () => {
+        const err = new Error('Internal Server Error');
+        err.statusCode = 500;
+        throw err;
+      };
+
+      const res = await revalidateCartWithServer([{
+        productId: 'p1', colorName: 'Beige', size: 'M', quantity: 1
+      }], mockQuote500);
+
+      assert.strictEqual(res.success, false);
+      assert.ok(res.issues.some(m => m.includes('Impossible de vérifier votre panier')));
+      assert.strictEqual(res.updatedItems.length, 0);
+    });
+
+    test('Fail-Closed: Network request fails -> fails closed with user message', async () => {
+      const mockNetworkError = async () => {
+        throw new Error('Failed to fetch: net::ERR_CONNECTION_REFUSED');
+      };
+
+      const res = await revalidateCartWithServer([{
+        productId: 'p1', colorName: 'Beige', size: 'M', quantity: 1
+      }], mockNetworkError);
+
+      assert.strictEqual(res.success, false);
+      assert.ok(res.issues.some(m => m.includes('Impossible de vérifier votre panier')));
+    });
+
+    test('Fail-Closed: Malformed quote response (null, missing items, subtotal not a number) -> fails closed', async () => {
+      const resNull = await revalidateCartWithServer([{ productId: 'p1', colorName: 'Beige', size: 'M', quantity: 1 }], async () => null);
+      assert.strictEqual(resNull.success, false);
+
+      const resNoItems = await revalidateCartWithServer([{ productId: 'p1', colorName: 'Beige', size: 'M', quantity: 1 }], async () => ({ success: true, subtotal: 5000 }));
+      assert.strictEqual(resNoItems.success, false);
+
+      const resBadSubtotal = await revalidateCartWithServer([{ productId: 'p1', colorName: 'Beige', size: 'M', quantity: 1 }], async () => ({ success: true, items: [], subtotal: 'NaN' }));
+      assert.strictEqual(resBadSubtotal.success, false);
+    });
+
+    test('Fail-Closed: Server says cart is invalid (issues present, isValid: false) -> fails closed', async () => {
+      const mockInvalid = async () => ({
+        success: true,
+        isValid: false,
+        issues: ['L\'article "Robe Merya" n\'est plus disponible.'],
+        items: [],
+        subtotal: 0
+      });
+
+      const res = await revalidateCartWithServer([{
+        productId: 'p1', colorName: 'Beige', size: 'M', quantity: 1
+      }], mockInvalid);
+
+      assert.strictEqual(res.success, false);
+      assert.strictEqual(res.issues[0], 'L\'article "Robe Merya" n\'est plus disponible.');
+    });
+
+    test('Confirm NONE of the quote failures trigger a /products full-catalog fallback', async () => {
+      let catalogFetchAttempted = false;
+      const fakeCatalog = () => { catalogFetchAttempted = true; return { success: true, products: [] }; };
+
+      // Try with network error
+      await revalidateCartWithServer([{ productId: 'p1', colorName: 'Beige', size: 'M', quantity: 1 }], async () => {
+        throw new Error('500 internal server error');
+      });
+      assert.strictEqual(catalogFetchAttempted, false, 'Quote failure must NEVER trigger full-catalog fallback');
+
+      // Try with invalid cart
+      await revalidateCartWithServer([{ productId: 'p1', colorName: 'Beige', size: 'M', quantity: 1 }], async () => ({
+        success: false, message: 'Server down'
       }));
-      assert.strictEqual(payloadItems[0].unitPrice, undefined);
-      assert.strictEqual(payloadItems[0].price, undefined);
-      assert.strictEqual(payloadItems[0].totalPrice, undefined);
-      assert.strictEqual(payloadItems[0].deliveryFee, undefined);
+      assert.strictEqual(catalogFetchAttempted, false, 'Quote failure must NEVER trigger full-catalog fallback');
+    });
+
+    test('Large catalog regression: 100+ product catalog does NOT require catalog pagination or download', async () => {
+      // In a catalog with 100+ products, validation sends only the cart item IDs to /orders/quote
+      let quoteCallCount = 0;
+      let requestedItems = null;
+
+      const mockQuote100Plus = async (payload) => {
+        quoteCallCount++;
+        requestedItems = payload.items;
+        return {
+          success: true,
+          isValid: true,
+          subtotal: 8000,
+          issues: [],
+          items: [{
+            productId: 'product-item-105',
+            colorName: 'Noir',
+            size: 'M',
+            quantity: 1,
+            unitPrice: 8000,
+            originalPrice: 8000,
+            availableStock: 20,
+            inStock: true,
+            isAvailable: true
+          }]
+        };
+      };
+
+      const res = await revalidateCartWithServer([{
+        productId: 'product-item-105',
+        colorName: 'Noir',
+        size: 'M',
+        quantity: 1,
+        unitPrice: 8000
+      }], mockQuote100Plus);
+
+      assert.strictEqual(res.success, true);
+      assert.strictEqual(quoteCallCount, 1, 'Exactly one targeted /orders/quote request should be made');
+      assert.strictEqual(requestedItems.length, 1);
+      assert.strictEqual(requestedItems[0].productId, 'product-item-105');
+      assert.strictEqual(res.updatedItems[0].unitPrice, 8000);
     });
   });
 
@@ -974,6 +1042,83 @@ describe('MERYA DZ Price Consistency & Free Delivery Hardening', () => {
           return true;
         }
       );
+    });
+  });
+
+  describe('10. Customer Detail Concurrency & Undefined-Variable Regression', () => {
+    test('updateOrderCustomerDetails rejects without ReferenceError when order is concurrently marked Delivered', async () => {
+      const { updateOrderCustomerDetails } = await import('../src/controllers/orderController.js');
+
+      // Create an order in Confirmed state
+      const placed = await placeOrder({
+        idempotencyKey: `concurrent-deliv-test-${Date.now()}`,
+        customer: {
+          fullName: 'Concurrency Test Customer',
+          phone: '0555000044',
+          wilaya: { code: 16, name: 'Alger' },
+          deliveryMethod: 'home',
+          address: 'Didouche Mourad'
+        },
+        items: [{
+          productId: testProduct._id,
+          colorName: 'Noir',
+          size: 'M',
+          quantity: 1
+        }]
+      });
+
+      const orderToTest = placed.order;
+      await Order.updateOne({ _id: orderToTest._id }, { $set: { status: 'Confirmed' } });
+
+      // Simulate a concurrent transition:
+      // When updateOrderCustomerDetails queries findOneAndUpdate with status: { $ne: 'Delivered' },
+      // the order has concurrently become 'Delivered'.
+      const origFindOneAndUpdate = Order.findOneAndUpdate;
+      let intercepted = false;
+      Order.findOneAndUpdate = async function(query, update, opts) {
+        // Concurrently transition order to Delivered before CAS update succeeds
+        await Order.updateOne({ _id: orderToTest._id }, { $set: { status: 'Delivered' } });
+        intercepted = true;
+        return origFindOneAndUpdate.call(Order, query, update, opts);
+      };
+
+      const mockRes = {
+        statusCode: 200,
+        body: null,
+        status(c) { this.statusCode = c; return this; },
+        json(b) { this.body = b; return this; }
+      };
+
+      try {
+        // Attempt to change wilaya (destination) which changes delivery fee (financials)
+        await updateOrderCustomerDetails({
+          params: { id: orderToTest._id.toString() },
+          body: {
+            wilaya: { code: 31, name: 'Oran' },
+            expectedVersion: orderToTest.__v
+          },
+          admin: { username: 'AdminTester' }
+        }, mockRes, (err) => {
+          if (err) throw err;
+        });
+
+        assert.strictEqual(intercepted, true, 'findOneAndUpdate CAS should have been intercepted');
+        // Must return HTTP 400 with no ReferenceError thrown
+        assert.strictEqual(mockRes.statusCode, 400);
+        assert.strictEqual(mockRes.body.success, false);
+        assert.ok(
+          mockRes.body.message.includes('Historical financial values') &&
+          mockRes.body.message.includes('cannot be modified on Delivered orders'),
+          'Must return exact delivered order financial protection message'
+        );
+
+        // Verify order in database was not mutated
+        const preservedOrder = await Order.findById(orderToTest._id);
+        assert.strictEqual(preservedOrder.customer.wilaya.code, 16, 'Wilaya must remain unchanged in DB');
+        assert.strictEqual(preservedOrder.status, 'Delivered');
+      } finally {
+        Order.findOneAndUpdate = origFindOneAndUpdate;
+      }
     });
   });
 });

@@ -192,7 +192,10 @@ export default function Checkout({ onBack, onOrderSuccess }) {
     setIsSubmitting(true);
 
     // CRITICAL: Revalidate cart against server before final checkout
-    const reval = await revalidateCartWithServer(items);
+    const reval = await revalidateCartWithServer(items, {
+      wilayaCode: selectedWilayaObj?.code,
+      deliveryMethod
+    });
 
     if (!reval.success) {
       setErrorMessage(reval.issues.join(' • '));
