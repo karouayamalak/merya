@@ -259,12 +259,15 @@ describe('MERYA DZ Price Consistency & Free Delivery Hardening', () => {
         colors: [{ colorName: 'Bordeaux', images: ['/bordeaux.jpg'], sizes: [{ size: 'L', stock: 3 }] }]
       }
     ];
+    // mockFetch simulates the product catalog endpoint (used as customFetchProducts fallback)
     const mockFetch = async () => ({ success: true, products: mockServerProducts, total: mockServerProducts.length });
+    // noopQuoteOrder: a stub that always rejects so revalidateCartWithServer falls through to catalog fallback
+    const noopQuoteOrder = async () => { throw new Error('quote endpoint not available in test'); };
 
     test('Normal price -> promotion detected and updated to server price', async () => {
       const res = await revalidateCartWithServer([{
         productId: 'p1', productName: 'Robe Merya', colorName: 'Beige', size: 'M', quantity: 1, unitPrice: 12000, originalPrice: 12000
-      }], mockFetch);
+      }], noopQuoteOrder, mockFetch);
       assert.strictEqual(res.success, true);
       assert.strictEqual(res.pricesChanged, true);
       assert.strictEqual(res.updatedItems[0].unitPrice, 9500);
@@ -274,7 +277,7 @@ describe('MERYA DZ Price Consistency & Free Delivery Hardening', () => {
     test('Promotion ended -> normal price restored', async () => {
       const res = await revalidateCartWithServer([{
         productId: 'p2', productName: 'Abaya Velvet', colorName: 'Bordeaux', size: 'L', quantity: 1, unitPrice: 13000, originalPrice: 15000
-      }], mockFetch);
+      }], noopQuoteOrder, mockFetch);
       assert.strictEqual(res.success, true);
       assert.strictEqual(res.pricesChanged, true);
       assert.strictEqual(res.updatedItems[0].unitPrice, 15000);
@@ -283,7 +286,7 @@ describe('MERYA DZ Price Consistency & Free Delivery Hardening', () => {
     test('Unavailable product detected', async () => {
       const res = await revalidateCartWithServer([{
         productId: 'p-deleted', productName: 'Deleted Item', colorName: 'Noir', size: 'M', quantity: 1, unitPrice: 5000
-      }], mockFetch);
+      }], noopQuoteOrder, mockFetch);
       assert.strictEqual(res.success, false);
       assert.ok(res.issues[0].includes('plus disponible'));
     });
@@ -291,7 +294,7 @@ describe('MERYA DZ Price Consistency & Free Delivery Hardening', () => {
     test('Unavailable variant detected', async () => {
       const resColor = await revalidateCartWithServer([{
         productId: 'p1', productName: 'Robe Merya', colorName: 'Rose', size: 'M', quantity: 1, unitPrice: 9500
-      }], mockFetch);
+      }], noopQuoteOrder, mockFetch);
       assert.strictEqual(resColor.success, false);
       assert.ok(resColor.issues[0].includes('couleur'));
     });
@@ -299,7 +302,7 @@ describe('MERYA DZ Price Consistency & Free Delivery Hardening', () => {
     test('Stock shortage detected', async () => {
       const resOOS = await revalidateCartWithServer([{
         productId: 'p1', productName: 'Robe Merya', colorName: 'Beige', size: 'S', quantity: 1, unitPrice: 9500
-      }], mockFetch);
+      }], noopQuoteOrder, mockFetch);
       assert.strictEqual(resOOS.success, false);
       assert.ok(resOOS.issues[0].includes('rupture de stock'));
     });
@@ -316,6 +319,271 @@ describe('MERYA DZ Price Consistency & Free Delivery Hardening', () => {
       assert.strictEqual(payloadItems[0].price, undefined);
       assert.strictEqual(payloadItems[0].totalPrice, undefined);
       assert.strictEqual(payloadItems[0].deliveryFee, undefined);
+    });
+  });
+
+  describe('5. GET /settings/delivery Hardening & Stale Config Rejection', () => {
+    function mockRes() {
+      return {
+        statusCode: 200,
+        body: null,
+        status(c) { this.statusCode = c; return this; },
+        json(b) { this.body = b; return this; }
+      };
+    }
+
+    test('GET returns HTTP 200 when exactly 58 valid Wilayas exist', async () => {
+      const { getDeliverySettings } = await import('../src/controllers/deliverySettingController.js');
+      const res = mockRes();
+      await getDeliverySettings({}, res, () => {});
+      assert.strictEqual(res.statusCode, 200);
+      assert.strictEqual(res.body.success, true);
+      assert.strictEqual(res.body.wilayas.length, 58);
+      assert.strictEqual(res.body.settings.freeDeliveryThreshold, 10000);
+    });
+
+    test('GET rejects with HTTP 503 if database has 59 Wilayas (malformed)', async () => {
+      const { getDeliverySettings } = await import('../src/controllers/deliverySettingController.js');
+      // Temporarily insert 59th wilaya
+      const extraRate = {
+        wilayaCode: 59,
+        wilayaName: 'Extra Wilaya',
+        homeFee: 1000,
+        agencyFee: 800,
+        isAvailable: true
+      };
+      await DeliverySetting.updateOne({}, { $push: { wilayaRates: extraRate } });
+
+      const res = mockRes();
+      await getDeliverySettings({}, res, () => {});
+      assert.strictEqual(res.statusCode, 503);
+      assert.strictEqual(res.body.success, false);
+      assert.ok(res.body.message.includes('expected exactly 58'));
+
+      // Restore
+      await DeliverySetting.updateOne({}, { $pull: { wilayaRates: { wilayaCode: 59 } } });
+    });
+
+    test('GET rejects with HTTP 503 if database is missing Wilayas (e.g. 57)', async () => {
+      const { getDeliverySettings } = await import('../src/controllers/deliverySettingController.js');
+      const current = await DeliverySetting.findOne();
+      const savedRates = current.wilayaRates;
+
+      await DeliverySetting.updateOne({}, { $set: { wilayaRates: savedRates.slice(0, 57) } });
+      const res = mockRes();
+      await getDeliverySettings({}, res, () => {});
+      assert.strictEqual(res.statusCode, 503);
+      assert.strictEqual(res.body.success, false);
+
+      // Restore
+      await DeliverySetting.updateOne({}, { $set: { wilayaRates: savedRates } });
+    });
+
+    test('GET rejects with HTTP 503 if any fee is negative or non-number', async () => {
+      const { getDeliverySettings } = await import('../src/controllers/deliverySettingController.js');
+      const current = await DeliverySetting.findOne();
+      const savedRates = current.wilayaRates;
+
+      const tampered = savedRates.map((w, i) => i === 0 ? { ...w.toObject(), homeFee: -50 } : w.toObject());
+      await DeliverySetting.updateOne({}, { $set: { wilayaRates: tampered } });
+
+      const res = mockRes();
+      await getDeliverySettings({}, res, () => {});
+      assert.strictEqual(res.statusCode, 503);
+      assert.strictEqual(res.body.success, false);
+      assert.ok(res.body.message.includes('homeFee'));
+
+      // Restore
+      await DeliverySetting.updateOne({}, { $set: { wilayaRates: savedRates } });
+    });
+
+    test('GET rejects with HTTP 503 if canonical Wilaya name was corrupted', async () => {
+      const { getDeliverySettings } = await import('../src/controllers/deliverySettingController.js');
+      const current = await DeliverySetting.findOne();
+      const savedRates = current.wilayaRates;
+
+      const tampered = savedRates.map((w, i) => i === 0 ? { ...w.toObject(), wilayaName: 'Fake Alger Name' } : w.toObject());
+      await DeliverySetting.updateOne({}, { $set: { wilayaRates: tampered } });
+
+      const res = mockRes();
+      await getDeliverySettings({}, res, () => {});
+      assert.strictEqual(res.statusCode, 503);
+      assert.strictEqual(res.body.success, false);
+      assert.ok(res.body.message.includes('canonical name'));
+
+      // Restore
+      await DeliverySetting.updateOne({}, { $set: { wilayaRates: savedRates } });
+    });
+  });
+
+  describe('6. Server-Authoritative Cart Quote Flow (POST /orders/quote)', () => {
+    function mockRes() {
+      return {
+        statusCode: 200,
+        body: null,
+        status(c) { this.statusCode = c; return this; },
+        json(b) { this.body = b; return this; }
+      };
+    }
+
+    test('Quote endpoint returns authoritative prices and applies free delivery threshold', async () => {
+      const { getCartQuote } = await import('../src/controllers/orderController.js');
+      const req = {
+        body: {
+          items: [{
+            productId: testProduct._id,
+            productName: 'Abaya Silk',
+            colorName: 'Noir',
+            size: 'M',
+            quantity: 2 // 2 * 6500 = 13000 >= 10000 threshold
+          }],
+          wilayaCode: 16,
+          deliveryMethod: 'home'
+        }
+      };
+
+      const res = mockRes();
+      await getCartQuote(req, res, () => {});
+      assert.strictEqual(res.statusCode, 200);
+      assert.strictEqual(res.body.success, true);
+      assert.strictEqual(res.body.isValid, true);
+      assert.strictEqual(res.body.subtotal, 13000);
+      assert.strictEqual(res.body.deliveryFee, 0, 'Delivery fee must be 0 when subtotal >= threshold');
+      assert.strictEqual(res.body.isFreeDelivery, true);
+      assert.strictEqual(res.body.totalPrice, 13000);
+    });
+
+    test('Quote endpoint detects unavailable variant or insufficient stock', async () => {
+      const { getCartQuote } = await import('../src/controllers/orderController.js');
+      const req = {
+        body: {
+          items: [{
+            productId: testProduct._id,
+            colorName: 'Noir',
+            size: 'L', // stock = 2
+            quantity: 5 // requesting 5 > 2
+          }]
+        }
+      };
+
+      const res = mockRes();
+      await getCartQuote(req, res, () => {});
+      assert.strictEqual(res.statusCode, 200);
+      assert.strictEqual(res.body.isValid, false);
+      assert.ok(res.body.issues[0].includes('Stock insuffisant'));
+    });
+  });
+
+  describe('7. WebSocket Admin Session Revocation Hardening', () => {
+    let testServer;
+    let wsPort = 5199;
+    let adminUser;
+    let validToken;
+
+    before(async () => {
+      const { Admin } = await import('../src/models/Admin.js');
+      const { wsService } = await import('../src/services/websocketService.js');
+      const http = await import('node:http');
+
+      adminUser = await Admin.findOneAndUpdate(
+        { email: 'ws_revocation_test@merya.dz' },
+        {
+          username: 'wsrevadmin',
+          email: 'ws_revocation_test@merya.dz',
+          passwordHash: 'dummyhash',
+          role: 'admin',
+          isActive: true,
+          sessionVersion: 1
+        },
+        { upsert: true, new: true }
+      );
+
+      const secret = process.env.JWT_SECRET || 'test_jwt_secret_production_key_32bytes!!';
+      validToken = (await import('jsonwebtoken')).default.sign(
+        { id: adminUser._id, role: adminUser.role, username: adminUser.username, sessionVersion: 1 },
+        secret,
+        { expiresIn: '7d' }
+      );
+
+      testServer = http.default.createServer();
+      wsService.init(testServer, ['http://localhost:5173']);
+      await new Promise(r => testServer.listen(wsPort, r));
+    });
+
+    after(async () => {
+      const { Admin } = await import('../src/models/Admin.js');
+      const { wsService } = await import('../src/services/websocketService.js');
+      if (wsService.wss) wsService.wss.close();
+      if (testServer) testServer.close();
+      if (adminUser?._id) await Admin.deleteOne({ _id: adminUser._id });
+    });
+
+    test('Connected admin WebSocket receives SESSION_REVOKED and closes on logout', async () => {
+      const { WebSocket } = await import('ws');
+      const { wsService } = await import('../src/services/websocketService.js');
+      const { logout } = await import('../src/controllers/authController.js');
+
+      const ws = new WebSocket(`ws://127.0.0.1:${wsPort}/ws`, {
+        headers: {
+          Origin: 'http://localhost:5173',
+          Cookie: `token=${validToken}`
+        }
+      });
+
+      // 1. Connect and subscribe to admin channel
+      // Note: ws.isAdmin here refers to the CLIENT socket, not the server socket.
+      // We verify subscription succeeded by waiting for SUBSCRIBED message.
+      let subscribeResolved = false;
+      await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error('SUBSCRIBE_ADMIN timed out')), 5000);
+        ws.on('open', () => {
+          ws.send(JSON.stringify({ action: 'SUBSCRIBE_ADMIN' }));
+        });
+        ws.on('message', (raw) => {
+          const msg = JSON.parse(raw.toString());
+          if (msg.type === 'SUBSCRIBED' && msg.channel === 'admin') {
+            clearTimeout(timeout);
+            subscribeResolved = true;
+            resolve();
+          }
+          if (msg.type === 'ERROR') {
+            clearTimeout(timeout);
+            reject(new Error(`WS subscription error: ${msg.message}`));
+          }
+        });
+        ws.on('error', (err) => { clearTimeout(timeout); reject(err); });
+      });
+
+      assert.strictEqual(subscribeResolved, true, 'Admin WebSocket must successfully subscribe to admin channel');
+
+      // 2. Trigger admin logout which calls wsService.revokeAdminSession
+      const revokedPromise = new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error('SESSION_REVOKED not received within 5s')), 5000);
+        ws.on('message', (raw) => {
+          try {
+            const msg = JSON.parse(raw.toString());
+            if (msg.type === 'SESSION_REVOKED') {
+              clearTimeout(timeout);
+              resolve(true);
+            }
+          } catch { /* ignore parse errors */ }
+        });
+        ws.on('close', (code) => {
+          clearTimeout(timeout);
+          // close code 4001 = session revoked
+          resolve(code === 4001);
+        });
+        ws.on('error', (err) => { clearTimeout(timeout); reject(err); });
+      });
+
+      const mockLogoutRes = {
+        clearCookie() {},
+        json() {}
+      };
+      await logout({ cookies: { token: validToken } }, mockLogoutRes, () => {});
+
+      const wasRevoked = await revokedPromise;
+      assert.strictEqual(wasRevoked, true, 'Active admin WebSocket must receive SESSION_REVOKED when logged out');
     });
   });
 });
