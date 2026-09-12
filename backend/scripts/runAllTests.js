@@ -16,6 +16,7 @@ const backendRoot = path.resolve(__dirname, '..');
 
 const testSuite = [
   { name: 'businessLogic.test.js', isNodeTest: true, desc: 'Core business logic & inventory unit tests' },
+  { name: 'priceConsistency.test.js', isNodeTest: true, desc: 'Price consistency, cart pagination, delivery hardening & overrides' },
   { name: 'deliveryFeeIntegrityTest.js', isNodeTest: false, desc: 'Delivery fee fallback, tamper prevention & matrix (A-I)' },
   { name: 'integerMoneyTest.js', isNodeTest: false, desc: 'Integer DZD money validation, models, controllers & DB' },
   { name: 'lineItemAndSessionRevocationTest.js', isNodeTest: false, desc: 'Admin line-item editing & JWT session revocation' },

@@ -170,6 +170,18 @@ describe('MERYA DZ Price Consistency & Free Delivery Hardening', () => {
       const res = validateDeliverySettingsResponse({ success: true, settings: { wilayaRates: validWilayas.slice(0, 57) } });
       assert.strictEqual(res.valid, false);
     });
+
+    test('Invalid 59-Wilaya delivery configuration rejected', () => {
+      const extraWilaya = { wilayaCode: 59, wilayaName: 'Extra', homeFee: 800, agencyFee: 500, isAvailable: true };
+      const res = validateDeliverySettingsResponse({ success: true, settings: { wilayaRates: [...validWilayas, extraWilaya] } });
+      assert.strictEqual(res.valid, false);
+    });
+
+    test('Duplicate Wilaya strictly rejected in frontend validation', () => {
+      const duplicateWilayas = [...validWilayas.slice(0, 57), { ...validWilayas[0] }];
+      const res = validateDeliverySettingsResponse({ success: true, settings: { wilayaRates: duplicateWilayas } });
+      assert.strictEqual(res.valid, false);
+    });
   });
 
   describe('3. Authoritative Backend Consistency with Free Delivery', () => {
@@ -274,7 +286,48 @@ describe('MERYA DZ Price Consistency & Free Delivery Hardening', () => {
       assert.strictEqual(res.updatedItems[0].originalPrice, 12000);
     });
 
-    test('Promotion ended -> normal price restored', async () => {
+    test('Changed normal price detected and updated', async () => {
+      const catalogWithNewPrice = async () => ({
+        success: true,
+        products: [{
+          _id: 'p2',
+          name: 'Abaya Velvet',
+          sellingPrice: 16500, // increased from 15000
+          promotion: { active: false },
+          colors: [{ colorName: 'Bordeaux', images: ['/bordeaux.jpg'], sizes: [{ size: 'L', stock: 3 }] }]
+        }],
+        pagination: { total: 1 }
+      });
+      const res = await revalidateCartWithServer([{
+        productId: 'p2', productName: 'Abaya Velvet', colorName: 'Bordeaux', size: 'L', quantity: 1, unitPrice: 15000, originalPrice: 15000
+      }], noopQuoteOrder, catalogWithNewPrice);
+      assert.strictEqual(res.success, true);
+      assert.strictEqual(res.pricesChanged, true);
+      assert.strictEqual(res.updatedItems[0].unitPrice, 16500);
+      assert.strictEqual(res.updatedItems[0].originalPrice, 16500);
+    });
+
+    test('Newly activated promotion detected and applied', async () => {
+      const catalogWithPromo = async () => ({
+        success: true,
+        products: [{
+          _id: 'p2',
+          name: 'Abaya Velvet',
+          sellingPrice: 15000,
+          promotion: { active: true, promotionalPrice: 12500 },
+          colors: [{ colorName: 'Bordeaux', images: ['/bordeaux.jpg'], sizes: [{ size: 'L', stock: 3 }] }]
+        }],
+        pagination: { total: 1 }
+      });
+      const res = await revalidateCartWithServer([{
+        productId: 'p2', productName: 'Abaya Velvet', colorName: 'Bordeaux', size: 'L', quantity: 1, unitPrice: 15000, originalPrice: 15000
+      }], noopQuoteOrder, catalogWithPromo);
+      assert.strictEqual(res.success, true);
+      assert.strictEqual(res.pricesChanged, true);
+      assert.strictEqual(res.updatedItems[0].unitPrice, 12500);
+    });
+
+    test('Promotion ended / removed -> normal price restored', async () => {
       const res = await revalidateCartWithServer([{
         productId: 'p2', productName: 'Abaya Velvet', colorName: 'Bordeaux', size: 'L', quantity: 1, unitPrice: 13000, originalPrice: 15000
       }], noopQuoteOrder, mockFetch);
@@ -283,7 +336,7 @@ describe('MERYA DZ Price Consistency & Free Delivery Hardening', () => {
       assert.strictEqual(res.updatedItems[0].unitPrice, 15000);
     });
 
-    test('Unavailable product detected', async () => {
+    test('Missing, inactive, or archived product detected', async () => {
       const res = await revalidateCartWithServer([{
         productId: 'p-deleted', productName: 'Deleted Item', colorName: 'Noir', size: 'M', quantity: 1, unitPrice: 5000
       }], noopQuoteOrder, mockFetch);
@@ -291,7 +344,7 @@ describe('MERYA DZ Price Consistency & Free Delivery Hardening', () => {
       assert.ok(res.issues[0].includes('plus disponible'));
     });
 
-    test('Unavailable variant detected', async () => {
+    test('Missing color variant detected', async () => {
       const resColor = await revalidateCartWithServer([{
         productId: 'p1', productName: 'Robe Merya', colorName: 'Rose', size: 'M', quantity: 1, unitPrice: 9500
       }], noopQuoteOrder, mockFetch);
@@ -299,12 +352,138 @@ describe('MERYA DZ Price Consistency & Free Delivery Hardening', () => {
       assert.ok(resColor.issues[0].includes('couleur'));
     });
 
-    test('Stock shortage detected', async () => {
+    test('Missing size variant detected', async () => {
+      const resSize = await revalidateCartWithServer([{
+        productId: 'p1', productName: 'Robe Merya', colorName: 'Beige', size: 'XXL', quantity: 1, unitPrice: 9500
+      }], noopQuoteOrder, mockFetch);
+      assert.strictEqual(resSize.success, false);
+      assert.ok(resSize.issues[0].includes('taille'));
+    });
+
+    test('Insufficient stock detected (partial stock < requested)', async () => {
+      const resPartial = await revalidateCartWithServer([{
+        productId: 'p1', productName: 'Robe Merya', colorName: 'Beige', size: 'M', quantity: 10, unitPrice: 9500 // available is 5
+      }], noopQuoteOrder, mockFetch);
+      assert.strictEqual(resPartial.success, false);
+      assert.ok(resPartial.issues[0].includes('Stock insuffisant'));
+      assert.ok(resPartial.issues[0].includes('seulement 5 disponible'));
+    });
+
+    test('Zero stock detected (rupture de stock)', async () => {
       const resOOS = await revalidateCartWithServer([{
         productId: 'p1', productName: 'Robe Merya', colorName: 'Beige', size: 'S', quantity: 1, unitPrice: 9500
       }], noopQuoteOrder, mockFetch);
       assert.strictEqual(resOOS.success, false);
       assert.ok(resOOS.issues[0].includes('rupture de stock'));
+    });
+
+    test('Fail-closed: Validation server/network failure returns success: false and customer message', async () => {
+      const networkFailFetch = async () => {
+        throw new Error('Network unreachable or server 500');
+      };
+      const res = await revalidateCartWithServer([{
+        productId: 'p1', productName: 'Robe Merya', colorName: 'Beige', size: 'M', quantity: 1, unitPrice: 9500
+      }], noopQuoteOrder, networkFailFetch);
+      assert.strictEqual(res.success, false, 'Failed server validation must NEVER succeed (fail-closed)');
+      assert.ok(res.issues.some(msg => msg.includes('Impossible de vérifier votre panier')));
+      assert.strictEqual(res.updatedItems.length, 0);
+    });
+
+    test('Product #51+ cart revalidation correctly traverses pagination using firstRes.pagination.total', async () => {
+      // Create a catalog with 60 products across 2 pages (50 on page 1, 10 on page 2)
+      // The target product is at index 55 (#56) on page 2
+      const page1Products = Array.from({ length: 50 }, (_, i) => ({
+        _id: `prod-p1-${i}`,
+        name: `Product P1-${i}`,
+        sellingPrice: 5000,
+        colors: [{ colorName: 'Noir', sizes: [{ size: 'M', stock: 10 }] }]
+      }));
+      const page2Products = Array.from({ length: 10 }, (_, i) => ({
+        _id: `prod-p2-${i}`,
+        name: `Product P2-${i}`,
+        sellingPrice: 7500,
+        colors: [{ colorName: 'Blanc', sizes: [{ size: 'L', stock: 8 }] }]
+      }));
+
+      const paginatedFetch = async ({ page = 1, limit = 50 }) => {
+        if (page === 1) {
+          return {
+            success: true,
+            products: page1Products,
+            pagination: { total: 60, page: 1, pages: 2 }
+          };
+        }
+        if (page === 2) {
+          return {
+            success: true,
+            products: page2Products,
+            pagination: { total: 60, page: 2, pages: 2 }
+          };
+        }
+        return { success: true, products: [], pagination: { total: 60, page, pages: 2 } };
+      };
+
+      // Item #55 is prod-p2-5 on page 2
+      const cartItems = [{
+        productId: 'prod-p2-5',
+        productName: 'Product P2-5',
+        colorName: 'Blanc',
+        size: 'L',
+        quantity: 2,
+        unitPrice: 7500
+      }];
+
+      const res = await revalidateCartWithServer(cartItems, noopQuoteOrder, paginatedFetch);
+      assert.strictEqual(res.success, true, 'Product #51+ on page 2 must be found via pagination');
+      assert.strictEqual(res.issues.length, 0);
+      assert.strictEqual(res.updatedItems[0].productName, 'Product P2-5');
+      assert.strictEqual(res.updatedItems[0].unitPrice, 7500);
+    });
+
+    test('Product #100+ cart revalidation traverses to page 3 using firstRes.pagination.total', async () => {
+      // 120 products across 3 pages: target product is at index 105 (#106) on page 3
+      const page1 = Array.from({ length: 50 }, (_, i) => ({
+        _id: `p1-${i}`,
+        name: `Item 1-${i}`,
+        sellingPrice: 3000,
+        colors: [{ colorName: 'Vert', sizes: [{ size: 'S', stock: 5 }] }]
+      }));
+      const page2 = Array.from({ length: 50 }, (_, i) => ({
+        _id: `p2-${i}`,
+        name: `Item 2-${i}`,
+        sellingPrice: 4000,
+        colors: [{ colorName: 'Vert', sizes: [{ size: 'S', stock: 5 }] }]
+      }));
+      const page3 = Array.from({ length: 20 }, (_, i) => ({
+        _id: `p3-${i}`,
+        name: `Item 3-${i}`,
+        sellingPrice: 9000,
+        colors: [{ colorName: 'Vert', sizes: [{ size: 'S', stock: 12 }] }]
+      }));
+
+      const multiPageFetch = async ({ page = 1 }) => {
+        const pagesMap = { 1: page1, 2: page2, 3: page3 };
+        return {
+          success: true,
+          products: pagesMap[page] || [],
+          pagination: { total: 120, page, pages: 3 }
+        };
+      };
+
+      const cartItems = [{
+        productId: 'p3-5', // Product #106
+        productName: 'Item 3-5',
+        colorName: 'Vert',
+        size: 'S',
+        quantity: 3,
+        unitPrice: 9000
+      }];
+
+      const res = await revalidateCartWithServer(cartItems, noopQuoteOrder, multiPageFetch);
+      assert.strictEqual(res.success, true, 'Product #100+ on page 3 must be found via pagination');
+      assert.strictEqual(res.issues.length, 0);
+      assert.strictEqual(res.updatedItems[0].productName, 'Item 3-5');
+      assert.strictEqual(res.updatedItems[0].unitPrice, 9000);
     });
 
     test('Checkout payload never contains prices', () => {
@@ -410,6 +589,24 @@ describe('MERYA DZ Price Consistency & Free Delivery Hardening', () => {
       assert.strictEqual(res.statusCode, 503);
       assert.strictEqual(res.body.success, false);
       assert.ok(res.body.message.includes('canonical name'));
+
+      // Restore
+      await DeliverySetting.updateOne({}, { $set: { wilayaRates: savedRates } });
+    });
+
+    test('GET rejects with HTTP 503 if duplicate Wilaya code exists in database', async () => {
+      const { getDeliverySettings } = await import('../src/controllers/deliverySettingController.js');
+      const current = await DeliverySetting.findOne();
+      const savedRates = current.wilayaRates;
+
+      // Duplicate code 16 (Alger) in place of code 1
+      const tampered = savedRates.map((w, i) => i === 0 ? { ...w.toObject(), wilayaCode: 16 } : w.toObject());
+      await DeliverySetting.updateOne({}, { $set: { wilayaRates: tampered } });
+
+      const res = mockRes();
+      await getDeliverySettings({}, res, () => {});
+      assert.strictEqual(res.statusCode, 503);
+      assert.strictEqual(res.body.success, false);
 
       // Restore
       await DeliverySetting.updateOne({}, { $set: { wilayaRates: savedRates } });
@@ -584,6 +781,199 @@ describe('MERYA DZ Price Consistency & Free Delivery Hardening', () => {
 
       const wasRevoked = await revokedPromise;
       assert.strictEqual(wasRevoked, true, 'Active admin WebSocket must receive SESSION_REVOKED when logged out');
+    });
+  });
+
+  describe('8. Admin Order Item Price Override & Historical Immutability', () => {
+    let orderForOverride;
+
+    before(async () => {
+      // Create a dedicated order for price override tests
+      const placed = await placeOrder({
+        idempotencyKey: `price-override-test-${Date.now()}`,
+        customer: {
+          fullName: 'Price Override Customer',
+          phone: '0555000099',
+          wilaya: { code: 16, name: 'Alger' },
+          deliveryMethod: 'home',
+          address: 'Didouche Mourad'
+        },
+        items: [{
+          productId: testProduct._id,
+          colorName: 'Noir',
+          size: 'M',
+          quantity: 1
+        }]
+      });
+      orderForOverride = placed.order;
+    });
+
+    test('Quantity update without unitPrice preserves historical price without requiring priceOverride', async () => {
+      const { updateOrderItemsService } = await import('../src/services/orderService.js');
+      const freshOrder = await Order.findById(orderForOverride._id);
+      const updated = await updateOrderItemsService({
+        orderId: freshOrder._id,
+        expectedVersion: freshOrder.__v,
+        reason: 'Customer requested 2 units instead of 1',
+        adminUsername: 'SuperAdmin',
+        newItems: [{
+          productId: testProduct._id,
+          colorName: 'Noir',
+          size: 'M',
+          quantity: 2
+        }]
+      });
+
+      assert.strictEqual(updated.items[0].quantity, 2);
+      assert.strictEqual(updated.items[0].unitPrice, freshOrder.items[0].unitPrice);
+      orderForOverride = updated;
+    });
+
+    test('Altering unitPrice without priceOverride: true is strictly rejected', async () => {
+      const { updateOrderItemsService } = await import('../src/services/orderService.js');
+      const freshOrder = await Order.findById(orderForOverride._id);
+      await assert.rejects(
+        async () => {
+          await updateOrderItemsService({
+            orderId: freshOrder._id,
+            expectedVersion: freshOrder.__v,
+            reason: 'Accidental price edit attempt',
+            adminUsername: 'Admin',
+            priceOverride: false,
+            newItems: [{
+              productId: testProduct._id,
+              colorName: 'Noir',
+              size: 'M',
+              quantity: 2,
+              unitPrice: 5000 // Historical is 6500 or 8000
+            }]
+          });
+        },
+        (err) => {
+          assert.strictEqual(err.statusCode, 400);
+          assert.strictEqual(err.code, 'PRICE_OVERRIDE_REQUIRED');
+          return true;
+        }
+      );
+    });
+
+    test('Altering unitPrice with priceOverride: true but missing reason is strictly rejected', async () => {
+      const { updateOrderItemsService } = await import('../src/services/orderService.js');
+      const freshOrder = await Order.findById(orderForOverride._id);
+      await assert.rejects(
+        async () => {
+          await updateOrderItemsService({
+            orderId: freshOrder._id,
+            expectedVersion: freshOrder.__v,
+            reason: 'General line edit',
+            adminUsername: 'Admin',
+            priceOverride: true,
+            priceOverrideReason: '', // Empty reason
+            newItems: [{
+              productId: testProduct._id,
+              colorName: 'Noir',
+              size: 'M',
+              quantity: 2,
+              unitPrice: 5000
+            }]
+          });
+        },
+        (err) => {
+          assert.strictEqual(err.statusCode, 400);
+          assert.strictEqual(err.code, 'PRICE_OVERRIDE_REASON_REQUIRED');
+          return true;
+        }
+      );
+    });
+
+    test('Explicit admin price override with reason succeeds and audits previous and new price', async () => {
+      const { updateOrderItemsService } = await import('../src/services/orderService.js');
+      const freshOrder = await Order.findById(orderForOverride._id);
+      const historicalPrice = freshOrder.items[0].unitPrice;
+      const newCustomPrice = 5500;
+
+      const updated = await updateOrderItemsService({
+        orderId: freshOrder._id,
+        expectedVersion: freshOrder.__v,
+        reason: 'Manager goodwill discount applied',
+        adminUsername: 'SuperAdmin',
+        priceOverride: true,
+        priceOverrideReason: 'VIP client goodwill rebate authorized by director',
+        newItems: [{
+          productId: testProduct._id,
+          colorName: 'Noir',
+          size: 'M',
+          quantity: 2,
+          unitPrice: newCustomPrice
+        }]
+      });
+
+      assert.strictEqual(updated.items[0].unitPrice, newCustomPrice);
+      assert.strictEqual(updated.subtotal, newCustomPrice * 2);
+
+      // Verify audit trail recorded price changes
+      const latestAudit = updated.auditHistory[updated.auditHistory.length - 1];
+      assert.ok(latestAudit.note.includes('[PRICE OVERRIDES: 1]'));
+      assert.ok(Array.isArray(latestAudit.details?.priceChanges));
+      const record = latestAudit.details.priceChanges[0];
+      assert.strictEqual(record.previousPrice, historicalPrice);
+      assert.strictEqual(record.newPrice, newCustomPrice);
+      assert.strictEqual(record.priceOverrideReason, 'VIP client goodwill rebate authorized by director');
+    });
+  });
+
+  describe('9. Authoritative Checkout Idempotency & Inventory Semantics', () => {
+    test('Duplicate placeOrder with same idempotencyKey returns cached order without deducting stock twice', async () => {
+      const testKey = `idem-consist-test-${Date.now()}`;
+      const payload = {
+        idempotencyKey: testKey,
+        customer: {
+          fullName: 'Idempotent Customer',
+          phone: '0555000088',
+          wilaya: { code: 16, name: 'Alger' },
+          deliveryMethod: 'home',
+          address: 'Didouche Mourad'
+        },
+        items: [{
+          productId: testProduct._id,
+          colorName: 'Noir',
+          size: 'L',
+          quantity: 1
+        }]
+      };
+
+      const res1 = await placeOrder(payload);
+      const res2 = await placeOrder(payload);
+
+      assert.strictEqual(res1.order._id.toString(), res2.order._id.toString());
+      assert.strictEqual(res2.isDuplicate, true);
+    });
+
+    test('placeOrder when quantity exceeds available stock fails atomically', async () => {
+      await assert.rejects(
+        async () => {
+          await placeOrder({
+            idempotencyKey: `oversell-consist-${Date.now()}`,
+            customer: {
+              fullName: 'Oversell Customer',
+              phone: '0555000077',
+              wilaya: { code: 16, name: 'Alger' },
+              deliveryMethod: 'home',
+              address: 'Didouche Mourad'
+            },
+            items: [{
+              productId: testProduct._id,
+              colorName: 'Noir',
+              size: 'L',
+              quantity: 9999 // way exceeds available stock
+            }]
+          });
+        },
+        (err) => {
+          assert.ok(err.message.includes('stock') || err.message.includes('remaining') || err.message.includes('Stock'));
+          return true;
+        }
+      );
     });
   });
 });

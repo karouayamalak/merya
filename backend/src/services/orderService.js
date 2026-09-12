@@ -666,7 +666,9 @@ export async function updateOrderItemsService({
   newItems,
   expectedVersion,
   adminUsername = 'Admin',
-  reason
+  reason,
+  priceOverride = false,
+  priceOverrideReason = ''
 }) {
   // Note: reason is validated after order-level status checks inside the transaction
   // so that status errors (Delivered, Cancelled) surface with priority over the reason guard.
@@ -717,12 +719,16 @@ export async function updateOrderItemsService({
     if (consolidatedMap.has(key)) {
       const existing = consolidatedMap.get(key);
       existing.quantity += qty;
+      if (it.unitPrice !== undefined && existing.unitPrice === undefined) {
+        existing.unitPrice = it.unitPrice;
+      }
     } else {
       consolidatedMap.set(key, {
         productId: it.productId.toString(),
         colorName: it.colorName.trim(),
         size: it.size.trim(),
-        quantity: qty
+        quantity: qty,
+        unitPrice: it.unitPrice !== undefined ? it.unitPrice : undefined
       });
     }
   }
@@ -918,7 +924,9 @@ export async function updateOrderItemsService({
       let unitCost;
 
       if (existingOrderItem) {
-        // IMMUTABILITY RULE: An existing item's recorded price is immutable unless explicitly modified
+        // IMMUTABILITY RULE: An existing item's recorded price is immutable by default.
+        // An admin may only override it by explicitly providing:
+        //   priceOverride: true  AND  priceOverrideReason: "non-empty reason"
         if (it.unitPrice !== undefined) {
           const explicitPrice = Number(it.unitPrice);
           if (!Number.isInteger(explicitPrice) || explicitPrice <= 0 || !Number.isSafeInteger(explicitPrice)) {
@@ -926,17 +934,42 @@ export async function updateOrderItemsService({
             err.statusCode = 400;
             throw err;
           }
-          unitPrice = explicitPrice;
-          if (unitPrice !== existingOrderItem.unitPrice) {
+          if (explicitPrice !== existingOrderItem.unitPrice) {
+            // Price differs from historical value — explicit override intent is mandatory
+            if (priceOverride !== true) {
+              const err = new Error(
+                `Price override for "${prod.name}" (${it.colorName}, ${it.size}) requires priceOverride: true. ` +
+                `Historical price: ${existingOrderItem.unitPrice} DZD → Requested: ${explicitPrice} DZD. ` +
+                `Pass priceOverride: true and a non-empty priceOverrideReason to confirm this intentional change.`
+              );
+              err.statusCode = 400;
+              err.code = 'PRICE_OVERRIDE_REQUIRED';
+              throw err;
+            }
+            if (!priceOverrideReason || typeof priceOverrideReason !== 'string' || !priceOverrideReason.trim()) {
+              const err = new Error(
+                `A non-empty priceOverrideReason is required when overriding historical price for "${prod.name}".`
+              );
+              err.statusCode = 400;
+              err.code = 'PRICE_OVERRIDE_REASON_REQUIRED';
+              throw err;
+            }
+            if (priceOverrideReason.trim().length > 500) {
+              const err = new Error('priceOverrideReason cannot exceed 500 characters.');
+              err.statusCode = 400;
+              throw err;
+            }
             priceChanges.push({
               productId: prod._id,
               productName: prod.name,
               colorName: colorObj.colorName,
               size: it.size,
               previousPrice: existingOrderItem.unitPrice,
-              newPrice: unitPrice
+              newPrice: explicitPrice,
+              priceOverrideReason: priceOverrideReason.trim()
             });
           }
+          unitPrice = explicitPrice;
         } else {
           // Preserve already-recorded historical price
           unitPrice = existingOrderItem.unitPrice;
@@ -1020,7 +1053,7 @@ export async function updateOrderItemsService({
       action: 'LINE_ITEMS_UPDATED',
       timestamp: new Date(),
       performedBy: adminUsername,
-      note: `Admin modified order line items. (Subtotal: ${previousSubtotal} -> ${newSubtotal} DZD, Total: ${previousTotalPrice} -> ${newTotalPrice} DZD). Reason: ${reason.trim()}`,
+      note: `Admin modified order line items. (Subtotal: ${previousSubtotal} -> ${newSubtotal} DZD, Total: ${previousTotalPrice} -> ${newTotalPrice} DZD). Reason: ${reason.trim()}${priceChanges.length > 0 ? ` [PRICE OVERRIDES: ${priceChanges.length}]` : ''}`,
       details: {
         previousItems,
         updatedItems: snapshotItems,
@@ -1031,6 +1064,8 @@ export async function updateOrderItemsService({
         previousTotalPrice,
         updatedTotalPrice: newTotalPrice,
         priceChanges,
+        priceOverride: priceChanges.length > 0,
+        priceOverrideReason: priceChanges.length > 0 ? priceOverrideReason.trim() : undefined,
         reason: reason.trim()
       }
     };

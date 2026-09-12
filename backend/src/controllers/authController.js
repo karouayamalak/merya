@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { Admin } from '../models/Admin.js';
+import { wsService } from '../services/websocketService.js';
 
 export const login = async (req, res, next) => {
   try {
@@ -71,6 +72,7 @@ export const logout = async (req, res, next) => {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         if (decoded?.id) {
           await Admin.findByIdAndUpdate(decoded.id, { $inc: { sessionVersion: 1 } });
+          wsService.revokeAdminSession(decoded.id);
         }
       } catch {
         // Token already invalid or expired; proceed with cookie clearing

@@ -30,11 +30,83 @@ function getDefaultWilayaRates(code) {
 export const getDeliverySettings = async (req, res, next) => {
   try {
     const settings = await DeliverySetting.findOne();
-    if (!settings || !Array.isArray(settings.wilayaRates) || settings.wilayaRates.length < 58) {
+    if (!settings || !Array.isArray(settings.wilayaRates) || settings.wilayaRates.length !== 58) {
       return res.status(503).json({
         success: false,
-        message: 'Delivery settings configuration is incomplete or uninitialized (expected 58 Algerian wilayas). Run database seed or configure delivery settings in admin.'
+        message: 'Delivery settings configuration is incomplete, stale, or uninitialized (expected exactly 58 Algerian wilayas). Run database seed or configure delivery settings in admin.'
       });
+    }
+
+    // Index canonical wilayas for strict O(1) validation
+    const canonicalByCode = new Map(ALGERIA_WILAYAS.map(w => [w.code, w]));
+    const seenCodes = new Set();
+
+    for (let i = 0; i < settings.wilayaRates.length; i++) {
+      const r = settings.wilayaRates[i];
+      if (!r || typeof r !== 'object') {
+        return res.status(503).json({
+          success: false,
+          message: `Delivery configuration corrupted: invalid entry at index ${i}.`
+        });
+      }
+
+      // Must be an integer number between 1 and 58
+      const code = r.wilayaCode;
+      if (typeof code !== 'number' || !Number.isInteger(code) || code < 1 || code > 58) {
+        return res.status(503).json({
+          success: false,
+          message: `Delivery configuration corrupted: invalid wilayaCode ${code} (expected integer 1–58).`
+        });
+      }
+
+      // No duplicates allowed
+      if (seenCodes.has(code)) {
+        return res.status(503).json({
+          success: false,
+          message: `Delivery configuration corrupted: duplicate wilayaCode ${code}. Each Wilaya must be unique.`
+        });
+      }
+      seenCodes.add(code);
+
+      const canonical = canonicalByCode.get(code);
+      if (!canonical || typeof r.wilayaName !== 'string' || r.wilayaName.trim() !== canonical.name) {
+        return res.status(503).json({
+          success: false,
+          message: `Delivery configuration corrupted: wilaya ${code} name does not match canonical name "${canonical?.name}".`
+        });
+      }
+
+      // Strict non-negative integer fee validation
+      if (typeof r.homeFee !== 'number' || !Number.isFinite(r.homeFee) || !Number.isInteger(r.homeFee) || r.homeFee < 0) {
+        return res.status(503).json({
+          success: false,
+          message: `Delivery configuration corrupted: homeFee for wilaya ${code} must be a non-negative integer.`
+        });
+      }
+
+      if (typeof r.agencyFee !== 'number' || !Number.isFinite(r.agencyFee) || !Number.isInteger(r.agencyFee) || r.agencyFee < 0) {
+        return res.status(503).json({
+          success: false,
+          message: `Delivery configuration corrupted: agencyFee for wilaya ${code} must be a non-negative integer.`
+        });
+      }
+
+      if (r.isAvailable !== undefined && typeof r.isAvailable !== 'boolean') {
+        return res.status(503).json({
+          success: false,
+          message: `Delivery configuration corrupted: isAvailable for wilaya ${code} must be a boolean.`
+        });
+      }
+    }
+
+    // Ensure all codes 1 through 58 are present
+    for (let c = 1; c <= 58; c++) {
+      if (!seenCodes.has(c)) {
+        return res.status(503).json({
+          success: false,
+          message: `Delivery configuration corrupted: missing canonical Wilaya ${c}.`
+        });
+      }
     }
 
     res.json({
@@ -42,7 +114,9 @@ export const getDeliverySettings = async (req, res, next) => {
       settings: {
         agencyDeliveryFee: settings.agencyDeliveryFee,
         homeDeliveryFee: settings.homeDeliveryFee,
-        freeDeliveryThreshold: settings.freeDeliveryThreshold,
+        freeDeliveryThreshold: (typeof settings.freeDeliveryThreshold === 'number' && Number.isFinite(settings.freeDeliveryThreshold) && settings.freeDeliveryThreshold >= 0)
+          ? settings.freeDeliveryThreshold
+          : 0,
         wilayaRates: settings.wilayaRates
       },
       wilayas: settings.wilayaRates

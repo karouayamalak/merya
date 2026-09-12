@@ -1,4 +1,5 @@
 import { Order } from '../models/Order.js';
+import { Product } from '../models/Product.js';
 import { DeliverySetting } from '../models/DeliverySetting.js';
 import { placeOrder, updateOrderStatus, updateOrderItemsService } from '../services/orderService.js';
 import { setStockAtomic } from '../services/inventoryService.js';
@@ -71,6 +72,160 @@ export const checkout = async (req, res, next) => {
     if (isBusinessError) {
       return res.status(400).json({ success: false, message: error.message });
     }
+    next(error);
+  }
+};
+
+// Public: Server-authoritative cart quote & availability verification
+export const getCartQuote = async (req, res, next) => {
+  try {
+    const { items, wilayaCode, deliveryMethod } = req.body;
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ success: false, message: 'La liste des articles est requise.' });
+    }
+
+    const issues = [];
+    let subtotal = 0;
+    const quotedItems = [];
+
+    // Load delivery settings for threshold comparison
+    const setting = await DeliverySetting.findOne();
+    const freeDeliveryThreshold = (setting && typeof setting.freeDeliveryThreshold === 'number')
+      ? setting.freeDeliveryThreshold
+      : 0;
+
+    for (let idx = 0; idx < items.length; idx++) {
+      const item = items[idx];
+      const { productId, colorName, size, quantity } = item;
+
+      if (!productId || !colorName || !size || !quantity || quantity <= 0) {
+        issues.push(`Article #${idx + 1} : paramètres invalides.`);
+        continue;
+      }
+
+      const product = await Product.findOne({ _id: productId, isActive: true, isArchived: false });
+      if (!product) {
+        issues.push(`L'article "${item.productName || 'sélectionné'}" n'est plus disponible.`);
+        quotedItems.push({
+          productId,
+          colorName,
+          size,
+          quantity,
+          isAvailable: false,
+          inStock: false,
+          error: 'Product not found or inactive'
+        });
+        continue;
+      }
+
+      const colorVariant = (product.colors || []).find(c => c.colorName === colorName);
+      if (!colorVariant) {
+        issues.push(`La couleur "${colorName}" n'est plus disponible pour "${product.name}".`);
+        quotedItems.push({
+          productId,
+          productName: product.name,
+          colorName,
+          size,
+          quantity,
+          isAvailable: false,
+          inStock: false,
+          error: 'Color not available'
+        });
+        continue;
+      }
+
+      const sizeVariant = (colorVariant.sizes || []).find(s => s.size === size);
+      if (!sizeVariant) {
+        issues.push(`La taille "${size}" n'est plus disponible pour "${product.name}" (${colorName}).`);
+        quotedItems.push({
+          productId,
+          productName: product.name,
+          colorName,
+          size,
+          quantity,
+          isAvailable: false,
+          inStock: false,
+          error: 'Size not available'
+        });
+        continue;
+      }
+
+      const availableStock = typeof sizeVariant.stock === 'number' ? sizeVariant.stock : 0;
+      if (availableStock < quantity) {
+        if (availableStock <= 0) {
+          issues.push(`"${product.name}" (${colorName}, ${size}) est en rupture de stock.`);
+        } else {
+          issues.push(`Stock insuffisant pour "${product.name}" (${colorName}, ${size}) : seulement ${availableStock} restant(s).`);
+        }
+      }
+
+      // Live authoritative price calculation
+      const isPromo = Boolean(
+        product.promotion &&
+        product.promotion.active &&
+        typeof product.promotion.promotionalPrice === 'number' &&
+        product.promotion.promotionalPrice > 0 &&
+        product.promotion.promotionalPrice < product.sellingPrice
+      );
+
+      const effectiveUnitPrice = isPromo ? product.promotion.promotionalPrice : product.sellingPrice;
+      const effectiveOriginalPrice = product.sellingPrice;
+      const itemTotal = effectiveUnitPrice * quantity;
+      subtotal += itemTotal;
+
+      quotedItems.push({
+        productId: product._id,
+        productName: product.name,
+        colorName: colorVariant.colorName,
+        size: sizeVariant.size,
+        quantity,
+        unitPrice: effectiveUnitPrice,
+        originalPrice: effectiveOriginalPrice,
+        availableStock,
+        inStock: availableStock >= quantity,
+        isAvailable: true,
+        image: (Array.isArray(colorVariant.images) && colorVariant.images[0]) || ''
+      });
+    }
+
+    // Delivery fee calculation
+    let deliveryFee = null;
+    let isFreeDelivery = false;
+    let totalPrice = subtotal;
+
+    if (wilayaCode !== undefined && deliveryMethod && setting) {
+      const codeNum = Number(wilayaCode);
+      const wilayaRate = Array.isArray(setting.wilayaRates)
+        ? setting.wilayaRates.find(w => w.wilayaCode === codeNum)
+        : null;
+
+      if (wilayaRate && wilayaRate.isAvailable !== false) {
+        const rawFee = deliveryMethod === 'agency' ? wilayaRate.agencyFee : wilayaRate.homeFee;
+        if (typeof rawFee === 'number') {
+          if (freeDeliveryThreshold > 0 && subtotal >= freeDeliveryThreshold) {
+            deliveryFee = 0;
+            isFreeDelivery = true;
+          } else {
+            deliveryFee = rawFee;
+            isFreeDelivery = false;
+          }
+          totalPrice = subtotal + deliveryFee;
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      isValid: issues.length === 0,
+      subtotal,
+      deliveryFee,
+      freeDeliveryThreshold,
+      isFreeDelivery,
+      totalPrice,
+      items: quotedItems,
+      issues
+    });
+  } catch (error) {
     next(error);
   }
 };
@@ -506,7 +661,7 @@ export const adjustVariantStock = async (req, res, next) => {
 export const updateOrderItems = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { items, expectedVersion, reason } = req.body;
+    const { items, expectedVersion, reason, priceOverride, priceOverrideReason } = req.body;
     const adminUsername = req.admin?.username || 'Admin';
 
     if (!items) {
@@ -521,7 +676,9 @@ export const updateOrderItems = async (req, res, next) => {
       newItems: items,
       expectedVersion,
       adminUsername,
-      reason
+      reason,
+      priceOverride: priceOverride === true,
+      priceOverrideReason: typeof priceOverrideReason === 'string' ? priceOverrideReason : ''
     });
 
     res.json({

@@ -50,7 +50,7 @@ async function request(endpoint, options = {}) {
 
   const method = (options.method || 'GET').toUpperCase();
   const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
-  const PUBLIC_ENDPOINTS = ['/orders/checkout', '/tracking', '/auth/login'];
+  const PUBLIC_ENDPOINTS = ['/orders/checkout', '/orders/quote', '/tracking', '/auth/login'];
   const isPublic = PUBLIC_ENDPOINTS.some(p => endpoint.startsWith(p));
 
   // Attach CSRF token on mutating requests to protected endpoints
@@ -90,6 +90,10 @@ export const fetchProducts = (params = {}) => {
 };
 export const fetchProductBySlug = (slug) => request(`/products/slug/${slug}`);
 export const fetchDeliverySettings = () => request('/settings/delivery');
+export const quoteOrder = (quoteData) => request('/orders/quote', {
+  method: 'POST',
+  body: JSON.stringify(quoteData)
+});
 export const submitCheckout = (orderData) => request('/orders/checkout', {
   method: 'POST',
   body: JSON.stringify(orderData)

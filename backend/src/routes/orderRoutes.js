@@ -1,6 +1,7 @@
 import express from 'express';
 import {
   checkout,
+  getCartQuote,
   getAllOrdersAdmin,
   getOrderByIdAdmin,
   changeOrderStatus,
@@ -15,8 +16,9 @@ import { validate, checkoutOrderSchema, statusChangeSchema } from '../middleware
 
 const router = express.Router();
 
-// Public checkout endpoint (COD) — no auth cookie, no CSRF needed
+// Public checkout & cart quote endpoints (COD) — no auth cookie, no CSRF needed
 router.post('/checkout', checkoutLimiter, validate(checkoutOrderSchema), checkout);
+router.post('/quote', checkoutLimiter, getCartQuote);
 
 // Admin order management — all mutations require both auth cookie AND valid CSRF token
 router.get('/admin', authenticateAdmin, getAllOrdersAdmin);

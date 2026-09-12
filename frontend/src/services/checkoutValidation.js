@@ -1,4 +1,4 @@
-import { fetchProducts } from './api.js';
+import { fetchProducts, quoteOrder } from './api.js';
 
 /**
  * Strictly validates the server's 58-Wilaya delivery configuration.
@@ -119,21 +119,81 @@ export function calculateDeliveryFee({ subtotal, rawDeliveryFee, freeDeliveryThr
 
 /**
  * Revalidates all cart items against live server product database:
+ * - Uses preferred server-authoritative quote endpoint POST /orders/quote
  * - Detects deactivated/archived/deleted products
  * - Detects removed color or size variants
  * - Detects stock shortage
  * - Computes live effective price (promotional price if active, else selling price)
  * - Returns updated items and change detection flags
  */
-export async function revalidateCartWithServer(cartItems, customFetchProducts = fetchProducts) {
+export async function revalidateCartWithServer(
+  cartItems,
+  customQuoteOrder = quoteOrder,
+  customFetchProducts = fetchProducts
+) {
   if (!Array.isArray(cartItems) || cartItems.length === 0) {
     return { success: true, issues: [], pricesChanged: false, updatedItems: [] };
   }
 
+  // 1. Attempt primary server-authoritative quote endpoint
+  try {
+    const quoteRes = await customQuoteOrder({
+      items: cartItems.map(item => ({
+        productId: item.productId,
+        productName: item.productName,
+        colorName: item.colorName,
+        size: item.size,
+        quantity: item.quantity
+      }))
+    });
+
+    if (quoteRes && quoteRes.success && Array.isArray(quoteRes.items)) {
+      let pricesChanged = false;
+      const updatedItems = [];
+
+      for (const item of cartItems) {
+        const quoted = quoteRes.items.find(q =>
+          String(q.productId) === String(item.productId) &&
+          q.colorName === item.colorName &&
+          q.size === item.size
+        );
+
+        if (!quoted || !quoted.isAvailable) {
+          continue;
+        }
+
+        if (item.unitPrice !== quoted.unitPrice || item.originalPrice !== quoted.originalPrice) {
+          pricesChanged = true;
+        }
+
+        updatedItems.push({
+          ...item,
+          productName: quoted.productName || item.productName,
+          unitPrice: quoted.unitPrice,
+          originalPrice: quoted.originalPrice,
+          image: quoted.image || item.image
+        });
+      }
+
+      const issues = Array.isArray(quoteRes.issues) ? quoteRes.issues : [];
+
+      return {
+        success: Boolean(quoteRes.isValid) && issues.length === 0,
+        issues,
+        pricesChanged,
+        updatedItems
+      };
+    }
+  } catch (quoteErr) {
+    console.warn('[Cart Quote Fallback] Using products catalog:', quoteErr?.message || quoteErr);
+  }
+
+  // 2. Resilient fallback via product catalog
   try {
     const firstRes = await customFetchProducts({ limit: 50, page: 1 });
     let allProducts = Array.isArray(firstRes?.products) ? firstRes.products : [];
-    const total = Number(firstRes?.total) || allProducts.length;
+    // Products API returns total under pagination.total, not top-level total
+    const total = Number(firstRes?.pagination?.total) || allProducts.length;
 
     if (total > 50) {
       const totalPages = Math.ceil(total / 50);
@@ -197,7 +257,7 @@ export async function revalidateCartWithServer(cartItems, customFetchProducts = 
         continue;
       }
 
-      // Live authoritative price calculation (same rule as backend orderService.js)
+      // Live authoritative price calculation
       const livePromotionActive = Boolean(
         serverProduct.promotion &&
         serverProduct.promotion.active &&
@@ -233,11 +293,13 @@ export async function revalidateCartWithServer(cartItems, customFetchProducts = 
     };
   } catch (err) {
     console.warn('[Cart Revalidation Error]:', err);
+    // FAIL-CLOSED: A network or server error during validation must NEVER be treated
+    // as a successful validation. Return failure so checkout remains disabled.
     return {
-      success: true,
-      issues: [],
+      success: false,
+      issues: ['Impossible de vérifier votre panier. Veuillez réessayer.'],
       pricesChanged: false,
-      updatedItems: cartItems
+      updatedItems: []
     };
   }
 }

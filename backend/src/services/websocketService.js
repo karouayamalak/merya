@@ -50,6 +50,8 @@ class WebSocketService {
               const currentVersion = admin?.sessionVersion !== undefined ? admin.sessionVersion : 1;
               if (admin && admin.isActive && tokenVersion === currentVersion && (admin.role === 'admin' || admin.role === 'owner')) {
                 ws._adminIdentity = admin;
+                ws._adminId = admin._id.toString();
+                ws._sessionVersion = tokenVersion;
               }
             }
           }
@@ -103,8 +105,8 @@ class WebSocketService {
       ws.send(JSON.stringify({ type: 'CONNECTED', timestamp: new Date().toISOString() }));
     });
 
-    // Heartbeat ping interval every 30 seconds
-    const interval = setInterval(() => {
+    // Heartbeat ping interval every 30 seconds & active admin session verification
+    const interval = setInterval(async () => {
       if (!this.wss) return;
       this.wss.clients.forEach((ws) => {
         if (ws.isAlive === false) {
@@ -114,6 +116,20 @@ class WebSocketService {
         ws.isAlive = false;
         ws.ping();
       });
+
+      // Periodically verify that all active admin sockets still have a valid, unrevoked sessionVersion
+      for (const ws of Array.from(this.adminClients)) {
+        const isValid = await this.validateAdminSocket(ws);
+        if (!isValid) {
+          try {
+            ws.send(JSON.stringify({ type: 'SESSION_REVOKED', message: 'Admin session has been revoked or logged out.' }));
+            ws.close(4001, 'Session revoked');
+          } catch {
+            ws.terminate();
+          }
+          this.cleanupClient(ws);
+        }
+      }
     }, 30000);
 
     this.wss.on('close', () => {
@@ -123,6 +139,38 @@ class WebSocketService {
     console.log('[WebSocket] Server initialized on /ws');
   }
 
+  async validateAdminSocket(ws) {
+    if (!ws || !ws._adminId) return false;
+    try {
+      const admin = await Admin.findById(ws._adminId).select('isActive sessionVersion role');
+      if (!admin || !admin.isActive || (admin.role !== 'admin' && admin.role !== 'owner')) {
+        return false;
+      }
+      const currentVersion = admin.sessionVersion !== undefined ? admin.sessionVersion : 1;
+      if (ws._sessionVersion !== currentVersion) {
+        return false;
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  revokeAdminSession(adminId) {
+    if (!adminId) return;
+    const idStr = String(adminId);
+    this.adminClients.forEach((ws) => {
+      if (ws._adminId === idStr) {
+        try {
+          ws.send(JSON.stringify({ type: 'SESSION_REVOKED', message: 'Admin session has been revoked or logged out.' }));
+          ws.close(4001, 'Session revoked');
+        } catch {
+          ws.terminate();
+        }
+        this.cleanupClient(ws);
+      }
+    });
+  }
 
   async handleMessage(ws, message) {
     if (ws._authPromise) {
@@ -135,6 +183,13 @@ class WebSocketService {
     if (action === 'SUBSCRIBE_ADMIN') {
       const adminIdentity = ws._adminIdentity;
       if (!adminIdentity) {
+        ws.send(JSON.stringify({ type: 'ERROR', message: 'Unauthorized: Admin session required' }));
+        return;
+      }
+
+      // Live database verification to ensure session was not revoked between connect and subscribe
+      const isValid = await this.validateAdminSocket(ws);
+      if (!isValid) {
         ws.send(JSON.stringify({ type: 'ERROR', message: 'Unauthorized: Admin session required' }));
         return;
       }
