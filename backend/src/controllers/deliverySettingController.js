@@ -124,6 +124,8 @@ export const getDeliverySettings = async (req, res, next) => {
     res.json({
       success: true,
       settings: {
+        // DEPRECATED — NOT USED FOR PRICING. Preserved for backwards compatibility only.
+        // Authoritative delivery pricing is strictly per-Wilaya in wilayaRates[].
         agencyDeliveryFee: settings.agencyDeliveryFee,
         homeDeliveryFee: settings.homeDeliveryFee,
         freeDeliveryThreshold: (typeof settings.freeDeliveryThreshold === 'number' && Number.isFinite(settings.freeDeliveryThreshold) && settings.freeDeliveryThreshold >= 0)

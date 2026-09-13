@@ -52,32 +52,36 @@ const deliverySettingSchema = new mongoose.Schema({
     default: 'default'
   },
   /**
-   * @deprecated Legacy global fallback fee. The authoritative delivery fee
-   * for customer checkout, quotes, and admin recalculation is strictly derived
-   * per-wilaya from the wilayaRates collection.
+   * @deprecated DEPRECATED — NOT USED FOR PRICING.
+   * Legacy global fallback fee preserved strictly for backward compatibility.
+   * The authoritative delivery fee for customer checkout, cart quotes,
+   * order creation, and admin order recalculation is strictly derived
+   * per-Wilaya from the wilayaRates array (agencyFee / homeFee).
    */
   agencyDeliveryFee: {
     type: Number,
-    required: true,
+    required: false,
     min: 0,
     default: 500,
     validate: {
-      validator: (v) => typeof v === 'number' && Number.isInteger(v) && v >= 0,
+      validator: (v) => v === undefined || v === null || (typeof v === 'number' && Number.isInteger(v) && v >= 0),
       message: '{VALUE} is not a valid integer DZD agencyDeliveryFee'
     }
   },
   /**
-   * @deprecated Legacy global fallback fee. The authoritative delivery fee
-   * for customer checkout, quotes, and admin recalculation is strictly derived
-   * per-wilaya from the wilayaRates collection.
+   * @deprecated DEPRECATED — NOT USED FOR PRICING.
+   * Legacy global fallback fee preserved strictly for backward compatibility.
+   * The authoritative delivery fee for customer checkout, cart quotes,
+   * order creation, and admin order recalculation is strictly derived
+   * per-Wilaya from the wilayaRates array (agencyFee / homeFee).
    */
   homeDeliveryFee: {
     type: Number,
-    required: true,
+    required: false,
     min: 0,
     default: 800,
     validate: {
-      validator: (v) => typeof v === 'number' && Number.isInteger(v) && v >= 0,
+      validator: (v) => v === undefined || v === null || (typeof v === 'number' && Number.isInteger(v) && v >= 0),
       message: '{VALUE} is not a valid integer DZD homeDeliveryFee'
     }
   },

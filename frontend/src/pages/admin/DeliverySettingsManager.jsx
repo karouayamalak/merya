@@ -5,6 +5,9 @@ import { useLanguage } from '../../context/LanguageContext';
 
 export default function DeliverySettingsManager() {
   const { t, isRtl } = useLanguage();
+  // NOTE: agencyFee and homeFee state variables below are used ONLY for the bulk quick-tool
+  // (to apply a single price to all Wilayas at once). They are NOT global delivery fees.
+  // The authoritative per-Wilaya delivery prices are exclusively in wilayaRates[].agencyFee / .homeFee.
   const [agencyFee, setAgencyFee] = useState(0);
   const [homeFee, setHomeFee] = useState(0);
   const [freeThreshold, setFreeThreshold] = useState(0);
@@ -25,10 +28,11 @@ export default function DeliverySettingsManager() {
       try {
         const res = await fetchDeliverySettings();
         if (res.success && res.settings) {
-          setAgencyFee(res.settings.agencyDeliveryFee ?? 0);
-          setHomeFee(res.settings.homeDeliveryFee ?? 0);
-          setFreeThreshold(res.settings.freeDeliveryThreshold ?? 0);
+          // Load per-Wilaya rates (the authoritative delivery pricing source)
           setWilayaRates(res.settings.wilayaRates || res.wilayas || []);
+          setFreeThreshold(res.settings.freeDeliveryThreshold ?? 0);
+          // Legacy global agencyDeliveryFee / homeDeliveryFee are NOT loaded —
+          // they are deprecated and not used for any pricing calculation.
         }
       } catch (err) {
         console.error(err);
@@ -71,8 +75,9 @@ export default function DeliverySettingsManager() {
 
     try {
       const res = await adminUpdateDeliverySettings({
-        agencyDeliveryFee: Number(agencyFee),
-        homeDeliveryFee: Number(homeFee),
+        // Only wilayaRates and freeDeliveryThreshold are authoritative.
+        // Legacy agencyDeliveryFee / homeDeliveryFee are NOT sent — they are deprecated
+        // and do not influence any customer pricing or checkout calculation.
         freeDeliveryThreshold: Number(freeThreshold),
         wilayaRates: wilayaRates
       });
