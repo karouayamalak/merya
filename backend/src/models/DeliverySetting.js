@@ -51,40 +51,6 @@ const deliverySettingSchema = new mongoose.Schema({
     unique: true,
     default: 'default'
   },
-  /**
-   * @deprecated DEPRECATED — NOT USED FOR PRICING.
-   * Legacy global fallback fee preserved strictly for backward compatibility.
-   * The authoritative delivery fee for customer checkout, cart quotes,
-   * order creation, and admin order recalculation is strictly derived
-   * per-Wilaya from the wilayaRates array (agencyFee / homeFee).
-   */
-  agencyDeliveryFee: {
-    type: Number,
-    required: false,
-    min: 0,
-    default: 500,
-    validate: {
-      validator: (v) => v === undefined || v === null || (typeof v === 'number' && Number.isInteger(v) && v >= 0),
-      message: '{VALUE} is not a valid integer DZD agencyDeliveryFee'
-    }
-  },
-  /**
-   * @deprecated DEPRECATED — NOT USED FOR PRICING.
-   * Legacy global fallback fee preserved strictly for backward compatibility.
-   * The authoritative delivery fee for customer checkout, cart quotes,
-   * order creation, and admin order recalculation is strictly derived
-   * per-Wilaya from the wilayaRates array (agencyFee / homeFee).
-   */
-  homeDeliveryFee: {
-    type: Number,
-    required: false,
-    min: 0,
-    default: 800,
-    validate: {
-      validator: (v) => v === undefined || v === null || (typeof v === 'number' && Number.isInteger(v) && v >= 0),
-      message: '{VALUE} is not a valid integer DZD homeDeliveryFee'
-    }
-  },
   freeDeliveryThreshold: {
     type: Number,
     min: 0,
@@ -110,25 +76,54 @@ deliverySettingSchema.pre('save', function(next) {
   next();
 });
 
+/**
+ * Deterministic Singleton Fetcher — Non-destructive.
+ * Ordinary GET/read operations NEVER delete or mutate database records.
+ * If duplicates exist, the latest document is selected deterministically
+ * and a warning is logged so an explicit repair migration can be run.
+ */
 deliverySettingSchema.statics.getSingleton = async function(session = null) {
   const opts = session ? { session } : {};
   let setting = await this.findOne({ singletonKey: 'default' }, null, opts);
   if (!setting) {
-    const all = await this.find({}, null, opts).sort({ updatedAt: -1 });
+    const all = await this.find({}, null, opts).sort({ updatedAt: -1, _id: -1 });
     if (all.length > 0) {
       setting = all[0];
-      if (setting.singletonKey !== 'default') {
-        await this.updateOne({ _id: setting._id }, { $set: { singletonKey: 'default' } }, opts);
-        setting.singletonKey = 'default';
-      }
-      // Reconcile any duplicate stale settings
       if (all.length > 1) {
-        const extraIds = all.slice(1).map(s => s._id);
-        await this.deleteMany({ _id: { $in: extraIds } }, opts);
+        console.warn(`[DeliverySetting] Multiple delivery settings found (${all.length}). Deterministically selected newest document (_id: ${setting._id}). Run repairDuplicates() explicitly if cleanup is needed.`);
+      }
+      if (setting.singletonKey !== 'default') {
+        try {
+          await this.updateOne({ _id: setting._id }, { $set: { singletonKey: 'default' } }, opts);
+          setting.singletonKey = 'default';
+        } catch (err) {
+          // If a race occurred and another process set singletonKey, re-fetch
+          const existing = await this.findOne({ singletonKey: 'default' }, null, opts);
+          if (existing) setting = existing;
+        }
       }
     }
   }
   return setting;
+};
+
+/**
+ * Explicit safe repair migration tool.
+ * ONLY called explicitly when repairing corrupted or duplicated singleton collections.
+ * Preserves the newest document with singletonKey: 'default' and cleans up older stale duplicates.
+ */
+deliverySettingSchema.statics.repairDuplicates = async function(session = null) {
+  const opts = session ? { session } : {};
+  const all = await this.find({}, null, opts).sort({ updatedAt: -1, _id: -1 });
+  if (all.length <= 1) return { reconciled: false, count: all.length };
+
+  const keeper = all[0];
+  if (keeper.singletonKey !== 'default') {
+    await this.updateOne({ _id: keeper._id }, { $set: { singletonKey: 'default' } }, opts);
+  }
+  const extraIds = all.slice(1).map(s => s._id);
+  const deleteRes = await this.deleteMany({ _id: { $in: extraIds } }, opts);
+  return { reconciled: true, keptId: keeper._id, deletedCount: deleteRes.deletedCount };
 };
 
 export const DeliverySetting = mongoose.model('DeliverySetting', deliverySettingSchema);

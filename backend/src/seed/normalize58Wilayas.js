@@ -29,8 +29,7 @@ export async function normalize58Wilayas() {
   if (!deliverySetting) {
     console.log('[Migration] No DeliverySetting found. Creating fresh 58-wilaya dataset...');
     deliverySetting = new DeliverySetting({
-      agencyDeliveryFee: 500,
-      homeDeliveryFee: 800,
+      singletonKey: 'default',
       freeDeliveryThreshold: 0,
       wilayaRates: []
     });
@@ -65,6 +64,10 @@ export async function normalize58Wilayas() {
 
   deliverySetting.wilayaRates = normalizedRates;
   await deliverySetting.save();
+
+  // Safely remove any obsolete legacy delivery fee fields from MongoDB documents
+  // while strictly preserving _id, singletonKey, wilayaRates, freeDeliveryThreshold, and all orders.
+  await DeliverySetting.updateMany({}, { $unset: { agencyDeliveryFee: 1, homeDeliveryFee: 1 } });
 
   console.log(`[Migration] Success! DeliverySetting now contains exactly ${deliverySetting.wilayaRates.length} Wilayas (codes 1-58). Historical orders untouched.`);
   return deliverySetting;

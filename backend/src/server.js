@@ -54,8 +54,7 @@ if (process.env.NODE_ENV === 'production' || process.env.TRUST_PROXY) {
   app.set('trust proxy', 1);
 }
 
-// Connect to Database
-connectDB();
+// Connect to Database happens during startServer() before listening to requests
 
 // Security Headers
 app.use(helmet({
@@ -197,12 +196,27 @@ app.use(errorHandler);
 wsService.init(server, allowedOrigins);
 
 const PORT = process.env.PORT || 5000;
+const HOST = process.env.HOST;
+
+async function startServer() {
+  try {
+    console.log('[MERYA DZ Server] Connecting to MongoDB before starting server...');
+    await connectDB();
+    const listenArgs = [PORT];
+    if (HOST) listenArgs.push(HOST);
+    listenArgs.push(() => {
+      console.log(`[MERYA DZ Server] Running on http://${HOST || 'localhost'}:${PORT}`);
+      console.log(`[MERYA DZ Server] WebSocket endpoint active at ws://${HOST || 'localhost'}:${PORT}/ws`);
+    });
+    server.listen(...listenArgs);
+  } catch (error) {
+    console.error('[MERYA DZ Server] Fatal startup failure:', error.message);
+    process.exit(1);
+  }
+}
 
 if (process.env.NODE_ENV !== 'test') {
-  server.listen(PORT, () => {
-    console.log(`[MERYA DZ Server] Running on http://localhost:${PORT}`);
-    console.log(`[MERYA DZ Server] WebSocket endpoint active at ws://localhost:${PORT}/ws`);
-  });
+  startServer();
 }
 
 export { app, server };

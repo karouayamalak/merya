@@ -62,7 +62,7 @@ async function runLifecycleTests() {
       isAvailable: true
     }));
     if (!ds) {
-      ds = await DeliverySetting.create({ agencyDeliveryFee: 500, homeDeliveryFee: 800, wilayaRates: rates });
+      ds = await DeliverySetting.create({ singletonKey: 'default', freeDeliveryThreshold: 0, wilayaRates: rates });
     } else {
       ds.wilayaRates = rates;
       await ds.save();

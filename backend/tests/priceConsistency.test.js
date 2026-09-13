@@ -62,8 +62,6 @@ describe('MERYA DZ Price Consistency & Free Delivery Hardening', () => {
       {},
       {
         singletonKey: 'default',
-        agencyDeliveryFee: 500,
-        homeDeliveryFee: 800,
         freeDeliveryThreshold: 10000,
         wilayaRates: ALGERIA_WILAYAS.map(w => ({
           wilayaCode: w.code,
@@ -137,7 +135,7 @@ describe('MERYA DZ Price Consistency & Free Delivery Hardening', () => {
     test('Valid 58-Wilaya configuration accepted strictly', () => {
       const res = validateDeliverySettingsResponse({
         success: true,
-        settings: { agencyDeliveryFee: 500, homeDeliveryFee: 800, freeDeliveryThreshold: 10000, wilayaRates: validWilayas }
+        settings: { freeDeliveryThreshold: 10000, wilayaRates: validWilayas }
       });
       assert.strictEqual(res.valid, true);
       assert.strictEqual(res.wilayas.length, 58);

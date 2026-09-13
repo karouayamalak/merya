@@ -375,7 +375,7 @@ async function runAdversarialAudit() {
 
     // Disable Wilaya 15 (Tizi Ouzou)
     let ds = await DeliverySetting.findOne();
-    if (!ds) ds = await DeliverySetting.create({ agencyDeliveryFee: 500, homeDeliveryFee: 800 });
+    if (!ds) ds = await DeliverySetting.create({ singletonKey: 'default' });
     
     // Ensure Wilaya 15 is in rates and set isAvailable = false
     const w15Index = ds.wilayaRates.findIndex(r => r.wilayaCode === 15);

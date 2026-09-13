@@ -84,9 +84,6 @@ export function validateDeliverySettingsResponse(data) {
 
   const rawSettings = data.settings || {};
   const validatedSettings = {
-    // DEPRECATED — NOT USED FOR PRICING. Authoritative delivery pricing is per-Wilaya in wilayas array.
-    agencyDeliveryFee: typeof rawSettings.agencyDeliveryFee === 'number' ? rawSettings.agencyDeliveryFee : 500,
-    homeDeliveryFee: typeof rawSettings.homeDeliveryFee === 'number' ? rawSettings.homeDeliveryFee : 800,
     freeDeliveryThreshold: (typeof rawSettings.freeDeliveryThreshold === 'number' && Number.isFinite(rawSettings.freeDeliveryThreshold) && rawSettings.freeDeliveryThreshold >= 0)
       ? rawSettings.freeDeliveryThreshold
       : 0,

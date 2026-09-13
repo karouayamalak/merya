@@ -106,7 +106,7 @@ async function runGapAudit() {
   }));
   let deliverySetting = await DeliverySetting.findOneAndUpdate(
     {},
-    { agencyDeliveryFee: 500, homeDeliveryFee: 800, freeDeliveryThreshold: 0, wilayaRates },
+    { singletonKey: 'default', freeDeliveryThreshold: 0, wilayaRates },
     { upsert: true, new: true }
   );
   assert.strictEqual(deliverySetting.wilayaRates.length, 58, 'DeliverySetting must have rates for all 58 Wilayas');

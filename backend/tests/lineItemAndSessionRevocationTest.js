@@ -173,8 +173,7 @@ async function runAllTests() {
   const w16 = { wilayaCode: 16, wilayaName: 'Alger', homeFee: 500, agencyFee: 300, isAvailable: true };
   if (!delSetting) {
     delSetting = await DeliverySetting.create({
-      homeDeliveryFee: 800,
-      agencyDeliveryFee: 450,
+      singletonKey: 'default',
       freeDeliveryThreshold: 10000,
       wilayaRates: [w16]
     });

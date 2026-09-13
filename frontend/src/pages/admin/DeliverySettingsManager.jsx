@@ -5,11 +5,6 @@ import { useLanguage } from '../../context/LanguageContext';
 
 export default function DeliverySettingsManager() {
   const { t, isRtl } = useLanguage();
-  // NOTE: agencyFee and homeFee state variables below are used ONLY for the bulk quick-tool
-  // (to apply a single price to all Wilayas at once). They are NOT global delivery fees.
-  // The authoritative per-Wilaya delivery prices are exclusively in wilayaRates[].agencyFee / .homeFee.
-  const [agencyFee, setAgencyFee] = useState(0);
-  const [homeFee, setHomeFee] = useState(0);
   const [freeThreshold, setFreeThreshold] = useState(0);
   const [wilayaRates, setWilayaRates] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -17,6 +12,7 @@ export default function DeliverySettingsManager() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [version, setVersion] = useState(null);
 
   // Bulk update tool
   const [bulkHome, setBulkHome] = useState('');
@@ -31,8 +27,7 @@ export default function DeliverySettingsManager() {
           // Load per-Wilaya rates (the authoritative delivery pricing source)
           setWilayaRates(res.settings.wilayaRates || res.wilayas || []);
           setFreeThreshold(res.settings.freeDeliveryThreshold ?? 0);
-          // Legacy global agencyDeliveryFee / homeDeliveryFee are NOT loaded —
-          // they are deprecated and not used for any pricing calculation.
+          setVersion(res.settings.__v ?? res.settings.version ?? null);
         }
       } catch (err) {
         console.error(err);
@@ -75,17 +70,18 @@ export default function DeliverySettingsManager() {
 
     try {
       const res = await adminUpdateDeliverySettings({
-        // Only wilayaRates and freeDeliveryThreshold are authoritative.
-        // Legacy agencyDeliveryFee / homeDeliveryFee are NOT sent — they are deprecated
-        // and do not influence any customer pricing or checkout calculation.
         freeDeliveryThreshold: Number(freeThreshold),
-        wilayaRates: wilayaRates
+        wilayaRates: wilayaRates,
+        ...(version !== null && version !== undefined ? { expectedVersion: version } : {})
       });
 
       if (res.success) {
         setMessage(t('admin.delivery.settingsSaved'));
         if (res.settings && res.settings.wilayaRates) {
           setWilayaRates(res.settings.wilayaRates);
+        }
+        if (res.settings && (res.settings.__v !== undefined || res.settings.version !== undefined)) {
+          setVersion(res.settings.__v ?? res.settings.version);
         }
       }
     } catch (err) {

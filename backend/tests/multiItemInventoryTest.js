@@ -102,10 +102,11 @@ async function ensureDeliverySettings() {
   let settings = await DeliverySetting.findOne();
   if (!settings) {
     settings = await DeliverySetting.create({
-      agencyDeliveryFee: 500,
-      homeDeliveryFee: 800,
+      singletonKey: 'default',
+      freeDeliveryThreshold: 0,
       wilayaRates: Array.from({ length: 58 }, (_, i) => ({
         wilayaCode: i + 1,
+        wilayaName: `Wilaya ${i + 1}`,
         agencyFee: 300,
         homeFee: 600,
         isAvailable: true

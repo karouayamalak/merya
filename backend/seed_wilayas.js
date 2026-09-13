@@ -31,12 +31,11 @@ async function seedRates() {
     setting = new DeliverySetting();
   }
 
-  setting.agencyDeliveryFee = 500;
-  setting.homeDeliveryFee = 800;
   setting.freeDeliveryThreshold = 0;
   setting.wilayaRates = rates;
 
   await setting.save();
+  await DeliverySetting.updateMany({}, { $unset: { agencyDeliveryFee: 1, homeDeliveryFee: 1 } });
   console.log(`Successfully saved all ${setting.wilayaRates.length} wilayas in MongoDB!`);
   process.exit(0);
 }

@@ -114,8 +114,7 @@ async function runTests() {
 
   if (!delSetting) {
     delSetting = await DeliverySetting.create({
-      agencyDeliveryFee: 500,
-      homeDeliveryFee: 800,
+      singletonKey: 'default',
       freeDeliveryThreshold: 0,
       wilayaRates: allRates
     });

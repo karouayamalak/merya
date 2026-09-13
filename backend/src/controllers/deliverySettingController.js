@@ -124,14 +124,12 @@ export const getDeliverySettings = async (req, res, next) => {
     res.json({
       success: true,
       settings: {
-        // DEPRECATED — NOT USED FOR PRICING. Preserved for backwards compatibility only.
-        // Authoritative delivery pricing is strictly per-Wilaya in wilayaRates[].
-        agencyDeliveryFee: settings.agencyDeliveryFee,
-        homeDeliveryFee: settings.homeDeliveryFee,
         freeDeliveryThreshold: (typeof settings.freeDeliveryThreshold === 'number' && Number.isFinite(settings.freeDeliveryThreshold) && settings.freeDeliveryThreshold >= 0)
           ? settings.freeDeliveryThreshold
           : 0,
-        wilayaRates: enrichedRates
+        wilayaRates: enrichedRates,
+        __v: settings.__v,
+        version: settings.__v
       },
       wilayas: enrichedRates
     });
@@ -142,7 +140,22 @@ export const getDeliverySettings = async (req, res, next) => {
 
 export const updateDeliverySettings = async (req, res, next) => {
   try {
-    const { agencyDeliveryFee, homeDeliveryFee, freeDeliveryThreshold, wilayaRates } = req.body;
+    // Reject legacy global pricing fields with explicit 400 Bad Request
+    if (req.body.agencyDeliveryFee !== undefined || req.body.homeDeliveryFee !== undefined) {
+      return res.status(400).json({
+        success: false,
+        message: 'Legacy global delivery fee fields (agencyDeliveryFee, homeDeliveryFee) are no longer supported. Authoritative delivery pricing is strictly per-Wilaya in wilayaRates[].'
+      });
+    }
+
+    const { freeDeliveryThreshold, wilayaRates } = req.body;
+
+    // Strict freeDeliveryThreshold validation
+    if (freeDeliveryThreshold !== undefined) {
+      if (typeof freeDeliveryThreshold !== 'number' || !Number.isFinite(freeDeliveryThreshold) || !Number.isInteger(freeDeliveryThreshold) || freeDeliveryThreshold < 0) {
+        return res.status(400).json({ success: false, message: 'freeDeliveryThreshold must be a finite non-negative integer in DZD.' });
+      }
+    }
 
     // ── Strict wilayaRates validation ──────────────────────────────────────────
     if (wilayaRates !== undefined) {
@@ -250,33 +263,70 @@ export const updateDeliverySettings = async (req, res, next) => {
     // ── End validation ──────────────────────────────────────────────────────────
 
     let settings = await DeliverySetting.getSingleton();
+    const canonicalByCode = new Map(ALGERIA_WILAYAS.map(w => [w.code, w]));
+
     if (!settings) {
-      settings = new DeliverySetting({ singletonKey: 'default' });
+      const canonicalRates = Array.isArray(wilayaRates) ? wilayaRates.map(r => {
+        const canonical = canonicalByCode.get(r.wilayaCode);
+        return {
+          wilayaCode: r.wilayaCode,
+          wilayaName: canonical.name,
+          wilayaNameAr: canonical.nameAr,
+          wilayaNameFr: canonical.nameFr || canonical.name,
+          wilayaNameEn: canonical.nameEn || canonical.name,
+          homeFee: r.homeFee,
+          agencyFee: r.agencyFee,
+          isAvailable: r.isAvailable === false ? false : true
+        };
+      }).sort((a, b) => a.wilayaCode - b.wilayaCode) : ALGERIA_WILAYAS.map(w => {
+        const d = getDefaultWilayaRates(w.code);
+        return {
+          wilayaCode: w.code,
+          wilayaName: w.name,
+          wilayaNameAr: w.nameAr,
+          wilayaNameFr: w.nameFr || w.name,
+          wilayaNameEn: w.nameEn || w.name,
+          homeFee: d.homeFee,
+          agencyFee: d.agencyFee,
+          isAvailable: true
+        };
+      });
+
+      settings = await DeliverySetting.create({
+        singletonKey: 'default',
+        freeDeliveryThreshold: freeDeliveryThreshold !== undefined ? freeDeliveryThreshold : 0,
+        wilayaRates: canonicalRates,
+        updatedBy: req.admin?._id
+      });
+
+      return res.json({
+        success: true,
+        settings: {
+          freeDeliveryThreshold: settings.freeDeliveryThreshold,
+          wilayaRates: settings.wilayaRates,
+          __v: settings.__v,
+          version: settings.__v
+        }
+      });
     }
 
-    if (agencyDeliveryFee !== undefined) {
-      if (typeof agencyDeliveryFee !== 'number' || !Number.isFinite(agencyDeliveryFee) || !Number.isInteger(agencyDeliveryFee) || agencyDeliveryFee < 0) {
-        return res.status(400).json({ success: false, message: 'agencyDeliveryFee must be a finite non-negative integer in DZD.' });
-      }
-      settings.agencyDeliveryFee = agencyDeliveryFee;
-    }
-    if (homeDeliveryFee !== undefined) {
-      if (typeof homeDeliveryFee !== 'number' || !Number.isFinite(homeDeliveryFee) || !Number.isInteger(homeDeliveryFee) || homeDeliveryFee < 0) {
-        return res.status(400).json({ success: false, message: 'homeDeliveryFee must be a finite non-negative integer in DZD.' });
-      }
-      settings.homeDeliveryFee = homeDeliveryFee;
-    }
+    // ── Optimistic Concurrency Control (CAS on __v) ───────────────────────────
+    const expectedVersion = req.body.expectedVersion !== undefined
+      ? Number(req.body.expectedVersion)
+      : (req.body.__v !== undefined
+          ? Number(req.body.__v)
+          : (req.body.version !== undefined ? Number(req.body.version) : settings.__v));
+
+    const updateFields = {
+      updatedBy: req.admin?._id
+    };
+
     if (freeDeliveryThreshold !== undefined) {
-      if (typeof freeDeliveryThreshold !== 'number' || !Number.isFinite(freeDeliveryThreshold) || !Number.isInteger(freeDeliveryThreshold) || freeDeliveryThreshold < 0) {
-        return res.status(400).json({ success: false, message: 'freeDeliveryThreshold must be a finite non-negative integer in DZD.' });
-      }
-      settings.freeDeliveryThreshold = freeDeliveryThreshold;
+      updateFields.freeDeliveryThreshold = freeDeliveryThreshold;
     }
 
     if (Array.isArray(wilayaRates)) {
-      const canonicalByCode = new Map(ALGERIA_WILAYAS.map(w => [w.code, w]));
-      // Server DERIVES canonical wilayaName and wilayaNameAr unconditionally
-      settings.wilayaRates = wilayaRates.map(r => {
+      updateFields.wilayaRates = wilayaRates.map(r => {
         const canonical = canonicalByCode.get(r.wilayaCode);
         return {
           wilayaCode: r.wilayaCode,
@@ -291,16 +341,30 @@ export const updateDeliverySettings = async (req, res, next) => {
       }).sort((a, b) => a.wilayaCode - b.wilayaCode);
     }
 
-    settings.updatedBy = req.admin?._id;
-    await settings.save();
+    const updatedSettings = await DeliverySetting.findOneAndUpdate(
+      { _id: settings._id, __v: expectedVersion },
+      {
+        $set: updateFields,
+        $inc: { __v: 1 }
+      },
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedSettings) {
+      return res.status(409).json({
+        success: false,
+        code: 'CONCURRENT_CONFLICT',
+        message: 'CONCURRENT_CONFLICT: Delivery settings were modified concurrently by another administrator. Please refresh and retry.'
+      });
+    }
 
     res.json({
       success: true,
       settings: {
-        agencyDeliveryFee: settings.agencyDeliveryFee,
-        homeDeliveryFee: settings.homeDeliveryFee,
-        freeDeliveryThreshold: settings.freeDeliveryThreshold,
-        wilayaRates: settings.wilayaRates
+        freeDeliveryThreshold: updatedSettings.freeDeliveryThreshold,
+        wilayaRates: updatedSettings.wilayaRates,
+        __v: updatedSettings.__v,
+        version: updatedSettings.__v
       }
     });
   } catch (error) {

@@ -93,7 +93,7 @@ async function runStatusConcurrencyTests() {
       agencyFee: 500,
       isAvailable: true
     }));
-    ds = await DeliverySetting.create({ agencyDeliveryFee: 500, homeDeliveryFee: 800, wilayaRates: rates });
+    ds = await DeliverySetting.create({ singletonKey: 'default', freeDeliveryThreshold: 0, wilayaRates: rates });
   }
 
   // Create a shared test product

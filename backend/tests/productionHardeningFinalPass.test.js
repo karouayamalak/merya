@@ -61,8 +61,6 @@ describe('Production Hardening Final Pass Regression Suite', () => {
       {},
       {
         singletonKey: 'default',
-        agencyDeliveryFee: 500,
-        homeDeliveryFee: 800,
         freeDeliveryThreshold: 15000,
         wilayaRates: ALGERIA_WILAYAS.map(w => ({
           wilayaCode: w.code,

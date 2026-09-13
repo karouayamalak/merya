@@ -94,8 +94,7 @@ async function runTests() {
   }));
   if (!ds) {
     ds = await DeliverySetting.create({
-      agencyDeliveryFee: 500,
-      homeDeliveryFee: 800,
+      singletonKey: 'default',
       freeDeliveryThreshold: 0,
       wilayaRates: rates
     });
@@ -314,8 +313,8 @@ async function runTests() {
     fail('updateProduct controller valid integer update', err);
   }
 
-  console.log('\n── Part 3: Delivery Settings Boundary — Decimals Rejection ──');
-  // Attempt to update delivery settings with decimals
+  console.log('\n── Part 3: Delivery Settings Boundary — Decimals Rejection & Legacy Removal ──');
+  // 1. Attempt to pass legacy global delivery fees -> strictly rejected with 400
   try {
     const resSettings = mockRes();
     const reqSettings = {
@@ -326,10 +325,10 @@ async function runTests() {
     };
     await updateDeliverySettings(reqSettings, resSettings, () => {});
     assert.strictEqual(resSettings.statusCode, 400);
-    assert.ok(resSettings.body.message.includes('integer'), 'Error must specify integer');
-    pass('updateDeliverySettings rejected decimal agencyDeliveryFee: 450.50');
+    assert.ok(resSettings.body.message.includes('no longer supported'), 'Error must specify legacy fields no longer supported');
+    pass('updateDeliverySettings rejected legacy agencyDeliveryFee with 400');
   } catch (err) {
-    fail('updateDeliverySettings decimal agencyDeliveryFee', err);
+    fail('updateDeliverySettings legacy agencyDeliveryFee rejection', err);
   }
 
   try {
@@ -342,10 +341,45 @@ async function runTests() {
     };
     await updateDeliverySettings(reqSettings, resSettings, () => {});
     assert.strictEqual(resSettings.statusCode, 400);
-    assert.ok(resSettings.body.message.includes('integer'));
-    pass('updateDeliverySettings rejected decimal homeDeliveryFee: 800.25');
+    assert.ok(resSettings.body.message.includes('no longer supported'), 'Error must specify legacy fields no longer supported');
+    pass('updateDeliverySettings rejected legacy homeDeliveryFee with 400');
   } catch (err) {
-    fail('updateDeliverySettings decimal homeDeliveryFee', err);
+    fail('updateDeliverySettings legacy homeDeliveryFee rejection', err);
+  }
+
+  // 2. Attempt to update per-Wilaya rates with decimals
+  try {
+    const invalidRates = rates.map(r => r.wilayaCode === 16 ? { ...r, agencyFee: 350.50 } : r);
+    const resSettings = mockRes();
+    const reqSettings = {
+      body: {
+        wilayaRates: invalidRates
+      },
+      admin: { _id: new mongoose.Types.ObjectId() }
+    };
+    await updateDeliverySettings(reqSettings, resSettings, () => {});
+    assert.strictEqual(resSettings.statusCode, 400);
+    assert.ok(resSettings.body.message.includes('integer'), 'Error must specify integer');
+    pass('updateDeliverySettings rejected decimal agencyFee in wilayaRates: 350.50');
+  } catch (err) {
+    fail('updateDeliverySettings decimal agencyFee in wilayaRates', err);
+  }
+
+  try {
+    const invalidRates = rates.map(r => r.wilayaCode === 31 ? { ...r, homeFee: 750.25 } : r);
+    const resSettings = mockRes();
+    const reqSettings = {
+      body: {
+        wilayaRates: invalidRates
+      },
+      admin: { _id: new mongoose.Types.ObjectId() }
+    };
+    await updateDeliverySettings(reqSettings, resSettings, () => {});
+    assert.strictEqual(resSettings.statusCode, 400);
+    assert.ok(resSettings.body.message.includes('integer'), 'Error must specify integer');
+    pass('updateDeliverySettings rejected decimal homeFee in wilayaRates: 750.25');
+  } catch (err) {
+    fail('updateDeliverySettings decimal homeFee in wilayaRates', err);
   }
 
   try {

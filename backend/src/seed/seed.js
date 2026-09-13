@@ -47,8 +47,7 @@ async function seedDatabase() {
 
     if (!deliverySetting) {
       deliverySetting = await DeliverySetting.create({
-        agencyDeliveryFee: 500,
-        homeDeliveryFee: 800,
+        singletonKey: 'default',
         freeDeliveryThreshold: 0,
         wilayaRates
       });

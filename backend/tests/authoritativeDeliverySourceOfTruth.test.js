@@ -9,6 +9,7 @@ import { Order } from '../src/models/Order.js';
 import { DeliverySetting } from '../src/models/DeliverySetting.js';
 import { placeOrder } from '../src/services/orderService.js';
 import { checkout, updateOrderCustomerDetails, getCartQuote } from '../src/controllers/orderController.js';
+import { getDeliverySettings, updateDeliverySettings } from '../src/controllers/deliverySettingController.js';
 import { resolveAuthoritativeDelivery } from '../src/services/deliveryService.js';
 import { ORDER_STATUS, DELIVERY_METHODS, ALGERIA_WILAYAS } from '../src/config/constants.js';
 
@@ -94,14 +95,10 @@ describe('Authoritative Delivery Pricing Source of Truth Regression Suite', () =
     if (!delSetting) {
       delSetting = await DeliverySetting.create({
         singletonKey: 'default',
-        agencyDeliveryFee: 9999, // Legacy global field set to extreme number
-        homeDeliveryFee: 9999,   // Legacy global field set to extreme number
         freeDeliveryThreshold: 0,
         wilayaRates: allRates
       });
     } else {
-      delSetting.agencyDeliveryFee = 9999;
-      delSetting.homeDeliveryFee = 9999;
       delSetting.freeDeliveryThreshold = 0;
       delSetting.wilayaRates = allRates;
       await delSetting.save();
@@ -461,5 +458,85 @@ describe('Authoritative Delivery Pricing Source of Truth Regression Suite', () =
 
     const finalProduct = await Product.findById(testProduct._id);
     assert.strictEqual(finalProduct.colors[0].sizes[0].stock, initialStock - 2, 'Stock must NOT be decremented again on idempotency replay');
+  });
+
+  // 11. Legacy fields are absent from DeliverySetting schema
+  test('11. Legacy delivery fee fields are completely absent from DeliverySetting schema definition', () => {
+    const paths = Object.keys(DeliverySetting.schema.paths);
+    assert.strictEqual(paths.includes('agencyDeliveryFee'), false, 'agencyDeliveryFee must NOT exist in schema paths');
+    assert.strictEqual(paths.includes('homeDeliveryFee'), false, 'homeDeliveryFee must NOT exist in schema paths');
+    assert.strictEqual(paths.includes('wilayaRates'), true, 'wilayaRates must be the schema pricing path');
+  });
+
+  // 12. GET /settings/delivery does not return legacy fields
+  test('12. GET /settings/delivery exposes wilayaRates and does NOT return legacy agencyDeliveryFee or homeDeliveryFee', async () => {
+    const res = mockRes();
+    await getDeliverySettings({}, res, () => {});
+    assert.strictEqual(res.statusCode, 200);
+    assert.strictEqual(res.body.success, true);
+    assert.strictEqual(res.body.settings.agencyDeliveryFee, undefined, 'GET /settings/delivery must NOT return agencyDeliveryFee');
+    assert.strictEqual(res.body.settings.homeDeliveryFee, undefined, 'GET /settings/delivery must NOT return homeDeliveryFee');
+    assert.ok(Array.isArray(res.body.settings.wilayaRates), 'Must return wilayaRates array');
+    assert.strictEqual(res.body.settings.wilayaRates.length, 58, 'Must return exactly 58 Wilaya rates');
+  });
+
+  // 13. PUT /settings/delivery strictly rejects legacy fields with 400 Bad Request
+  test('13. PUT /settings/delivery rejects legacy agencyDeliveryFee or homeDeliveryFee with 400 Bad Request', async () => {
+    const resAgency = mockRes();
+    await updateDeliverySettings({
+      body: { agencyDeliveryFee: 9999 },
+      admin: { _id: new mongoose.Types.ObjectId() }
+    }, resAgency, () => {});
+    assert.strictEqual(resAgency.statusCode, 400);
+    assert.ok(resAgency.body.message.includes('no longer supported'));
+
+    const resHome = mockRes();
+    await updateDeliverySettings({
+      body: { homeDeliveryFee: 9999 },
+      admin: { _id: new mongoose.Types.ObjectId() }
+    }, resHome, () => {});
+    assert.strictEqual(resHome.statusCode, 400);
+    assert.ok(resHome.body.message.includes('no longer supported'));
+  });
+
+  // 14. DeliverySetting concurrency control: concurrent updates conflict with 409
+  test('14. Concurrent DeliverySetting updates with stale version return HTTP 409 Conflict', async () => {
+    const current = await DeliverySetting.getSingleton();
+    const staleVersion = (current.__v || 0);
+
+    const adminIdA = new mongoose.Types.ObjectId();
+    const adminIdB = new mongoose.Types.ObjectId();
+
+    // First update succeeds
+    const resA = mockRes();
+    await updateDeliverySettings({
+      body: {
+        freeDeliveryThreshold: 5000,
+        expectedVersion: staleVersion
+      },
+      admin: { _id: adminIdA }
+    }, resA, () => {});
+    assert.strictEqual(resA.statusCode, 200);
+
+    // Second update with same stale version must conflict with 409
+    const resB = mockRes();
+    await updateDeliverySettings({
+      body: {
+        freeDeliveryThreshold: 8000,
+        expectedVersion: staleVersion
+      },
+      admin: { _id: adminIdB }
+    }, resB, () => {});
+    assert.strictEqual(resB.statusCode, 409, 'Concurrent update with stale version must conflict with 409');
+    assert.strictEqual(resB.body.code, 'CONCURRENT_CONFLICT');
+  });
+
+  // 15. Normal reads with getSingleton are strictly non-destructive
+  test('15. DeliverySetting.getSingleton() is non-destructive and never deletes database records', async () => {
+    const countBefore = await DeliverySetting.countDocuments();
+    const setting = await DeliverySetting.getSingleton();
+    assert.ok(setting);
+    const countAfter = await DeliverySetting.countDocuments();
+    assert.strictEqual(countAfter, countBefore, 'Count of DeliverySetting records must not decrease during getSingleton() read');
   });
 });
