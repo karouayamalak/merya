@@ -33,7 +33,11 @@ export default {
     no: 'No',
     required: 'Required',
     optional: 'Optional',
-    recipient: 'Recipient'
+    recipient: 'Recipient',
+    previous: 'Previous',
+    next: 'Next',
+    page: 'Page',
+    pageOf: 'of'
   },
   nav: {
     home: 'Home',

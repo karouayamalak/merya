@@ -33,7 +33,11 @@ export default {
     no: 'لا',
     required: 'إجباري',
     optional: 'اختياري',
-    recipient: 'المستلم'
+    recipient: 'المستلم',
+    previous: 'السابق',
+    next: 'التالي',
+    page: 'صفحة',
+    pageOf: 'من'
   },
   nav: {
     home: 'الرئيسية',

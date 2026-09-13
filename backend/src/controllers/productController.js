@@ -38,7 +38,7 @@ export function getTranslationStatus(entity) {
 // Public: Get active products with filtering, search, and pagination
 export const getProducts = async (req, res, next) => {
   try {
-    const { category, isBestSeller, search, minPrice, maxPrice, page = 1, limit = 24 } = req.query;
+    const { category, isBestSeller, search, minPrice, maxPrice, page = 1, limit = 24, sort } = req.query;
 
     const filter = {
       isActive: true,
@@ -60,7 +60,7 @@ export const getProducts = async (req, res, next) => {
     }
 
     if (search && search.trim()) {
-      const raw = search.trim().slice(0, 200); // cap at 200 chars
+      const raw = search.trim().slice(0, 100); // cap at 100 chars
       const escaped = escapeRegex(raw);
       const regex = { $regex: escaped, $options: 'i' };
       filter.$or = [
@@ -96,11 +96,21 @@ export const getProducts = async (req, res, next) => {
     const limitNum = Math.min(50, Math.max(1, parseInt(limit, 10)));
     const skip = (pageNum - 1) * limitNum;
 
+    // Server-side sorting
+    let sortOption = { createdAt: -1 }; // default: newest
+    if (sort === 'price-asc') {
+      sortOption = { sellingPrice: 1 };
+    } else if (sort === 'price-desc') {
+      sortOption = { sellingPrice: -1 };
+    } else if (sort === 'name-asc') {
+      sortOption = { 'name.fr': 1 };
+    }
+
     const [products, total] = await Promise.all([
       Product.find(filter)
         .select('-costPrice') // Do not expose cost price to public!
         .populate('category', 'name slug')
-        .sort({ createdAt: -1 })
+        .sort(sortOption)
         .skip(skip)
         .limit(limitNum),
       Product.countDocuments(filter)
@@ -118,6 +128,7 @@ export const getProducts = async (req, res, next) => {
         total,
         pages: Math.ceil(total / limitNum)
       }
+
     });
   } catch (error) {
     next(error);

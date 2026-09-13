@@ -204,24 +204,10 @@ productSchema.index({ "name.en": 1 });
 productSchema.virtual('translationStatus').get(function() {
   const n = typeof this.name === 'object' && this.name !== null ? this.name : { fr: this.name || '' };
   const d = typeof this.description === 'object' && this.description !== null ? this.description : { fr: this.description || '' };
-  const fr = Boolean(n.fr && n.fr.trim().length > 0 && d.fr && d.fr.trim().length > 0);
-  const ar = Boolean(n.ar && n.ar.trim().length > 0 && d.ar && d.ar.trim().length > 0);
-  const en = Boolean(n.en && n.en.trim().length > 0 && d.en && d.en.trim().length > 0);
   return {
-    fr,
-    ar,
-    en,
-    isComplete: fr && ar && en,
-    name: {
-      fr: Boolean(n.fr && n.fr.trim().length > 0),
-      ar: Boolean(n.ar && n.ar.trim().length > 0),
-      en: Boolean(n.en && n.en.trim().length > 0)
-    },
-    description: {
-      fr: Boolean(d.fr && d.fr.trim().length > 0),
-      ar: Boolean(d.ar && d.ar.trim().length > 0),
-      en: Boolean(d.en && d.en.trim().length > 0)
-    }
+    fr: Boolean(n.fr && n.fr.trim().length > 0 && d.fr && d.fr.trim().length > 0),
+    ar: Boolean(n.ar && n.ar.trim().length > 0 && d.ar && d.ar.trim().length > 0),
+    en: Boolean(n.en && n.en.trim().length > 0 && d.en && d.en.trim().length > 0)
   };
 });
 

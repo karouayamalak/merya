@@ -1,4 +1,4 @@
-import { Category } from '../models/Category.js';
+import { Category, isCategoryFullyTranslated } from '../models/Category.js';
 
 export const getCategoryTranslationStatus = (category) => {
   const name = typeof category?.name === 'object' && category?.name !== null ? category.name : { fr: category?.name || '' };
@@ -95,12 +95,9 @@ export const createCategory = async (req, res, next) => {
 
     const candidateName = typeof name === 'object' && name !== null ? name : { fr: name || '' };
     const candidateDesc = typeof description === 'object' && description !== null ? description : { fr: description || '' };
-    const isComplete = Boolean(
-      candidateName.fr?.trim() && candidateName.ar?.trim() && candidateName.en?.trim() &&
-      candidateDesc.fr?.trim() && candidateDesc.ar?.trim() && candidateDesc.en?.trim()
-    );
+    const isComplete = isCategoryFullyTranslated({ name, description });
 
-    // Publishing requires complete French, Arabic, and English translations for both name and description
+    // Publishing requires complete French, Arabic, and English translations
     if (isActive === true && !isComplete) {
       return res.status(400).json({
         success: false,
@@ -126,6 +123,12 @@ export const createCategory = async (req, res, next) => {
 
     res.status(201).json({ success: true, category: catObj });
   } catch (error) {
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: 'A category with this name or slug already exists. Please choose a distinct name.'
+      });
+    }
     next(error);
   }
 };
@@ -153,15 +156,25 @@ export const updateCategory = async (req, res, next) => {
         category.name = name;
       }
 
-      // Update slug only if changed French base
+      // Update slug safely with unique collision check
       const baseName = extractBaseName(category.name);
       if (baseName) {
-        category.slug = baseName
+        const baseSlug = baseName
           .toLowerCase()
           .trim()
           .replace(/[^\w\s-]/g, '')
           .replace(/[\s_-]+/g, '-')
           .replace(/^-+|-+$/g, '') || category.slug;
+
+        if (baseSlug !== category.slug) {
+          let newSlug = baseSlug;
+          let counter = 1;
+          while (await Category.findOne({ slug: newSlug, _id: { $ne: id } })) {
+            newSlug = `${baseSlug}-${counter}`;
+            counter++;
+          }
+          category.slug = newSlug;
+        }
       }
     }
 
@@ -178,16 +191,13 @@ export const updateCategory = async (req, res, next) => {
       }
     }
 
-    // Require complete translations (name + description) if attempting to publish
-    if (isActive === true) {
-      const candidateName = category.name;
-      const candidateDesc = category.description;
-      const isComplete = Boolean(
-        candidateName && typeof candidateName === 'object' &&
-        candidateName.fr?.trim() && candidateName.ar?.trim() && candidateName.en?.trim() &&
-        candidateDesc && typeof candidateDesc === 'object' &&
-        candidateDesc.fr?.trim() && candidateDesc.ar?.trim() && candidateDesc.en?.trim()
-      );
+    if (image !== undefined) category.image = image;
+    if (displayOrder !== undefined) category.displayOrder = displayOrder;
+    if (isActive !== undefined) category.isActive = isActive;
+
+    // Require complete translations if attempting to publish or remain active
+    if (category.isActive === true) {
+      const isComplete = isCategoryFullyTranslated(category);
       if (!isComplete) {
         return res.status(400).json({
           success: false,
@@ -197,16 +207,18 @@ export const updateCategory = async (req, res, next) => {
       }
     }
 
-    if (image !== undefined) category.image = image;
-    if (displayOrder !== undefined) category.displayOrder = displayOrder;
-    if (isActive !== undefined) category.isActive = isActive;
-
     await category.save();
     const catObj = category.toObject({ getters: true });
     catObj.translationStatus = getCategoryTranslationStatus(category);
 
     res.json({ success: true, category: catObj });
   } catch (error) {
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: 'A category with this name or slug already exists. Please choose a distinct name.'
+      });
+    }
     next(error);
   }
 };

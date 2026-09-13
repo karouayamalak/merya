@@ -106,11 +106,56 @@ export const adminLoginSchema = z.object({
   password: z.string().min(6, 'Password must be at least 6 characters')
 });
 
+// Strict multilingual schemas for product name & description
+const multilingualStringSchema = (maxLength = 150) => z.object({
+  fr: z.string({ invalid_type_error: 'French translation must be a string' }).max(maxLength).optional().default(''),
+  ar: z.string({ invalid_type_error: 'Arabic translation must be a string' }).max(maxLength).optional().default(''),
+  en: z.string({ invalid_type_error: 'English translation must be a string' }).max(maxLength).optional().default('')
+}, { invalid_type_error: 'Must be an object with language keys: fr, ar, en' });
+
+const localizedFieldSchema = (maxLength = 150) => z.union([
+  multilingualStringSchema(maxLength),
+  z.string().max(maxLength).transform(s => ({ fr: s, ar: '', en: '' }))
+]);
+
+// Helper to validate color and size uniqueness
+function validateVariantUniqueness(colors, ctx) {
+  if (!Array.isArray(colors)) return;
+  const seenColors = new Set();
+  for (let i = 0; i < colors.length; i++) {
+    const c = colors[i];
+    const normColor = c.colorName?.trim().toLowerCase();
+    if (seenColors.has(normColor)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['colors', i, 'colorName'],
+        message: `Duplicate colorName "${c.colorName}". Color names must be unique (case-insensitive).`
+      });
+    }
+    seenColors.add(normColor);
+
+    if (Array.isArray(c.sizes)) {
+      const seenSizes = new Set();
+      for (let j = 0; j < c.sizes.length; j++) {
+        const s = c.sizes[j];
+        if (seenSizes.has(s.size)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['colors', i, 'sizes', j, 'size'],
+            message: `Duplicate size "${s.size}" in color "${c.colorName}". Sizes per color must be unique.`
+          });
+        }
+        seenSizes.add(s.size);
+      }
+    }
+  }
+}
+
 // Product validation schema
 export const productSchema = z.object({
-  name: localizedStringSchema,
-  description: localizedStringSchema,
-  category: z.string().min(1),
+  name: localizedFieldSchema(150),
+  description: localizedFieldSchema(3000),
+  category: z.string().min(1, 'Category is required'),
   sellingPrice: z.number().int({ message: 'Selling price must be an integer in DZD' }).positive({ message: 'Selling price must be positive' }).optional(),
   basePrice: z.number().int({ message: 'Base price must be an integer in DZD' }).positive({ message: 'Base price must be positive' }).optional(),
   costPrice: z.number().int({ message: 'Cost price must be an integer in DZD' }).nonnegative({ message: 'Cost price cannot be negative' }),
@@ -121,14 +166,12 @@ export const productSchema = z.object({
   isActive: z.boolean().optional(),
   isBestSeller: z.boolean().optional(),
   colors: z.array(z.object({
-    colorName: z.string().min(1),
-    colorDisplayName: localizedStringSchema.optional(),
-    colorCode: z.string().min(1),
+    colorName: z.string().min(1, 'Color name is required').max(50),
+    colorDisplayName: localizedFieldSchema(50).optional(),
+    colorCode: z.string().min(1, 'Color code is required'),
     images: z.array(z.string()).min(1, 'At least one image is required per color'),
     sizes: z.array(z.object({
       size: z.enum(['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Standard', 'One Size'])
-      // stock is intentionally absent: initial stock is always 0.
-      // Use the inventory adjustment endpoint (POST /admin/inventory/adjust) to set stock.
     })).min(1, 'At least one size is required')
   })).min(1, 'At least one color variant is required')
 }).superRefine((data, ctx) => {
@@ -155,12 +198,45 @@ export const productSchema = z.object({
       });
     }
   }
+
+  // Publishing completeness check
+  if (data.isActive === true) {
+    const n = data.name || {};
+    const d = data.description || {};
+    if (!n.fr?.trim() || !n.ar?.trim() || !n.en?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['name'],
+        message: 'Published products require name translations in French, Arabic, and English'
+      });
+    }
+    if (!d.fr?.trim() || !d.ar?.trim() || !d.en?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['description'],
+        message: 'Published products require description translations in French, Arabic, and English'
+      });
+    }
+  } else {
+    // Draft: at least one name language must be provided
+    const n = data.name || {};
+    if (!n.fr?.trim() && !n.ar?.trim() && !n.en?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['name'],
+        message: 'Product name must have at least one language translation provided'
+      });
+    }
+  }
+
+  // Variant uniqueness check
+  validateVariantUniqueness(data.colors, ctx);
 });
 
 // Update product validation schema
 export const updateProductSchema = z.object({
-  name: localizedStringSchema.optional(),
-  description: localizedStringSchema.optional(),
+  name: localizedFieldSchema(150).optional(),
+  description: localizedFieldSchema(3000).optional(),
   category: z.string().min(1).optional(),
   sellingPrice: z.number().int({ message: 'Selling price must be an integer in DZD' }).positive({ message: 'Selling price must be positive' }).optional(),
   basePrice: z.number().int({ message: 'Base price must be an integer in DZD' }).positive({ message: 'Base price must be positive' }).optional(),
@@ -173,8 +249,8 @@ export const updateProductSchema = z.object({
   isBestSeller: z.boolean().optional(),
   isArchived: z.boolean().optional(),
   colors: z.array(z.object({
-    colorName: z.string().min(1),
-    colorDisplayName: localizedStringSchema.optional(),
+    colorName: z.string().min(1).max(50),
+    colorDisplayName: localizedFieldSchema(50).optional(),
     colorCode: z.string().min(1),
     images: z.array(z.string()).optional(),
     sizes: z.array(z.object({
@@ -198,6 +274,10 @@ export const updateProductSchema = z.object({
         message: 'Promotional price must be strictly lower than base price'
       });
     }
+  }
+
+  if (data.colors) {
+    validateVariantUniqueness(data.colors, ctx);
   }
 });
 

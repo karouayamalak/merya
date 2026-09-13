@@ -488,10 +488,10 @@ export const updateOrderCustomerDetails = async (req, res, next) => {
 
       if (normMethod === DELIVERY_METHODS.HOME) {
         const currentAddress = address !== undefined ? address : order.customer.address;
-        if (!currentAddress || typeof currentAddress !== 'string' || currentAddress.trim().length < 3) {
+        if (!currentAddress || typeof currentAddress !== 'string' || currentAddress.trim().length < 4) {
           return res.status(400).json({
             success: false,
-            message: 'Detailed home address is required for home delivery (min 3 characters).'
+            message: 'Detailed home address is required for home delivery (min 4 characters).'
           });
         }
       }
@@ -554,10 +554,10 @@ export const updateOrderCustomerDetails = async (req, res, next) => {
 
     // Agency delivery name validation
     if (order.customer.deliveryMethod === DELIVERY_METHODS.AGENCY) {
-      if (!order.customer.agencyName || typeof order.customer.agencyName !== 'string' || order.customer.agencyName.trim().length === 0) {
+      if (!order.customer.agencyName || typeof order.customer.agencyName !== 'string' || order.customer.agencyName.trim().length < 2) {
         return res.status(400).json({
           success: false,
-          message: 'Agency name is required for agency delivery.'
+          message: 'Agency name is required for agency delivery (min 2 characters).'
         });
       }
     }
