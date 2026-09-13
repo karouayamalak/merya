@@ -6,6 +6,7 @@ import { setStockAtomic } from '../services/inventoryService.js';
 import { ALGERIA_WILAYAS, DELIVERY_METHODS, ORDER_STATUS } from '../config/constants.js';
 import { normalizeAlgerianPhone } from '../utils/phone.js';
 import { resolveAuthoritativeDelivery, validateCartItem, MAX_ITEM_QUANTITY } from '../services/deliveryService.js';
+import { parsePaginationParams } from '../utils/pagination.js';
 
 // Public: Checkout order
 export const checkout = async (req, res, next) => {
@@ -46,6 +47,10 @@ export const checkout = async (req, res, next) => {
   } catch (error) {
     if (error.statusCode) {
       return res.status(error.statusCode).json({ success: false, message: error.message });
+    }
+
+    if (error.message && error.message.startsWith('IDEMPOTENCY_KEY_INVALID')) {
+      return res.status(400).json({ success: false, message: error.message });
     }
 
     if (error.message && error.message.startsWith('IDEMPOTENCY_CONFLICT')) {
@@ -256,7 +261,7 @@ export const getCartQuote = async (req, res, next) => {
 // Admin: Get all orders with search, filters, and pagination
 export const getAllOrdersAdmin = async (req, res, next) => {
   try {
-    const { search, status, deliveryMethod, startDate, endDate, page = 1, limit = 25 } = req.query;
+    const { search, status, deliveryMethod, startDate, endDate } = req.query;
 
     const filter = {};
 
@@ -292,9 +297,12 @@ export const getAllOrdersAdmin = async (req, res, next) => {
       }
     }
 
-    const pageNum = Math.max(1, parseInt(page, 10));
-    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10)));
-    const skip = (pageNum - 1) * limitNum;
+    // Strict pagination validation — rejects NaN, Infinity, negatives, decimals
+    const pagination = parsePaginationParams(req.query, { defaultLimit: 25, maxLimit: 100 });
+    if (!pagination.valid) {
+      return res.status(400).json({ success: false, message: pagination.error });
+    }
+    const { pageNum, limitNum, skip } = pagination;
 
     const [orders, total] = await Promise.all([
       Order.find(filter)
@@ -402,13 +410,14 @@ export const updateOrderCustomerDetails = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
 
-    // Historical immutability: DELIVERED orders are fully locked.
+    // Terminal order immutability: DELIVERED, RETURNED, and CANCELLED orders are fully locked.
     // No customer fields, delivery destination, or financial values may be changed
-    // after an order reaches the Delivered state. Any attempt is rejected immediately.
-    if (order.status === ORDER_STATUS.DELIVERED) {
+    // after an order reaches any terminal state.
+    const TERMINAL_STATES = [ORDER_STATUS.DELIVERED, ORDER_STATUS.RETURNED, ORDER_STATUS.CANCELLED];
+    if (TERMINAL_STATES.includes(order.status)) {
       return res.status(400).json({
         success: false,
-        message: 'Delivered orders are fully locked. Historical financial values and customer details cannot be modified on Delivered orders.'
+        message: `Orders in ${order.status} state are fully locked. Historical financial values and customer details cannot be modified.`
       });
     }
 

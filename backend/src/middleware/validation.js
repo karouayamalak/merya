@@ -31,7 +31,10 @@ export const validate = (schema) => (req, res, next) => {
 
 // Checkout order validation schema
 export const checkoutOrderSchema = z.object({
-  idempotencyKey: z.string().optional(),
+  idempotencyKey: z.string({ required_error: 'Idempotency key is required' })
+    .min(8, 'Idempotency key must be at least 8 characters')
+    .max(128, 'Idempotency key cannot exceed 128 characters')
+    .regex(/^[a-zA-Z0-9_-]+$/, 'Idempotency key must be 8-128 alphanumeric characters, dashes, or underscores'),
   customer: z.object({
     fullName: z.string().min(2, 'Full name is required (min 2 characters)').max(100),
     phone: z.string().min(8, 'Phone number must be at least 8 digits').max(20),
@@ -92,6 +95,27 @@ export const checkoutOrderSchema = z.object({
     size: z.string().min(1, 'Size is required'),
     quantity: z.number().int().min(1, 'Quantity must be at least 1').max(20)
   })).min(1, 'At least one item is required in cart')
+});
+
+// Cart quote validation schema
+export const cartQuoteSchema = z.object({
+  items: z.array(z.object({
+    productId: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid productId MongoDB ObjectId'),
+    colorName: z.string().min(1).max(100),
+    size: z.string().min(1).max(50),
+    quantity: z.number().int().min(1).max(20),
+    productName: z.string().max(200).optional(),
+    unitPrice: z.number().int().positive().optional(),
+    originalPrice: z.number().int().positive().optional(),
+    colorCode: z.string().optional(),
+    slug: z.string().optional(),
+    image: z.string().optional()
+  })).min(1, 'At least one item is required').max(50, 'Cannot quote more than 50 items at once'),
+  wilayaCode: z.union([
+    z.number().int().min(1).max(58),
+    z.string().regex(/^(?:[1-9]|[1-4][0-9]|5[0-8])$/).transform(v => parseInt(v, 10))
+  ]).optional(),
+  deliveryMethod: z.enum([DELIVERY_METHODS.AGENCY, DELIVERY_METHODS.HOME]).optional()
 });
 
 // Tracking verification schema

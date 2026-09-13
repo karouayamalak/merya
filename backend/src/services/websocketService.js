@@ -15,8 +15,56 @@ class WebSocketService {
   init(server, allowedOrigins = []) {
     this.wss = new WebSocketServer({ server, path: '/ws' });
     this._allowedOrigins = allowedOrigins;
+    // IP → count of active connections (decremented on close)
+    this._ipConnectionCount = new Map();
+    // IP → { count, windowStart } for handshake rate limiting (sliding window)
+    this._ipHandshakeWindow = new Map();
+
+    // Constants
+    this.MAX_CONNECTIONS_PER_IP = 10;
+    this.MAX_HANDSHAKES_PER_IP_PER_MINUTE = 20;
+    this.MAX_TOTAL_CONNECTIONS = 500;
+    this.IDLE_SUBSCRIBE_TIMEOUT_MS = 30000; // 30s to subscribe or disconnect
 
     this.wss.on('connection', async (ws, req) => {
+      // ── Global server-wide capacity guard ────────────────────────────────────
+      if (this.wss.clients.size > this.MAX_TOTAL_CONNECTIONS) {
+        console.warn('[WebSocket] Global connection cap reached. Rejecting new connection.');
+        ws.close(1013, 'Server at capacity');
+        return;
+      }
+
+      // ── Extract connecting IP ─────────────────────────────────────────────────
+      const ip = (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown')
+        .split(',')[0].trim();
+
+      // ── IP-level handshake rate limiting (20 new connections per minute per IP) ─
+      const now = Date.now();
+      const hWindow = this._ipHandshakeWindow.get(ip) || { count: 0, windowStart: now };
+      if (now - hWindow.windowStart > 60000) {
+        hWindow.count = 1;
+        hWindow.windowStart = now;
+      } else {
+        hWindow.count++;
+      }
+      this._ipHandshakeWindow.set(ip, hWindow);
+      if (hWindow.count > this.MAX_HANDSHAKES_PER_IP_PER_MINUTE) {
+        console.warn(`[WebSocket] IP ${ip} exceeded handshake rate limit (${hWindow.count}/min). Rejecting.`);
+        ws.close(1008, 'Handshake rate limit exceeded');
+        return;
+      }
+
+      // ── Per-IP concurrent connection cap ─────────────────────────────────────
+      const currentIpCount = (this._ipConnectionCount.get(ip) || 0) + 1;
+      this._ipConnectionCount.set(ip, currentIpCount);
+      ws._remoteIp = ip;
+      if (currentIpCount > this.MAX_CONNECTIONS_PER_IP) {
+        console.warn(`[WebSocket] IP ${ip} exceeded per-IP connection limit (${currentIpCount}). Rejecting.`);
+        ws.close(1008, 'Too many connections from this IP');
+        this._decrementIpCount(ip);
+        return;
+      }
+
       // ── Origin Validation ────────────────────────────────────────────────────
       // WebSocket connections are NOT protected by CORS. Browsers send the Origin
       // header on WS upgrades; validate it explicitly.
@@ -26,6 +74,7 @@ class WebSocketService {
         if (!this._allowedOrigins.includes(origin)) {
           console.warn(`[WebSocket] Rejected connection from unauthorized origin: "${origin}"`);
           ws.close(1008, 'Origin not allowed');
+          this._decrementIpCount(ip);
           return;
         }
       }
@@ -33,6 +82,7 @@ class WebSocketService {
       ws.isAlive = true;
       ws.subscribedOrders = new Set();
       ws.isAdmin = false;
+      ws._hasSubscribed = false; // track whether the client has subscribed to anything
       // Pre-authenticate admin identity from the upgrade request cookie.
       // This avoids transmitting the JWT in plaintext WebSocket messages.
       ws._adminIdentity = null;
@@ -93,17 +143,31 @@ class WebSocketService {
       });
 
       ws.on('close', () => {
+        this._decrementIpCount(ws._remoteIp);
         this.cleanupClient(ws);
       });
 
       ws.on('error', (err) => {
         console.error('[WebSocket] Socket error:', err.message);
+        this._decrementIpCount(ws._remoteIp);
         this.cleanupClient(ws);
       });
+
+      // ── Idle subscription timeout (30s) ───────────────────────────────────────
+      // If the client connects but does not send a SUBSCRIBE_ADMIN or SUBSCRIBE_ORDER
+      // within 30 seconds, close the connection to prevent idle resource exhaustion.
+      const idleTimer = setTimeout(() => {
+        if (!ws._hasSubscribed && ws.readyState === WebSocket.OPEN) {
+          console.warn(`[WebSocket] Closing idle unsubscribed socket from IP ${ip}`);
+          ws.close(4000, 'Idle timeout: no subscription received within 30 seconds');
+        }
+      }, this.IDLE_SUBSCRIBE_TIMEOUT_MS);
+      ws._idleTimer = idleTimer;
 
       // Send initial welcome
       ws.send(JSON.stringify({ type: 'CONNECTED', timestamp: new Date().toISOString() }));
     });
+
 
     // Heartbeat ping interval every 30 seconds & active admin session verification
     const interval = setInterval(async () => {
@@ -137,6 +201,17 @@ class WebSocketService {
     });
 
     console.log('[WebSocket] Server initialized on /ws');
+  }
+
+  /** Decrement per-IP connection count safely */
+  _decrementIpCount(ip) {
+    if (!ip) return;
+    const current = this._ipConnectionCount?.get(ip) || 0;
+    if (current <= 1) {
+      this._ipConnectionCount?.delete(ip);
+    } else {
+      this._ipConnectionCount?.set(ip, current - 1);
+    }
   }
 
   async validateAdminSocket(ws) {
@@ -196,6 +271,9 @@ class WebSocketService {
 
       this.adminClients.add(ws);
       ws.isAdmin = true;
+      // Mark as subscribed and clear idle timer
+      ws._hasSubscribed = true;
+      if (ws._idleTimer) { clearTimeout(ws._idleTimer); ws._idleTimer = null; }
       ws.send(JSON.stringify({ type: 'SUBSCRIBED', channel: 'admin' }));
       return;
     }
@@ -239,12 +317,17 @@ class WebSocketService {
       }
       this.orderSubscriptions.get(code).add(ws);
       ws.subscribedOrders.add(code);
+      // Mark as subscribed and clear idle timer
+      ws._hasSubscribed = true;
+      if (ws._idleTimer) { clearTimeout(ws._idleTimer); ws._idleTimer = null; }
       ws.send(JSON.stringify({ type: 'SUBSCRIBED', channel: `order:${code}` }));
       return;
     }
   }
 
   cleanupClient(ws) {
+    // Clear idle timer if still pending
+    if (ws._idleTimer) { clearTimeout(ws._idleTimer); ws._idleTimer = null; }
     if (ws.subscribedOrders) {
       ws.subscribedOrders.forEach((code) => {
         const clients = this.orderSubscriptions.get(code);

@@ -29,7 +29,7 @@ function getDefaultWilayaRates(code) {
 
 export const getDeliverySettings = async (req, res, next) => {
   try {
-    const settings = await DeliverySetting.findOne();
+    const settings = await DeliverySetting.getSingleton();
     if (!settings || !Array.isArray(settings.wilayaRates) || settings.wilayaRates.length !== 58) {
       return res.status(503).json({
         success: false,
@@ -247,9 +247,9 @@ export const updateDeliverySettings = async (req, res, next) => {
     }
     // ── End validation ──────────────────────────────────────────────────────────
 
-    let settings = await DeliverySetting.findOne();
+    let settings = await DeliverySetting.getSingleton();
     if (!settings) {
-      settings = new DeliverySetting();
+      settings = new DeliverySetting({ singletonKey: 'default' });
     }
 
     if (agencyDeliveryFee !== undefined) {

@@ -2,6 +2,7 @@ import { Product } from '../models/Product.js';
 import { Category } from '../models/Category.js';
 import { Order } from '../models/Order.js';
 import { ORDER_STATUS } from '../config/constants.js';
+import { parsePaginationParams } from '../utils/pagination.js';
 
 // Safely escape regex metacharacters to prevent injection / catastrophic backtracking
 function escapeRegex(str) {
@@ -38,7 +39,14 @@ export function getTranslationStatus(entity) {
 // Public: Get active products with filtering, search, and pagination
 export const getProducts = async (req, res, next) => {
   try {
-    const { category, isBestSeller, search, minPrice, maxPrice, page = 1, limit = 24, sort } = req.query;
+    const { category, isBestSeller, search, minPrice, maxPrice, sort } = req.query;
+
+    // Strict pagination validation — rejects NaN, Infinity, negatives, decimals
+    const pagination = parsePaginationParams(req.query, { defaultLimit: 24, maxLimit: 50 });
+    if (!pagination.valid) {
+      return res.status(400).json({ success: false, message: pagination.error });
+    }
+    const { pageNum, limitNum, skip } = pagination;
 
     const filter = {
       isActive: true,
@@ -92,29 +100,67 @@ export const getProducts = async (req, res, next) => {
       if (max !== undefined) filter.sellingPrice.$lte = max;
     }
 
-    const pageNum = Math.max(1, parseInt(page, 10));
-    const limitNum = Math.min(50, Math.max(1, parseInt(limit, 10)));
-    const skip = (pageNum - 1) * limitNum;
+    const isPriceSort = sort === 'price-asc' || sort === 'price-desc';
 
-    // Server-side sorting
-    let sortOption = { createdAt: -1 }; // default: newest
-    if (sort === 'price-asc') {
-      sortOption = { sellingPrice: 1 };
-    } else if (sort === 'price-desc') {
-      sortOption = { sellingPrice: -1 };
-    } else if (sort === 'name-asc') {
-      sortOption = { 'name.fr': 1 };
+    let products, total;
+
+    if (isPriceSort) {
+      // Server-authoritative effective price sorting via aggregation:
+      // effectivePrice = promotionalPrice if promotion is active and valid, else sellingPrice.
+      // This guarantees globally correct price ordering across all pages.
+      const sortDir = sort === 'price-asc' ? 1 : -1;
+      const pipeline = [
+        { $match: filter },
+        {
+          $addFields: {
+            effectivePrice: {
+              $cond: {
+                if: {
+                  $and: [
+                    { $eq: ['$promotion.active', true] },
+                    { $gt: ['$promotion.promotionalPrice', 0] },
+                    { $lt: ['$promotion.promotionalPrice', '$sellingPrice'] }
+                  ]
+                },
+                then: '$promotion.promotionalPrice',
+                else: '$sellingPrice'
+              }
+            }
+          }
+        },
+        { $sort: { effectivePrice: sortDir, _id: 1 } },
+        { $skip: skip },
+        { $limit: limitNum },
+        { $project: { costPrice: 0 } }  // Do not expose cost price to public!
+      ];
+
+      const countPipeline = [{ $match: filter }, { $count: 'total' }];
+      const [aggProducts, countResult] = await Promise.all([
+        Product.aggregate(pipeline),
+        Product.aggregate(countPipeline)
+      ]);
+
+      // Populate category manually after aggregation
+      await Product.populate(aggProducts, { path: 'category', select: 'name slug' });
+      products = aggProducts;
+      total = countResult[0]?.total || 0;
+    } else {
+      // Default sorting (non-price): use regular find query
+      let sortOption = { createdAt: -1 }; // default: newest
+      if (sort === 'name-asc') {
+        sortOption = { 'name.fr': 1 };
+      }
+
+      [products, total] = await Promise.all([
+        Product.find(filter)
+          .select('-costPrice') // Do not expose cost price to public!
+          .populate('category', 'name slug')
+          .sort(sortOption)
+          .skip(skip)
+          .limit(limitNum),
+        Product.countDocuments(filter)
+      ]);
     }
-
-    const [products, total] = await Promise.all([
-      Product.find(filter)
-        .select('-costPrice') // Do not expose cost price to public!
-        .populate('category', 'name slug')
-        .sort(sortOption)
-        .skip(skip)
-        .limit(limitNum),
-      Product.countDocuments(filter)
-    ]);
 
     if (typeof res.setHeader === 'function') {
       res.setHeader('Cache-Control', 'no-cache, must-revalidate');
@@ -128,7 +174,6 @@ export const getProducts = async (req, res, next) => {
         total,
         pages: Math.ceil(total / limitNum)
       }
-
     });
   } catch (error) {
     next(error);
@@ -169,7 +214,14 @@ export const getProductBySlug = async (req, res, next) => {
 // Admin: Get all products with costPrice and total stock calculation
 export const getAllProductsAdmin = async (req, res, next) => {
   try {
-    const { search, category, isActive, page = 1, limit = 50 } = req.query;
+    const { search, category, isActive } = req.query;
+
+    // Strict pagination validation
+    const pagination = parsePaginationParams(req.query, { defaultLimit: 50, maxLimit: 100 });
+    if (!pagination.valid) {
+      return res.status(400).json({ success: false, message: pagination.error });
+    }
+    const { pageNum, limitNum, skip } = pagination;
 
     const filter = {};
     if (search && search.trim()) {
@@ -189,10 +241,6 @@ export const getAllProductsAdmin = async (req, res, next) => {
     }
     if (category) filter.category = category;
     if (isActive !== undefined) filter.isActive = isActive === 'true';
-
-    const pageNum = Math.max(1, parseInt(page, 10));
-    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10)));
-    const skip = (pageNum - 1) * limitNum;
 
     const [products, total] = await Promise.all([
       Product.find(filter)
@@ -553,7 +601,9 @@ export const updateProduct = async (req, res, next) => {
   }
 };
 
-// Admin: Delete product from database
+// Admin: Delete or soft-archive product
+// Physical deletion is only safe if NO orders (active or historical) ever referenced this product.
+// If any historical order references the product, soft-archive instead to preserve order history.
 export const archiveProduct = async (req, res, next) => {
   try {
     const product = await Product.findById(req.params.id);
@@ -561,6 +611,7 @@ export const archiveProduct = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
 
+    // Block on active/in-flight orders first
     const activeOrders = await Order.find({
       "items.productId": product._id,
       status: {
@@ -576,13 +627,29 @@ export const archiveProduct = async (req, res, next) => {
     if (activeOrders.length > 0) {
       return res.status(409).json({
         success: false,
-        message: 'Cannot delete product: There are active undelivered orders referencing this product.'
+        message: 'Cannot delete product: There are active undelivered orders referencing this product. Archive it instead once all orders are resolved.'
       });
     }
 
-    await Product.findByIdAndDelete(req.params.id);
+    // Check for ANY historical order (delivered, returned, cancelled, etc.) that references this product.
+    // Physical deletion would orphan those order line items and break historical record integrity.
+    const historicalOrderCount = await Order.countDocuments({ "items.productId": product._id });
 
-    res.json({ success: true, message: 'Product deleted successfully' });
+    if (historicalOrderCount > 0) {
+      // Soft-archive: hide from storefront and admin listings, but preserve data for order history
+      product.isArchived = true;
+      product.isActive = false;
+      await product.save();
+      return res.json({
+        success: true,
+        archived: true,
+        message: `Product soft-archived (${historicalOrderCount} historical order(s) reference this product; physical deletion would break order history).`
+      });
+    }
+
+    // No orders ever referenced this product — physical deletion is safe
+    await Product.findByIdAndDelete(req.params.id);
+    res.json({ success: true, archived: false, message: 'Product permanently deleted.' });
   } catch (error) {
     next(error);
   }

@@ -45,6 +45,13 @@ const wilayaRateSchema = new mongoose.Schema({
 }, { _id: false });
 
 const deliverySettingSchema = new mongoose.Schema({
+  singletonKey: {
+    type: String,
+    required: true,
+    unique: true,
+    default: 'default',
+    immutable: true
+  },
   agencyDeliveryFee: {
     type: Number,
     required: true,
@@ -82,5 +89,33 @@ const deliverySettingSchema = new mongoose.Schema({
 }, {
   timestamps: true
 });
+
+deliverySettingSchema.pre('save', function(next) {
+  if (!this.singletonKey) {
+    this.singletonKey = 'default';
+  }
+  next();
+});
+
+deliverySettingSchema.statics.getSingleton = async function(session = null) {
+  const opts = session ? { session } : {};
+  let setting = await this.findOne({ singletonKey: 'default' }, null, opts);
+  if (!setting) {
+    const all = await this.find({}, null, opts).sort({ updatedAt: -1 });
+    if (all.length > 0) {
+      setting = all[0];
+      if (!setting.singletonKey) {
+        setting.singletonKey = 'default';
+        await setting.save(opts);
+      }
+      // Reconcile any duplicate stale settings
+      if (all.length > 1) {
+        const extraIds = all.slice(1).map(s => s._id);
+        await this.deleteMany({ _id: { $in: extraIds } }, opts);
+      }
+    }
+  }
+  return setting;
+};
 
 export const DeliverySetting = mongoose.model('DeliverySetting', deliverySettingSchema);

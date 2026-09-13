@@ -67,6 +67,12 @@ export async function placeOrder({ customer, items, idempotencyKey }) {
   }
 
   // 1. Check idempotency with deterministic fingerprint (early fast path)
+  if (idempotencyKey !== undefined && idempotencyKey !== null) {
+    if (typeof idempotencyKey !== 'string' || idempotencyKey.length < 8 || idempotencyKey.length > 128 || !/^[a-zA-Z0-9_-]+$/.test(idempotencyKey)) {
+      throw new Error('IDEMPOTENCY_KEY_INVALID: A valid idempotencyKey is required (8-128 alphanumeric characters, dashes, underscores).');
+    }
+  }
+
   const currentFingerprint = computeOrderFingerprint({ customer, items });
 
   if (idempotencyKey) {
@@ -145,16 +151,6 @@ export async function placeOrder({ customer, items, idempotencyKey }) {
   } else {
     throw new Error(`Invalid delivery method "${customer.deliveryMethod}". Must be "agency" or "home".`);
   }
-
-  let deliverySetting = await DeliverySetting.findOne();
-  const deliveryResolution = await resolveAuthoritativeDelivery({
-    wilayaCode: codeNum,
-    deliveryMethod: customer.deliveryMethod,
-    subtotal: 0,
-    deliverySetting,
-    throwOnError: true
-  });
-  let authoritativeFee = deliveryResolution.rawFee;
 
   // ─── CHECKOUT TRANSACTION (WITH BOUNDED RETRY SAFETY) ───────────────────────
   let txResult;
@@ -235,12 +231,17 @@ export async function placeOrder({ customer, items, idempotencyKey }) {
         });
       }
 
-      // 4. Dynamic Delivery Fee calculation from database using shared rule
+      // 4. Dynamic Delivery Fee calculation using authoritative DeliverySetting read inside transaction
+      const deliverySettingInTx = await DeliverySetting.getSingleton(session);
+      if (!deliverySettingInTx) {
+        throw new Error('Delivery configuration is not initialized. Please configure delivery settings before placing orders.');
+      }
+
       const resolvedDelivery = await resolveAuthoritativeDelivery({
         wilayaCode: codeNum,
         deliveryMethod: customer.deliveryMethod,
         subtotal,
-        deliverySetting,
+        deliverySetting: deliverySettingInTx,
         throwOnError: true
       });
       const deliveryFee = resolvedDelivery.deliveryFee;
