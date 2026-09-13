@@ -4,7 +4,7 @@ import { adminGetProducts, adminAdjustStock } from '../../services/api';
 import { useLanguage } from '../../context/LanguageContext';
 
 export default function InventoryManager() {
-  const { t, isRtl } = useLanguage();
+  const { t, isRtl, localized } = useLanguage();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState(null);
@@ -98,6 +98,7 @@ export default function InventoryManager() {
           categoryName: p.category?.name,
           sellingPrice: p.sellingPrice,
           colorName: c.colorName,
+          colorDisplayName: c.colorDisplayName,
           colorCode: c.colorCode,
           image: c.images?.[0] || '',
           size: s.size,
@@ -157,8 +158,12 @@ export default function InventoryManager() {
                       <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
                         <img src={v.image} alt="" style={{ width: '36px', height: '48px', objectFit: 'cover', borderRadius: '4px' }} />
                         <div>
-                          <div style={{ fontWeight: '700' }}>{v.productName}</div>
-                          <div style={{ fontSize: '0.75rem', color: '#777' }}>{v.categoryName}</div>
+                          <div style={{ fontWeight: '700' }}>
+                            {typeof v.productName === 'object' ? (localized(v.productName) || v.productName?.fr || v.productName?.en || '—') : (v.productName || '—')}
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: '#777' }}>
+                            {typeof v.categoryName === 'object' ? (localized(v.categoryName) || v.categoryName?.fr || v.categoryName?.en || '—') : (v.categoryName || '—')}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -166,7 +171,9 @@ export default function InventoryManager() {
                     <td style={{ padding: '1rem' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                         <span style={{ width: '14px', height: '14px', borderRadius: '50%', backgroundColor: v.colorCode, border: '1px solid #CCC' }} />
-                        <span style={{ fontWeight: '600' }}>{v.colorName}</span>
+                        <span style={{ fontWeight: '600' }}>
+                          {v.colorDisplayName ? (localized(v.colorDisplayName) || v.colorName) : v.colorName}
+                        </span>
                       </div>
                     </td>
 

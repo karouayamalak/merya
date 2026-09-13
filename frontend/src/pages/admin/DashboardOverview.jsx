@@ -15,7 +15,7 @@ import { adminGetDashboard } from '../../services/api';
 import { useLanguage } from '../../context/LanguageContext';
 
 export default function DashboardOverview({ onNavigateToOrders }) {
-  const { t, formatCurrency, isRtl } = useLanguage();
+  const { t, formatCurrency, isRtl, localized } = useLanguage();
   const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -305,9 +305,11 @@ export default function DashboardOverview({ onNavigateToOrders }) {
                   style={{ width: '40px', height: '52px', borderRadius: 'var(--radius-sm)', objectFit: 'cover' }}
                 />
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: '0.85rem', fontWeight: '700' }}>{item.productName}</div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: '700' }}>
+                    {typeof item.productName === 'object' ? (localized(item.productName) || item.productName?.fr || item.productName?.en || '—') : (item.productName || '—')}
+                  </div>
                   <div style={{ fontSize: '0.78rem', color: '#666' }}>
-                    {item.colorName} • {t('cart.size')} {item.size}
+                    {item.colorDisplayName ? (localized(item.colorDisplayName) || item.colorName) : item.colorName} • {t('cart.size')} {item.size}
                   </div>
                 </div>
                 <div style={{

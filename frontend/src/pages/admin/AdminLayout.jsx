@@ -22,6 +22,7 @@ import CategoriesManager from './CategoriesManager';
 import InventoryManager from './InventoryManager';
 import DeliverySettingsManager from './DeliverySettingsManager';
 import BannersManager from './BannersManager';
+import ErrorBoundary from '../../components/ErrorBoundary';
 
 export default function AdminLayout({ onExitAdmin }) {
   const { admin, logout } = useAdminAuth();
@@ -208,14 +209,16 @@ export default function AdminLayout({ onExitAdmin }) {
           </div>
         )}
 
-        {/* Tab Router */}
-        {activeTab === 'overview' && <DashboardOverview onNavigateToOrders={() => setActiveTab('orders')} />}
-        {activeTab === 'orders' && <OrdersManager />}
-        {activeTab === 'products' && <ProductsManager />}
-        {activeTab === 'categories' && <CategoriesManager />}
-        {activeTab === 'inventory' && <InventoryManager />}
-        {activeTab === 'banners' && <BannersManager />}
-        {activeTab === 'settings' && <DeliverySettingsManager />}
+        {/* Tab Router wrapped in ErrorBoundary */}
+        <ErrorBoundary fallbackTitle="Erreur dans le panneau d'administration">
+          {activeTab === 'overview' && <DashboardOverview onNavigateToOrders={() => setActiveTab('orders')} />}
+          {activeTab === 'orders' && <OrdersManager />}
+          {activeTab === 'products' && <ProductsManager />}
+          {activeTab === 'categories' && <CategoriesManager />}
+          {activeTab === 'inventory' && <InventoryManager />}
+          {activeTab === 'banners' && <BannersManager />}
+          {activeTab === 'settings' && <DeliverySettingsManager />}
+        </ErrorBoundary>
       </main>
     </div>
   );

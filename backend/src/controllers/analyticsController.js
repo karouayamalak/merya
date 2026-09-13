@@ -15,6 +15,7 @@ export const getDashboardAnalytics = async (req, res, next) => {
         $project: {
           productName: "$name",
           colorName: "$colors.colorName",
+          colorDisplayName: "$colors.colorDisplayName",
           size: "$colors.sizes.size",
           stock: "$colors.sizes.stock",
           sellingPrice: "$sellingPrice",

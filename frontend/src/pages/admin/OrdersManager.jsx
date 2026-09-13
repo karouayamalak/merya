@@ -46,7 +46,7 @@ const ORDER_STATUSES = [
 ];
 
 export default function OrdersManager() {
-  const { t, isRtl, formatCurrency } = useLanguage();
+  const { t, isRtl, formatCurrency, localized } = useLanguage();
   const [orders, setOrders] = useState([]);
 
   const getStatusLabel = (status) => {
@@ -945,7 +945,7 @@ export default function OrdersManager() {
                                     setEditItemsList(prev => prev.map((it, i) => i === idx ? {
                                       ...it,
                                       productId: newPId,
-                                      productName: pObj?.name || '',
+                                      productName: (typeof pObj?.name === 'object' ? (pObj?.name?.fr || pObj?.name?.en || pObj?.name?.ar || '') : (pObj?.name || '')),
                                       colorName: firstColor?.colorName || '',
                                       size: firstSize?.size || 'M',
                                       unitPrice: (pObj?.promotion?.active && pObj?.promotion?.promotionalPrice) ? pObj.promotion.promotionalPrice : (pObj?.sellingPrice || 0)
@@ -955,9 +955,10 @@ export default function OrdersManager() {
                                 >
                                   {availableProducts.filter(p => p.isActive && !p.isArchived).map(p => {
                                     const effPrice = (p.promotion?.active && p.promotion?.promotionalPrice) ? p.promotion.promotionalPrice : p.sellingPrice;
+                                    const displayName = typeof p.name === 'object' ? (localized(p.name) || p.name?.fr || p.name?.en || '—') : (p.name || '—');
                                     return (
                                       <option key={p._id} value={p._id}>
-                                        {p.name} ({effPrice.toLocaleString()} DZD{p.promotion?.active ? ' - PROMO' : ''})
+                                        {displayName} ({effPrice.toLocaleString()} DZD{p.promotion?.active ? ' - PROMO' : ''})
                                       </option>
                                     );
                                   })}
@@ -1039,7 +1040,7 @@ export default function OrdersManager() {
                                 ...prev,
                                 {
                                   productId: p._id,
-                                  productName: p.name,
+                                  productName: (typeof p.name === 'object' ? (p.name?.fr || p.name?.en || p.name?.ar || '') : (p.name || '')),
                                   colorName: c?.colorName || '',
                                   size: s?.size || 'M',
                                   quantity: 1,
@@ -1094,7 +1095,9 @@ export default function OrdersManager() {
                     <div key={idx} style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', backgroundColor: 'var(--color-bg-base)', padding: '0.6rem 0.85rem', borderRadius: 'var(--radius-md)' }}>
                       <img src={item.image} alt="" style={{ width: '40px', height: '52px', objectFit: 'cover', borderRadius: '4px' }} />
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: '700', fontSize: '0.88rem' }}>{item.productName}</div>
+                        <div style={{ fontWeight: '700', fontSize: '0.88rem' }}>
+                          {typeof item.productName === 'object' ? (localized(item.productName) || item.productName?.fr || item.productName?.en || '—') : (item.productName || '—')}
+                        </div>
                         <div style={{ fontSize: '0.78rem', color: '#666' }}>Color: {item.colorName} • Size: {item.size} • Qty: {item.quantity}</div>
                       </div>
                       <div style={{ textAlign: 'right', fontSize: '0.88rem' }}>
