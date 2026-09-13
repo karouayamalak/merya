@@ -21,7 +21,6 @@ import trackingRoutes from './routes/trackingRoutes.js';
 import settingRoutes from './routes/settingRoutes.js';
 import analyticsRoutes from './routes/analyticsRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
-import gameRoutes from './routes/gameRoutes.js';
 import bannerRoutes from './routes/bannerRoutes.js';
 
 if (process.env.NODE_ENV !== 'production') {
@@ -189,7 +188,6 @@ app.use('/api/v1/tracking', trackingRoutes);
 app.use('/api/v1/settings', settingRoutes);
 app.use('/api/v1/analytics', analyticsRoutes);
 app.use('/api/v1/upload', uploadRoutes);
-app.use('/api/v1/games', gameRoutes);
 app.use('/api/v1/banners', bannerRoutes);
 
 // Centralized Error Handling

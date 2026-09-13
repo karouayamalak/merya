@@ -146,7 +146,7 @@ export default function CartDrawer({ onProceedToCheckout, onContinueShopping }) 
                     </div>
 
                     <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.35rem', fontSize: '0.8rem', color: '#666' }}>
-                      <span>{t('cart.color')}: <strong>{item.colorName}</strong></span>
+                      <span>{t('cart.color')}: <strong>{item.colorDisplayName ? (localized(item.colorDisplayName) || item.colorName) : item.colorName}</strong></span>
                       <span>{t('cart.size')}: <strong>{item.size}</strong></span>
                     </div>
                   </div>

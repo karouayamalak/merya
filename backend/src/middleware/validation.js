@@ -1,6 +1,16 @@
 import { z } from 'zod';
 import { DELIVERY_METHODS, ORDER_STATUS } from '../config/constants.js';
 
+// Localized string: accepts a plain string OR a {fr, ar, en} object
+const localizedStringSchema = z.union([
+  z.string(),
+  z.object({
+    fr: z.string().optional().default(''),
+    ar: z.string().optional().default(''),
+    en: z.string().optional().default('')
+  })
+]);
+
 export const validate = (schema) => (req, res, next) => {
   try {
     const parsed = schema.parse(req.body);
@@ -98,8 +108,8 @@ export const adminLoginSchema = z.object({
 
 // Product validation schema
 export const productSchema = z.object({
-  name: z.string().min(3).max(150),
-  description: z.string().min(5),
+  name: localizedStringSchema,
+  description: localizedStringSchema,
   category: z.string().min(1),
   sellingPrice: z.number().int({ message: 'Selling price must be an integer in DZD' }).positive({ message: 'Selling price must be positive' }).optional(),
   basePrice: z.number().int({ message: 'Base price must be an integer in DZD' }).positive({ message: 'Base price must be positive' }).optional(),
@@ -112,6 +122,7 @@ export const productSchema = z.object({
   isBestSeller: z.boolean().optional(),
   colors: z.array(z.object({
     colorName: z.string().min(1),
+    colorDisplayName: localizedStringSchema.optional(),
     colorCode: z.string().min(1),
     images: z.array(z.string()).min(1, 'At least one image is required per color'),
     sizes: z.array(z.object({
@@ -148,8 +159,8 @@ export const productSchema = z.object({
 
 // Update product validation schema
 export const updateProductSchema = z.object({
-  name: z.string().min(3).max(150).optional(),
-  description: z.string().min(5).optional(),
+  name: localizedStringSchema.optional(),
+  description: localizedStringSchema.optional(),
   category: z.string().min(1).optional(),
   sellingPrice: z.number().int({ message: 'Selling price must be an integer in DZD' }).positive({ message: 'Selling price must be positive' }).optional(),
   basePrice: z.number().int({ message: 'Base price must be an integer in DZD' }).positive({ message: 'Base price must be positive' }).optional(),
@@ -163,6 +174,7 @@ export const updateProductSchema = z.object({
   isArchived: z.boolean().optional(),
   colors: z.array(z.object({
     colorName: z.string().min(1),
+    colorDisplayName: localizedStringSchema.optional(),
     colorCode: z.string().min(1),
     images: z.array(z.string()).optional(),
     sizes: z.array(z.object({

@@ -3,15 +3,33 @@ import { Category } from '../models/Category.js';
 import { Order } from '../models/Order.js';
 import { ORDER_STATUS } from '../config/constants.js';
 
+// Safely escape regex metacharacters to prevent injection / catastrophic backtracking
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 export function getTranslationStatus(entity) {
-  const name = entity?.name || {};
-  const hasFr = Boolean(name.fr && name.fr.trim());
-  const hasAr = Boolean(name.ar && name.ar.trim());
-  const hasEn = Boolean(name.en && name.en.trim());
+  const name = typeof entity?.name === 'object' && entity?.name !== null ? entity.name : { fr: entity?.name || '' };
+  const desc = typeof entity?.description === 'object' && entity?.description !== null ? entity.description : { fr: entity?.description || '' };
+
+  const hasNameFr = Boolean(name.fr && name.fr.trim());
+  const hasNameAr = Boolean(name.ar && name.ar.trim());
+  const hasNameEn = Boolean(name.en && name.en.trim());
+
+  const hasDescFr = Boolean(desc.fr && desc.fr.trim());
+  const hasDescAr = Boolean(desc.ar && desc.ar.trim());
+  const hasDescEn = Boolean(desc.en && desc.en.trim());
+
+  const hasFr = hasNameFr && hasDescFr;
+  const hasAr = hasNameAr && hasDescAr;
+  const hasEn = hasNameEn && hasDescEn;
+
   return {
     hasFr,
     hasAr,
     hasEn,
+    name: { fr: hasNameFr, ar: hasNameAr, en: hasNameEn },
+    description: { fr: hasDescFr, ar: hasDescAr, en: hasDescEn },
     isComplete: hasFr && hasAr && hasEn,
     missing: [!hasFr && 'fr', !hasAr && 'ar', !hasEn && 'en'].filter(Boolean)
   };
@@ -42,8 +60,9 @@ export const getProducts = async (req, res, next) => {
     }
 
     if (search && search.trim()) {
-      const term = search.trim();
-      const regex = { $regex: term, $options: 'i' };
+      const raw = search.trim().slice(0, 200); // cap at 200 chars
+      const escaped = escapeRegex(raw);
+      const regex = { $regex: escaped, $options: 'i' };
       filter.$or = [
         { 'name.fr': regex },
         { 'name.ar': regex },
@@ -56,10 +75,21 @@ export const getProducts = async (req, res, next) => {
       ];
     }
 
-    if (minPrice || maxPrice) {
+    if (minPrice !== undefined || maxPrice !== undefined) {
+      const min = minPrice !== undefined ? Number(minPrice) : undefined;
+      const max = maxPrice !== undefined ? Number(maxPrice) : undefined;
+      if (min !== undefined && (!Number.isFinite(min) || min < 0)) {
+        return res.status(400).json({ success: false, message: 'minPrice must be a non-negative number.' });
+      }
+      if (max !== undefined && (!Number.isFinite(max) || max < 0)) {
+        return res.status(400).json({ success: false, message: 'maxPrice must be a non-negative number.' });
+      }
+      if (min !== undefined && max !== undefined && min > max) {
+        return res.status(400).json({ success: false, message: 'minPrice cannot be greater than maxPrice.' });
+      }
       filter.sellingPrice = {};
-      if (minPrice) filter.sellingPrice.$gte = Number(minPrice);
-      if (maxPrice) filter.sellingPrice.$lte = Number(maxPrice);
+      if (min !== undefined) filter.sellingPrice.$gte = min;
+      if (max !== undefined) filter.sellingPrice.$lte = max;
     }
 
     const pageNum = Math.max(1, parseInt(page, 10));
@@ -76,7 +106,9 @@ export const getProducts = async (req, res, next) => {
       Product.countDocuments(filter)
     ]);
 
-    res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+    if (typeof res.setHeader === 'function') {
+      res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+    }
     res.json({
       success: true,
       products,
@@ -130,8 +162,9 @@ export const getAllProductsAdmin = async (req, res, next) => {
 
     const filter = {};
     if (search && search.trim()) {
-      const term = search.trim();
-      const regex = { $regex: term, $options: 'i' };
+      const raw = search.trim().slice(0, 200); // cap at 200 chars
+      const escaped = escapeRegex(raw);
+      const regex = { $regex: escaped, $options: 'i' };
       filter.$or = [
         { 'name.fr': regex },
         { 'name.ar': regex },
@@ -229,6 +262,7 @@ export const createProduct = async (req, res, next) => {
     // Stock must be set through the inventory adjustment endpoint (POST /admin/inventory/adjust).
     const sanitizedColors = (colors || []).map(color => ({
       colorName: color.colorName,
+      colorDisplayName: color.colorDisplayName || { fr: '', ar: '', en: '' },
       colorCode: color.colorCode,
       images: color.images || [],
       sizes: (color.sizes || []).map(s => ({
@@ -257,15 +291,16 @@ export const createProduct = async (req, res, next) => {
     }
 
     const isComplete = Boolean(
-      name && typeof name === 'object' && name.fr?.trim() && name.ar?.trim() && name.en?.trim()
+      name && typeof name === 'object' && name.fr?.trim() && name.ar?.trim() && name.en?.trim() &&
+      description && typeof description === 'object' && description.fr?.trim() && description.ar?.trim() && description.en?.trim()
     );
 
-    // Publishing requires complete French, Arabic, and English translations
+    // Publishing requires complete French, Arabic, and English translations for both name and description
     if (isActive === true && !isComplete) {
       return res.status(400).json({
         success: false,
         code: 'TRANSLATIONS_INCOMPLETE',
-        message: 'Cannot publish product: complete translations in French, Arabic, and English are required before publishing. Please provide all translations or save as an unpublished draft.'
+        message: 'Cannot publish product: complete name and description translations in French, Arabic, and English are required before publishing. Please provide all translations or save as an unpublished draft.'
       });
     }
 
@@ -345,18 +380,21 @@ export const updateProduct = async (req, res, next) => {
       }
     }
 
-    // Require complete translations if attempting to publish
+    // Require complete translations (name + description) if attempting to publish
     if (isActive === true) {
       const candidateName = product.name;
+      const candidateDesc = product.description;
       const isComplete = Boolean(
         candidateName && typeof candidateName === 'object' &&
-        candidateName.fr?.trim() && candidateName.ar?.trim() && candidateName.en?.trim()
+        candidateName.fr?.trim() && candidateName.ar?.trim() && candidateName.en?.trim() &&
+        candidateDesc && typeof candidateDesc === 'object' &&
+        candidateDesc.fr?.trim() && candidateDesc.ar?.trim() && candidateDesc.en?.trim()
       );
       if (!isComplete) {
         return res.status(400).json({
           success: false,
           code: 'TRANSLATIONS_INCOMPLETE',
-          message: 'Cannot publish product: complete translations in French, Arabic, and English are required before publishing. Please provide all translations or save as an unpublished draft.'
+          message: 'Cannot publish product: complete name and description translations in French, Arabic, and English are required before publishing. Please provide all translations or save as an unpublished draft.'
         });
       }
     }
@@ -475,6 +513,9 @@ export const updateProduct = async (req, res, next) => {
         const existingColor = product.colors.find(c => c.colorName === incomingColor.colorName);
         return {
           colorName: incomingColor.colorName,
+          colorDisplayName: incomingColor.colorDisplayName !== undefined
+            ? incomingColor.colorDisplayName
+            : (existingColor?.colorDisplayName || { fr: '', ar: '', en: '' }),
           colorCode: incomingColor.colorCode,
           images: incomingColor.images || [],
           sizes: (incomingColor.sizes || []).map(incomingSize => {

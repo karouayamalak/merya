@@ -1,24 +1,34 @@
 import { Category } from '../models/Category.js';
 
 export const getCategoryTranslationStatus = (category) => {
-  const name = typeof category.name === 'object' && category.name !== null ? category.name : { fr: category.name || '' };
-  const desc = typeof category.description === 'object' && category.description !== null ? category.description : { fr: category.description || '' };
+  const name = typeof category?.name === 'object' && category?.name !== null ? category.name : { fr: category?.name || '' };
+  const desc = typeof category?.description === 'object' && category?.description !== null ? category.description : { fr: category?.description || '' };
 
-  const hasFr = Boolean(name.fr && name.fr.trim());
-  const hasAr = Boolean(name.ar && name.ar.trim());
-  const hasEn = Boolean(name.en && name.en.trim());
+  const hasNameFr = Boolean(name.fr && name.fr.trim());
+  const hasNameAr = Boolean(name.ar && name.ar.trim());
+  const hasNameEn = Boolean(name.en && name.en.trim());
+
+  const hasDescFr = Boolean(desc.fr && desc.fr.trim());
+  const hasDescAr = Boolean(desc.ar && desc.ar.trim());
+  const hasDescEn = Boolean(desc.en && desc.en.trim());
+
+  const hasFr = hasNameFr && hasDescFr;
+  const hasAr = hasNameAr && hasDescAr;
+  const hasEn = hasNameEn && hasDescEn;
 
   return {
     fr: hasFr,
     ar: hasAr,
     en: hasEn,
+    name: { fr: hasNameFr, ar: hasNameAr, en: hasNameEn },
+    description: { fr: hasDescFr, ar: hasDescAr, en: hasDescEn },
     isComplete: hasFr && hasAr && hasEn,
     missing: [
       !hasFr && 'fr',
       !hasAr && 'ar',
       !hasEn && 'en'
     ].filter(Boolean),
-    descComplete: Boolean(desc.fr && desc.ar && desc.en)
+    descComplete: Boolean(hasDescFr && hasDescAr && hasDescEn)
   };
 };
 
@@ -83,16 +93,19 @@ export const createCategory = async (req, res, next) => {
       counter++;
     }
 
+    const candidateName = typeof name === 'object' && name !== null ? name : { fr: name || '' };
+    const candidateDesc = typeof description === 'object' && description !== null ? description : { fr: description || '' };
     const isComplete = Boolean(
-      name && typeof name === 'object' && name.fr?.trim() && name.ar?.trim() && name.en?.trim()
+      candidateName.fr?.trim() && candidateName.ar?.trim() && candidateName.en?.trim() &&
+      candidateDesc.fr?.trim() && candidateDesc.ar?.trim() && candidateDesc.en?.trim()
     );
 
-    // Publishing requires complete French, Arabic, and English translations
+    // Publishing requires complete French, Arabic, and English translations for both name and description
     if (isActive === true && !isComplete) {
       return res.status(400).json({
         success: false,
         code: 'TRANSLATIONS_INCOMPLETE',
-        message: 'Cannot publish category: complete translations in French, Arabic, and English are required before publishing. Please provide all translations or save as an unpublished draft.'
+        message: 'Cannot publish category: complete name and description translations in French, Arabic, and English are required before publishing. Please provide all translations or save as an unpublished draft.'
       });
     }
 
@@ -152,22 +165,6 @@ export const updateCategory = async (req, res, next) => {
       }
     }
 
-    // Require complete translations if attempting to publish
-    if (isActive === true) {
-      const candidateName = category.name;
-      const isComplete = Boolean(
-        candidateName && typeof candidateName === 'object' &&
-        candidateName.fr?.trim() && candidateName.ar?.trim() && candidateName.en?.trim()
-      );
-      if (!isComplete) {
-        return res.status(400).json({
-          success: false,
-          code: 'TRANSLATIONS_INCOMPLETE',
-          message: 'Cannot publish category: complete translations in French, Arabic, and English are required before publishing. Please provide all translations or save as an unpublished draft.'
-        });
-      }
-    }
-
     if (description !== undefined) {
       if (typeof description === 'object' && description !== null) {
         const existingDesc = typeof category.description === 'object' && category.description !== null ? category.description : { fr: category.description || '', ar: '', en: '' };
@@ -178,6 +175,25 @@ export const updateCategory = async (req, res, next) => {
         };
       } else {
         category.description = description;
+      }
+    }
+
+    // Require complete translations (name + description) if attempting to publish
+    if (isActive === true) {
+      const candidateName = category.name;
+      const candidateDesc = category.description;
+      const isComplete = Boolean(
+        candidateName && typeof candidateName === 'object' &&
+        candidateName.fr?.trim() && candidateName.ar?.trim() && candidateName.en?.trim() &&
+        candidateDesc && typeof candidateDesc === 'object' &&
+        candidateDesc.fr?.trim() && candidateDesc.ar?.trim() && candidateDesc.en?.trim()
+      );
+      if (!isComplete) {
+        return res.status(400).json({
+          success: false,
+          code: 'TRANSLATIONS_INCOMPLETE',
+          message: 'Cannot publish category: complete name and description translations in French, Arabic, and English are required before publishing. Please provide all translations or save as an unpublished draft.'
+        });
       }
     }
 

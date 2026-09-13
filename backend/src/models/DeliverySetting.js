@@ -12,6 +12,12 @@ const wilayaRateSchema = new mongoose.Schema({
   wilayaNameAr: {
     type: String
   },
+  wilayaNameEn: {
+    type: String
+  },
+  wilayaNameFr: {
+    type: String
+  },
   homeFee: {
     type: Number,
     required: true,

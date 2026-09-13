@@ -845,7 +845,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                           ) : (
                             wilayas.map((w) => (
                               <option key={w.code} value={w.code} disabled={!w.isAvailable}>
-                                {w.code} - {getWilayaDisplayName(w)} {!w.isAvailable ? `— [${t('checkout.wilayaNotServed')}]` : ''}
+                                {getWilayaDisplayName(w)} {!w.isAvailable ? `— [${t('checkout.wilayaNotServed')}]` : ''}
                               </option>
                             ))
                           )}

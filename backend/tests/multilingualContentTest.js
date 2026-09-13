@@ -3,7 +3,6 @@ import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import { Product } from '../src/models/Product.js';
 import { Category } from '../src/models/Category.js';
-import { Game } from '../src/models/Game.js';
 import { Banner } from '../src/models/Banner.js';
 import { migrateMultilingualContent } from '../src/seed/migrateMultilingualContent.js';
 
@@ -26,7 +25,6 @@ async function runTests() {
   // Clean test fixtures
   await Category.deleteMany({ slug: { $regex: /^test-multi-/ } });
   await Product.deleteMany({ slug: { $regex: /^test-multi-/ } });
-  await Game.deleteMany({ slug: { $regex: /^test-multi-/ } });
   await Banner.deleteMany({ link: { $regex: /test-multi/ } });
 
   // -------------------------------------------------------------
@@ -106,7 +104,7 @@ async function runTests() {
         colorCode: '#0A192F',
         images: ['/prod-blue.jpg'],
         sizes: [
-          { size: 'M', stock: 10, sku: 'TEST-M-BLUE' }
+          { size: 'M', stock: 10 }
         ]
       }
     ]
@@ -154,41 +152,7 @@ async function runTests() {
   pass('5. Cross-language search queries in FR, AR, EN all match the identical product ObjectId without duplication');
 
   // -------------------------------------------------------------
-  // Test 6: Multilingual Game creation & retrieval
-  // -------------------------------------------------------------
-  const game = await Game.create({
-    title: {
-      fr: 'Roue de la Fortune',
-      ar: 'عجلة الحظ',
-      en: 'Wheel of Fortune'
-    },
-    slug: 'test-multi-wheel',
-    gameType: 'wheel',
-    description: {
-      fr: 'Tournez pour gagner une remise exclusive',
-      ar: 'أدر العجلة للفوز بخصم حصري',
-      en: 'Spin to win an exclusive discount'
-    },
-    rules: {
-      fr: 'Une participation par client',
-      ar: 'مشاركة واحدة لكل زبون',
-      en: 'One spin per customer'
-    },
-    reward: {
-      discountCode: 'MERYA10',
-      discountPercent: 10
-    },
-    isActive: true
-  });
-
-  assert.strictEqual(game.title.ar, 'عجلة الحظ');
-  assert.strictEqual(game.title.fr, 'Roue de la Fortune');
-  assert.strictEqual(game.title.en, 'Wheel of Fortune');
-  assert.strictEqual(game.reward.discountCode, 'MERYA10');
-  pass('6. Multilingual Game created with tri-lingual titles, descriptions, rules & reward');
-
-  // -------------------------------------------------------------
-  // Test 7: Multilingual Banner creation & retrieval
+  // Test 6: Multilingual Banner creation & retrieval
   // -------------------------------------------------------------
   const banner = await Banner.create({
     title: {
@@ -216,10 +180,10 @@ async function runTests() {
   assert.strictEqual(banner.title.fr, 'Collection Hiver 2026');
   assert.strictEqual(banner.title.ar, 'تشكيلة شتاء 2026');
   assert.strictEqual(banner.buttonText.en, 'Discover Now');
-  pass('7. Multilingual Banner created with title, subtitle, CTA text in FR, AR, EN');
+  pass('6. Multilingual Banner created with title, subtitle, CTA text in FR, AR, EN');
 
   // -------------------------------------------------------------
-  // Test 8: Migration test on raw MongoDB collection
+  // Test 7: Migration test on raw MongoDB collection
   // -------------------------------------------------------------
   const rawDb = mongoose.connection.db;
   const legacyProdId = new mongoose.Types.ObjectId();
@@ -232,7 +196,7 @@ async function runTests() {
     basePrice: 5000,
     sellingPrice: 5000,
     costPrice: 2500,
-    colors: [{ colorName: 'Noir', colorCode: '#000', images: ['/noir.jpg'], sizes: [{ size: 'L', stock: 5, sku: 'VINT-L' }] }],
+    colors: [{ colorName: 'Noir', colorCode: '#000', images: ['/noir.jpg'], sizes: [{ size: 'L', stock: 5 }] }],
     createdAt: new Date(),
     updatedAt: new Date()
   });
@@ -245,10 +209,10 @@ async function runTests() {
   assert.strictEqual(migratedDoc.name.ar, '');
   assert.strictEqual(migratedDoc.name.en, '');
   assert.strictEqual(migratedDoc.description.fr, 'Une ancienne description en texte brut');
-  pass('8. Migration successfully transformed legacy unilingual documents into structured multilingual records');
+  pass('7. Migration successfully transformed legacy unilingual documents into structured multilingual records');
 
   // -------------------------------------------------------------
-  // Test 9: Validation rejects product without any name translation
+  // Test 8: Validation rejects product without any name translation
   // -------------------------------------------------------------
   let failedValidation = false;
   try {
@@ -266,12 +230,11 @@ async function runTests() {
     failedValidation = true;
   }
   assert.strictEqual(failedValidation, true, 'Product with completely empty translations must fail validation');
-  pass('9. Validation strictly rejects product when no language provides a name');
+  pass('8. Validation strictly rejects product when no language provides a name');
 
   // Clean up fixtures
   await Category.deleteMany({ slug: { $regex: /^test-multi-/ } });
   await Product.deleteMany({ slug: { $regex: /^test-multi-/ } });
-  await Game.deleteMany({ slug: { $regex: /^test-multi-/ } });
   await Banner.deleteMany({ link: { $regex: /test-multi/ } });
 
   console.log(`\n=== ALL ${passCount} MULTILINGUAL TESTS PASSED SUCCESSFULLY! ===`);

@@ -9,7 +9,6 @@ import {
   LogOut,
   ExternalLink,
   Bell,
-  Gamepad2,
   Image as ImageIcon
 } from 'lucide-react';
 import { useAdminAuth } from '../../context/AdminAuthContext';
@@ -22,7 +21,6 @@ import ProductsManager from './ProductsManager';
 import CategoriesManager from './CategoriesManager';
 import InventoryManager from './InventoryManager';
 import DeliverySettingsManager from './DeliverySettingsManager';
-import GamesManager from './GamesManager';
 import BannersManager from './BannersManager';
 
 export default function AdminLayout({ onExitAdmin }) {
@@ -58,8 +56,7 @@ export default function AdminLayout({ onExitAdmin }) {
     { id: 'products', label: t('admin.nav.products'), icon: Layers },
     { id: 'categories', label: t('admin.nav.categories'), icon: Tag },
     { id: 'inventory', label: t('admin.nav.inventory'), icon: Warehouse },
-    { id: 'games', label: 'Games', icon: Gamepad2 },
-    { id: 'banners', label: 'Banners', icon: ImageIcon },
+    { id: 'banners', label: t('admin.nav.banners'), icon: ImageIcon },
     { id: 'settings', label: t('admin.nav.delivery'), icon: Settings }
   ];
 
@@ -217,7 +214,6 @@ export default function AdminLayout({ onExitAdmin }) {
         {activeTab === 'products' && <ProductsManager />}
         {activeTab === 'categories' && <CategoriesManager />}
         {activeTab === 'inventory' && <InventoryManager />}
-        {activeTab === 'games' && <GamesManager />}
         {activeTab === 'banners' && <BannersManager />}
         {activeTab === 'settings' && <DeliverySettingsManager />}
       </main>

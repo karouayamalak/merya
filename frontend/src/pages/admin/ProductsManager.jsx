@@ -66,6 +66,7 @@ export default function ProductsManager() {
   const [colors, setColors] = useState([
     {
       colorName: 'Desert Taupe',
+      colorDisplayName: { fr: '', ar: '', en: '' },
       colorCode: '#B89C82',
       images: ['https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?q=80&w=800&auto=format&fit=crop'],
       sizes: [
@@ -113,6 +114,7 @@ export default function ProductsManager() {
     setColors([
       {
         colorName: 'Champagne Taupe',
+        colorDisplayName: { fr: '', ar: '', en: '' },
         colorCode: '#B89C82',
         images: ['https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?q=80&w=800&auto=format&fit=crop'],
         sizes: [
@@ -153,6 +155,7 @@ export default function ProductsManager() {
       ...colors,
       {
         colorName: 'New Color',
+        colorDisplayName: { fr: '', ar: '', en: '' },
         colorCode: '#222222',
         images: ['https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?q=80&w=800&auto=format&fit=crop'],
         sizes: [
@@ -722,8 +725,8 @@ export default function ProductsManager() {
                             type="text"
                             value={color.colorName}
                             onChange={(e) => handleColorChange(cIdx, 'colorName', e.target.value)}
-                            placeholder="Color Name (e.g. Noir)"
-                            style={{ padding: '0.45rem', borderRadius: '4px', border: '1px solid #CCC', fontWeight: '700' }}
+                            placeholder="Color Name (e.g. Noir) — internal key, never change for existing variants"
+                            style={{ padding: '0.45rem', borderRadius: '4px', border: '1px solid #CCC', fontWeight: '700', minWidth: '180px' }}
                           />
                           <input
                             type="color"
@@ -735,6 +738,33 @@ export default function ProductsManager() {
                         <button type="button" onClick={() => handleRemoveColor(cIdx)} style={{ color: 'var(--color-danger)' }}>
                           <Trash2 size={16} />
                         </button>
+                      </div>
+
+                      {/* Localized display names for customer storefront */}
+                      <div style={{ marginBottom: '1rem' }}>
+                        <div style={{ fontSize: '0.75rem', fontWeight: '700', color: '#888', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          Display Name for Customers (FR / AR / EN) — optional
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          {['fr', 'ar', 'en'].map(lng => (
+                            <input
+                              key={lng}
+                              type="text"
+                              value={(color.colorDisplayName?.[lng]) || ''}
+                              onChange={(e) => {
+                                const updatedColors = colors.map((c, i) => {
+                                  if (i !== cIdx) return c;
+                                  const prev = typeof c.colorDisplayName === 'object' && c.colorDisplayName ? c.colorDisplayName : { fr: '', ar: '', en: '' };
+                                  return { ...c, colorDisplayName: { ...prev, [lng]: e.target.value } };
+                                });
+                                setColors(updatedColors);
+                              }}
+                              placeholder={lng === 'fr' ? 'FR: Taupe désert' : lng === 'ar' ? 'AR: بيج صحراوي' : 'EN: Desert Taupe'}
+                              dir={lng === 'ar' ? 'rtl' : 'ltr'}
+                              style={{ padding: '0.4rem 0.6rem', borderRadius: '4px', border: '1px solid #CCC', flex: '1', minWidth: '130px', fontSize: '0.82rem' }}
+                            />
+                          ))}
+                        </div>
                       </div>
 
                       {/* Sizes & Stock */}

@@ -65,6 +65,8 @@ export function validateDeliverySettingsResponse(data) {
       wilayaName: name,
       nameAr: String(w.wilayaNameAr || w.nameAr || '').trim(),
       wilayaNameAr: String(w.wilayaNameAr || w.nameAr || '').trim(),
+      nameEn: String(w.wilayaNameEn || w.nameEn || '').trim(),
+      wilayaNameEn: String(w.wilayaNameEn || w.nameEn || '').trim(),
       homeFee,
       agencyFee,
       isAvailable: w.isAvailable !== false

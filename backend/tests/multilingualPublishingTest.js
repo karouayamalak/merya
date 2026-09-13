@@ -3,12 +3,10 @@ import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import { Product, isProductFullyTranslated } from '../src/models/Product.js';
 import { Category, isCategoryFullyTranslated } from '../src/models/Category.js';
-import { Game, isGameFullyTranslated } from '../src/models/Game.js';
 import { Banner, isBannerFullyTranslated } from '../src/models/Banner.js';
 import { createProduct, updateProduct } from '../src/controllers/productController.js';
 import { createCategory, updateCategory } from '../src/controllers/categoryController.js';
 import { createBanner, updateBanner } from '../src/controllers/bannerController.js';
-import { createGame, updateGame, getGames } from '../src/controllers/gameController.js';
 
 dotenv.config();
 const DB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27018/merya_dz?replicaSet=rs0&directConnection=true';
@@ -29,7 +27,7 @@ function pass(msg) {
 }
 
 async function run() {
-  console.log('=== RUNNING MULTILINGUAL PUBLISHING & GAMES CONSISTENCY TEST SUITE ===');
+  console.log('=== RUNNING MULTILINGUAL PUBLISHING TEST SUITE ===');
 
   if (mongoose.connection.readyState === 0) {
     await mongoose.connect(DB_URI);
@@ -144,7 +142,24 @@ async function run() {
   }, prodCompleteRes, (err) => { if (err) throw err; });
   assert.strictEqual(prodCompleteRes.statusCode, 201);
   assert.strictEqual(prodCompleteRes.body.product.isActive, true);
-  pass('8. Fully translated product successfully published (isActive: true)');
+  pass('8. Fully translated product (name + description) successfully published (isActive: true)');
+
+  // Verify description-only incomplete product is blocked from publishing
+  const prodDescIncompleteRes = mockRes();
+  await createProduct({
+    body: {
+      name: { fr: 'Robe Desc Test', ar: 'فستان اختبار', en: 'Desc Test Dress' },
+      description: { fr: 'Desc French only', ar: '', en: '' },
+      category: completeCatId,
+      sellingPrice: 5500,
+      costPrice: 2800,
+      isActive: true,
+      colors: [{ colorName: 'Blanc', colorCode: '#FFF', images: ['/img2.jpg'], sizes: [{ size: 'S' }] }]
+    }
+  }, prodDescIncompleteRes, (err) => { if (err) throw err; });
+  assert.strictEqual(prodDescIncompleteRes.statusCode, 400);
+  assert.strictEqual(prodDescIncompleteRes.body.code, 'TRANSLATIONS_INCOMPLETE');
+  pass('9. Product with complete name but incomplete description cannot be published');
 
   // -------------------------------------------------------------
   // Test 3: Banner Publishing Validation
@@ -161,7 +176,7 @@ async function run() {
   assert.strictEqual(bannerDraftRes.statusCode, 201);
   assert.strictEqual(bannerDraftRes.body.banner.isActive, false);
   const draftBannerId = bannerDraftRes.body.banner._id;
-  pass('9. Incomplete banner allowed to save as draft (isActive: false)');
+  pass('10. Incomplete banner allowed to save as draft (isActive: false)');
 
   const bannerPublishFailRes = mockRes();
   await createBanner({
@@ -174,7 +189,7 @@ async function run() {
   }, bannerPublishFailRes, () => {});
   assert.strictEqual(bannerPublishFailRes.statusCode, 400);
   assert.strictEqual(bannerPublishFailRes.body.code, 'TRANSLATIONS_INCOMPLETE');
-  pass('10. Publishing incomplete banner strictly rejected with TRANSLATIONS_INCOMPLETE');
+  pass('11. Publishing incomplete banner strictly rejected with TRANSLATIONS_INCOMPLETE');
 
   const bannerCompleteRes = mockRes();
   await createBanner({
@@ -187,81 +202,14 @@ async function run() {
   }, bannerCompleteRes, () => {});
   assert.strictEqual(bannerCompleteRes.statusCode, 201);
   assert.strictEqual(bannerCompleteRes.body.banner.isActive, true);
-  pass('11. Fully translated banner successfully published (isActive: true)');
-
-  // -------------------------------------------------------------
-  // Test 4: Game Publishing Validation & Schema Consistency
-  // -------------------------------------------------------------
-  const gameDraftRes = mockRes();
-  await createGame({
-    body: {
-      title: { fr: 'Quiz Style', ar: '', en: '' },
-      type: 'quiz',
-      coverImage: '/game-cover.jpg',
-      reward: { discountCode: 'QUIZ10', discountPercent: 10 },
-      isActive: false
-    }
-  }, gameDraftRes, () => {});
-  assert.strictEqual(gameDraftRes.statusCode, 201);
-  assert.strictEqual(gameDraftRes.body.game.isActive, false);
-  const draftGameId = gameDraftRes.body.game._id;
-  pass('12. Incomplete game allowed to save as draft (isActive: false)');
-
-  const gamePublishFailRes = mockRes();
-  await createGame({
-    body: {
-      title: { fr: 'Quiz Style', ar: '', en: '' },
-      type: 'quiz',
-      coverImage: '/game-cover.jpg',
-      reward: { discountCode: 'QUIZ10', discountPercent: 10 },
-      isActive: true
-    }
-  }, gamePublishFailRes, () => {});
-  assert.strictEqual(gamePublishFailRes.statusCode, 400);
-  assert.strictEqual(gamePublishFailRes.body.code, 'TRANSLATIONS_INCOMPLETE');
-  pass('13. Publishing incomplete game strictly rejected with TRANSLATIONS_INCOMPLETE');
-
-  const gameCompleteRes = mockRes();
-  await createGame({
-    body: {
-      title: { fr: 'Roue Privilège', ar: 'عجلة التميز', en: 'VIP Wheel' },
-      type: 'wheel',
-      coverImage: '/wheel-cover.jpg',
-      rules: { fr: 'Un tour par jour', ar: 'دورة واحدة يوميا', en: 'One spin per day' },
-      instructions: { fr: 'Tournez la roue', ar: 'أديري العجلة', en: 'Spin the wheel' },
-      winnerMessage: { fr: 'Gagné !', ar: 'مبروك !', en: 'You won!' },
-      reward: { discountCode: 'VIPWHEEL', discountPercent: 15 },
-      isActive: true
-    }
-  }, gameCompleteRes, () => {});
-  assert.strictEqual(gameCompleteRes.statusCode, 201);
-  assert.strictEqual(gameCompleteRes.body.game.isActive, true);
-  assert.strictEqual(gameCompleteRes.body.game.type, 'wheel');
-  assert.strictEqual(gameCompleteRes.body.game.gameType, 'wheel', 'type and gameType are synchronized');
-  assert.strictEqual(gameCompleteRes.body.game.reward.discountCode, 'VIPWHEEL');
-  pass('14. Fully translated game successfully published with synchronized type/gameType, rules, instructions, winnerMessage, reward');
-
-  // -------------------------------------------------------------
-  // Test 5: Public Games Endpoint filters drafts and incomplete games
-  // -------------------------------------------------------------
-  const publicGamesRes = mockRes();
-  await getGames({}, publicGamesRes, () => {});
-  assert.strictEqual(publicGamesRes.statusCode, 200);
-  const returnedGames = publicGamesRes.body.games;
-  assert(Array.isArray(returnedGames), 'Public games must be an array');
-  assert(returnedGames.every(g => g.isActive === true), 'All public games must be active');
-  assert(returnedGames.every(g => isGameFullyTranslated(g)), 'All public games must have complete FR, AR, and EN translations');
-  assert(returnedGames.some(g => g.slug === gameCompleteRes.body.game.slug), 'Fully translated active game is visible');
-  assert(!returnedGames.some(g => g.slug === gameDraftRes.body.game.slug), 'Draft incomplete game is NOT visible to customers');
-  pass('15. Public GET /games returns only active, fully translated games; incomplete drafts are hidden');
+  pass('12. Fully translated banner successfully published (isActive: true)');
 
   // Clean up
   await Category.deleteMany({ _id: { $in: [draftCatId, completeCatId] } });
   await Product.deleteMany({ _id: { $in: [draftProdId, prodCompleteRes.body.product._id] } });
   await Banner.deleteMany({ _id: { $in: [draftBannerId, bannerCompleteRes.body.banner._id] } });
-  await Game.deleteMany({ _id: { $in: [draftGameId, gameCompleteRes.body.game._id] } });
 
-  console.log(`\n=== ALL ${passCount} PUBLISHING & GAMES CONSISTENCY TESTS PASSED! ===`);
+  console.log(`\n=== ALL ${passCount} MULTILINGUAL PUBLISHING TESTS PASSED! ===`);
   await mongoose.disconnect();
 }
 

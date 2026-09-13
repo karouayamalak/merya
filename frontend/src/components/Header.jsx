@@ -81,18 +81,6 @@ export default function Header({ currentView, setCurrentView }) {
             {t('nav.collection')}
           </button>
           <button
-            onClick={() => { setCurrentView('games'); window.scrollTo(0,0); }}
-            style={{
-              fontSize: '0.85rem',
-              fontWeight: currentView === 'games' ? '700' : '500',
-              letterSpacing: isRtl ? '0' : '0.08em',
-              textTransform: isRtl ? 'none' : 'uppercase',
-              color: currentView === 'games' ? 'var(--color-primary-dark)' : 'var(--color-espresso)'
-            }}
-          >
-            {t('nav.games')}
-          </button>
-          <button
             onClick={() => { setCurrentView('tracking'); window.scrollTo(0,0); }}
             style={{
               fontSize: '0.85rem',
@@ -182,12 +170,6 @@ export default function Header({ currentView, setCurrentView }) {
             style={{ textAlign: 'start', fontSize: '1rem', fontWeight: '600', textTransform: isRtl ? 'none' : 'uppercase' }}
           >
             {t('nav.collection')}
-          </button>
-          <button
-            onClick={() => { setCurrentView('games'); setMobileMenuOpen(false); }}
-            style={{ textAlign: 'start', fontSize: '1rem', fontWeight: '600', textTransform: isRtl ? 'none' : 'uppercase' }}
-          >
-            {t('nav.games')}
           </button>
           <button
             onClick={() => { setCurrentView('tracking'); setMobileMenuOpen(false); }}

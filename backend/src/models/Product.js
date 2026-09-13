@@ -21,6 +21,14 @@ const colorVariantSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  // colorDisplayName: customer-facing localized name (FR/AR/EN)
+  // colorName above remains the stable identity key for inventory, cart, and orders — never change it
+  colorDisplayName: {
+    type: mongoose.Schema.Types.Mixed,
+    default: () => ({ fr: '', ar: '', en: '' }),
+    get: getLocalizedString,
+    set: normalizeLocalizedString
+  },
   colorCode: {
     type: String,
     required: true,
@@ -194,22 +202,41 @@ productSchema.index({ "name.en": 1 });
 
 // Virtual: translation completeness status for admin UI badges
 productSchema.virtual('translationStatus').get(function() {
-  const n = this.name;
-  if (!n || typeof n !== 'object') return { fr: false, ar: false, en: false };
-  const fr = Boolean(n.fr && n.fr.trim().length > 0);
-  const ar = Boolean(n.ar && n.ar.trim().length > 0);
-  const en = Boolean(n.en && n.en.trim().length > 0);
+  const n = typeof this.name === 'object' && this.name !== null ? this.name : { fr: this.name || '' };
+  const d = typeof this.description === 'object' && this.description !== null ? this.description : { fr: this.description || '' };
+  const fr = Boolean(n.fr && n.fr.trim().length > 0 && d.fr && d.fr.trim().length > 0);
+  const ar = Boolean(n.ar && n.ar.trim().length > 0 && d.ar && d.ar.trim().length > 0);
+  const en = Boolean(n.en && n.en.trim().length > 0 && d.en && d.en.trim().length > 0);
   return {
     fr,
     ar,
-    en
+    en,
+    isComplete: fr && ar && en,
+    name: {
+      fr: Boolean(n.fr && n.fr.trim().length > 0),
+      ar: Boolean(n.ar && n.ar.trim().length > 0),
+      en: Boolean(n.en && n.en.trim().length > 0)
+    },
+    description: {
+      fr: Boolean(d.fr && d.fr.trim().length > 0),
+      ar: Boolean(d.ar && d.ar.trim().length > 0),
+      en: Boolean(d.en && d.en.trim().length > 0)
+    }
   };
 });
 
-// Helper: check if product has complete FR, AR, EN translations
+// Helper: check if product has complete FR, AR, EN translations (both name and description)
 export function isProductFullyTranslated(product) {
   const n = typeof product.name === 'object' && product.name !== null ? product.name : { fr: product.name || '' };
-  return Boolean(n.fr && n.fr.trim().length > 0 && n.ar && n.ar.trim().length > 0 && n.en && n.en.trim().length > 0);
+  const d = typeof product.description === 'object' && product.description !== null ? product.description : { fr: product.description || '' };
+  return Boolean(
+    n.fr && n.fr.trim().length > 0 &&
+    n.ar && n.ar.trim().length > 0 &&
+    n.en && n.en.trim().length > 0 &&
+    d.fr && d.fr.trim().length > 0 &&
+    d.ar && d.ar.trim().length > 0 &&
+    d.en && d.en.trim().length > 0
+  );
 }
 
 // Virtual: denormalized total stock across all colors and sizes

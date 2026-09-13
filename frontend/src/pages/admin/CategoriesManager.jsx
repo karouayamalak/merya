@@ -130,8 +130,9 @@ export default function CategoriesManager() {
     }
 
     const isNameComplete = Boolean(name.fr?.trim() && name.ar?.trim() && name.en?.trim());
-    if (isActive && !isNameComplete) {
-      return setError('Cannot publish category: French, Arabic, and English translations are required before publishing. Please complete all translations or uncheck "Active" to save as a draft.');
+    const isDescComplete = Boolean(description.fr?.trim() && description.ar?.trim() && description.en?.trim());
+    if (isActive && (!isNameComplete || !isDescComplete)) {
+      return setError('Cannot publish category: Complete French, Arabic, and English translations are required for BOTH name and description before publishing. Please complete all translations or uncheck "Active" to save as a draft.');
     }
 
     if (!image.trim()) return setError('Please upload an image for the category');

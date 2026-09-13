@@ -261,11 +261,12 @@ export const getAllOrdersAdmin = async (req, res, next) => {
     const filter = {};
 
     if (search && search.trim()) {
-      const q = search.trim();
+      const raw = search.trim().slice(0, 100);
+      const escaped = raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       filter.$or = [
-        { orderCode: { $regex: q, $options: 'i' } },
-        { "customer.phone": { $regex: q, $options: 'i' } },
-        { "customer.fullName": { $regex: q, $options: 'i' } }
+        { orderCode: { $regex: escaped, $options: 'i' } },
+        { "customer.phone": { $regex: escaped, $options: 'i' } },
+        { "customer.fullName": { $regex: escaped, $options: 'i' } }
       ];
     }
 
@@ -279,8 +280,16 @@ export const getAllOrdersAdmin = async (req, res, next) => {
 
     if (startDate || endDate) {
       filter.createdAt = {};
-      if (startDate) filter.createdAt.$gte = new Date(startDate);
-      if (endDate) filter.createdAt.$lte = new Date(endDate);
+      if (startDate) {
+        const d = new Date(startDate);
+        if (isNaN(d.getTime())) return res.status(400).json({ success: false, message: 'Invalid startDate.' });
+        filter.createdAt.$gte = d;
+      }
+      if (endDate) {
+        const d = new Date(endDate);
+        if (isNaN(d.getTime())) return res.status(400).json({ success: false, message: 'Invalid endDate.' });
+        filter.createdAt.$lte = d;
+      }
     }
 
     const pageNum = Math.max(1, parseInt(page, 10));

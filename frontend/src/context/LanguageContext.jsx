@@ -137,12 +137,17 @@ export function LanguageProvider({ children }) {
     if (!wilaya) return '';
     const code = wilaya.code || wilaya.wilayaCode;
     const codeStr = String(code).padStart(2, '0');
-    if (isRtl && (wilaya.nameAr || wilaya.wilayaNameAr)) {
-      return `${codeStr} - ${wilaya.nameAr || wilaya.wilayaNameAr}`;
+    if (language === 'ar') {
+      const arName = wilaya.nameAr || wilaya.wilayaNameAr;
+      return `${codeStr} - ${arName || wilaya.name || wilaya.wilayaName || ''}`;
     }
-    const name = wilaya.name || wilaya.wilayaName || '';
-    return `${codeStr} - ${name}`;
-  }, [isRtl]);
+    if (language === 'en') {
+      const enName = wilaya.nameEn || wilaya.wilayaNameEn;
+      return `${codeStr} - ${enName || wilaya.name || wilaya.wilayaName || ''}`;
+    }
+    const frName = wilaya.nameFr || wilaya.wilayaNameFr || wilaya.name || wilaya.wilayaName || '';
+    return `${codeStr} - ${frName}`;
+  }, [language]);
 
   const value = useMemo(() => ({
     language,

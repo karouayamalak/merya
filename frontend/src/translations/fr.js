@@ -38,7 +38,6 @@ export default {
   nav: {
     home: 'Accueil',
     collection: 'Collection',
-    games: 'Jeux & Cadeaux',
     trackOrder: 'Suivre ma commande',
     cart: 'Panier',
     admin: 'Espace Administration',
@@ -315,6 +314,7 @@ export default {
       products: 'Produits & Modèles',
       categories: 'Catégories',
       inventory: 'Gestion des stocks',
+      banners: 'Promotions & Bannières',
       delivery: 'Paramètres de livraison'
     },
     dashboard: {
@@ -393,32 +393,6 @@ export default {
       agencyFee: 'Tarif Point Relais (DA)',
       available: 'Disponible'
     }
-  },
-  games: {
-    title: 'Jeux Interactifs & Récompenses',
-    subtitle: 'Participez à nos jeux interactifs, amusez-vous et débloquez des codes promo exclusifs pour vos prochaines commandes.',
-    noGames: 'Aucun jeu n\'est disponible pour le moment. Revenez très bientôt pour de belles surprises !',
-    playNow: 'Jouer maintenant',
-    spin: 'Tourner la roue',
-    spinning: 'La roue tourne...',
-    scratch: 'Grattez pour révéler',
-    reveal: 'Découvrir le lot',
-    answerQuestion: 'Choisissez votre réponse :',
-    nextQuestion: 'Question suivante',
-    finishQuiz: 'Terminer le quiz',
-    score: 'Votre score',
-    congratulations: 'Félicitations ! Vous avez gagné !',
-    betterLuck: 'Bonne chance pour la prochaine fois !',
-    yourReward: 'Votre code privilège :',
-    copyCode: 'Copier le code',
-    codeCopied: 'Code copié dans le presse-papiers !',
-    useAtCheckout: 'Saisissez ce code lors de la validation de votre commande pour profiter de votre réduction.',
-    rules: 'Règles du jeu',
-    instructions: 'Comment jouer',
-    discount: 'Remise',
-    minOrder: 'Commande min.',
-    playAgain: 'Rejouer',
-    backToGames: 'Retour aux jeux'
   },
   footer: {
     description: 'Maison de couture dédiée à la femme algérienne moderne et élégante. Confection soignée en soie de Médine, lin lavé et crêpe haute couture.',

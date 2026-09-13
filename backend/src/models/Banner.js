@@ -58,6 +58,14 @@ const bannerSchema = new mongoose.Schema({
   toObject: { virtuals: true, getters: true }
 });
 
+bannerSchema.virtual('ctaText')
+  .get(function() { return this.buttonText; })
+  .set(function(v) { this.buttonText = v; });
+
+bannerSchema.virtual('ctaLink')
+  .get(function() { return this.link; })
+  .set(function(v) { this.link = v; });
+
 bannerSchema.index({ isActive: 1, placement: 1, displayOrder: 1 });
 
 // Virtual: translation completeness status for admin UI badges

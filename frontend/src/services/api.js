@@ -103,13 +103,11 @@ export const trackOrder = (phone, orderCode) => request('/tracking', {
   body: JSON.stringify({ phone, orderCode })
 });
 
-// Games & Banners Public APIs
+// Banners Public API
 export const fetchBanners = (params = {}) => {
   const query = new URLSearchParams(params).toString();
   return request(`/banners?${query}`);
 };
-export const fetchGames = () => request('/games');
-export const fetchGameBySlug = (slug) => request(`/games/slug/${slug}`);
 
 // Admin Auth APIs
 export const adminLogin = (email, password) => request('/auth/login', {
@@ -173,18 +171,6 @@ export const adminUpdateDeliverySettings = (data) => request('/settings/delivery
   method: 'PUT',
   body: JSON.stringify(data)
 });
-
-// Admin Games APIs
-export const adminGetGames = () => request('/games/admin/all');
-export const adminCreateGame = (data) => request('/games', {
-  method: 'POST',
-  body: JSON.stringify(data)
-});
-export const adminUpdateGame = (id, data) => request(`/games/${id}`, {
-  method: 'PUT',
-  body: JSON.stringify(data)
-});
-export const adminDeleteGame = (id) => request(`/games/${id}`, { method: 'DELETE' });
 
 // Admin Banners APIs
 export const adminGetBanners = () => request('/banners/admin/all');

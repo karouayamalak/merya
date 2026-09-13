@@ -265,11 +265,12 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
                     {localized(banners[0].subtitle)}
                   </p>
                 )}
-                {localized(banners[0].buttonText) && (
+                {(localized(banners[0].buttonText) || localized(banners[0].ctaText)) && (
                   <button
                     onClick={() => {
-                      if (banners[0].link && banners[0].link.startsWith('http')) {
-                        window.open(banners[0].link, '_blank');
+                      const linkUrl = banners[0].link || banners[0].ctaLink;
+                      if (linkUrl && linkUrl.startsWith('http')) {
+                        window.open(linkUrl, '_blank');
                       } else {
                         setCurrentView('shop');
                         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -285,7 +286,7 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
                       borderRadius: 'var(--radius-full)'
                     }}
                   >
-                    <span>{localized(banners[0].buttonText)}</span>
+                    <span>{localized(banners[0].buttonText) || localized(banners[0].ctaText)}</span>
                     <ArrowRight size={15} className="rtl-flip" />
                   </button>
                 )}

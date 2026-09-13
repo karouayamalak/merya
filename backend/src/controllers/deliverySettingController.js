@@ -109,6 +109,18 @@ export const getDeliverySettings = async (req, res, next) => {
       }
     }
 
+    const enrichedRates = settings.wilayaRates.map(r => {
+      const canonical = canonicalByCode.get(r.wilayaCode);
+      const rObj = r.toObject ? r.toObject() : { ...r };
+      return {
+        ...rObj,
+        wilayaName: canonical ? canonical.name : r.wilayaName,
+        wilayaNameAr: canonical ? canonical.nameAr : r.wilayaNameAr,
+        wilayaNameFr: canonical?.nameFr || canonical?.name || r.wilayaNameFr || r.wilayaName,
+        wilayaNameEn: canonical?.nameEn || r.wilayaNameEn || r.wilayaName
+      };
+    });
+
     res.json({
       success: true,
       settings: {
@@ -117,9 +129,9 @@ export const getDeliverySettings = async (req, res, next) => {
         freeDeliveryThreshold: (typeof settings.freeDeliveryThreshold === 'number' && Number.isFinite(settings.freeDeliveryThreshold) && settings.freeDeliveryThreshold >= 0)
           ? settings.freeDeliveryThreshold
           : 0,
-        wilayaRates: settings.wilayaRates
+        wilayaRates: enrichedRates
       },
-      wilayas: settings.wilayaRates
+      wilayas: enrichedRates
     });
   } catch (error) {
     next(error);
@@ -268,6 +280,8 @@ export const updateDeliverySettings = async (req, res, next) => {
           wilayaCode: r.wilayaCode,
           wilayaName: canonical.name,
           wilayaNameAr: canonical.nameAr,
+          wilayaNameFr: canonical.nameFr || canonical.name,
+          wilayaNameEn: canonical.nameEn || canonical.name,
           homeFee: r.homeFee,
           agencyFee: r.agencyFee,
           isAvailable: r.isAvailable === false ? false : true

@@ -56,6 +56,7 @@ export default function ProductDetail({ product, onBack, onSelectRelated }) {
       productName: product.name,
       slug: product.slug,
       colorName: activeColor.colorName,
+      colorDisplayName: activeColor.colorDisplayName || null,
       colorCode: activeColor.colorCode,
       size: selectedSize,
       quantity,
@@ -224,7 +225,7 @@ export default function ProductDetail({ product, onBack, onSelectRelated }) {
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
                 <span style={{ fontSize: '0.85rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  {t('product.color')}: <strong style={{ color: 'var(--color-primary-dark)' }}>{activeColor.colorName}</strong>
+                  {t('product.color')}: <strong style={{ color: 'var(--color-primary-dark)' }}>{localized(activeColor.colorDisplayName) || activeColor.colorName}</strong>
                 </span>
                 <span style={{ fontSize: '0.8rem', color: '#777' }}>
                   {product.colors.length} {t('product.colorsAvailable')}
@@ -255,7 +256,7 @@ export default function ProductDetail({ product, onBack, onSelectRelated }) {
                       backgroundColor: c.colorCode,
                       border: '1px solid rgba(0,0,0,0.1)'
                     }} />
-                    <span style={{ fontSize: '0.82rem', fontWeight: '600' }}>{c.colorName}</span>
+                    <span style={{ fontSize: '0.82rem', fontWeight: '600' }}>{localized(c.colorDisplayName) || c.colorName}</span>
                   </button>
                 ))}
               </div>

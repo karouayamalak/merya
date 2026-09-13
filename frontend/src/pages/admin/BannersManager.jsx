@@ -124,9 +124,9 @@ export default function BannersManager() {
     setEditingBanner(banner);
     setTitle(normalize(banner.title));
     setSubtitle(normalize(banner.subtitle));
-    setCtaText(normalize(banner.ctaText));
+    setCtaText(normalize(banner.ctaText || banner.buttonText));
     setImage(banner.image || '');
-    setCtaLink(banner.ctaLink || '');
+    setCtaLink(banner.ctaLink || banner.link || '');
     setPlacement(banner.placement || 'hero');
     setDisplayOrder(banner.displayOrder || 1);
     setIsActive(banner.isActive);
@@ -164,7 +164,18 @@ export default function BannersManager() {
 
     setModalLoading(true);
     try {
-      const payload = { title, subtitle, ctaText, image, ctaLink, placement, displayOrder: Number(displayOrder), isActive };
+      const payload = {
+        title,
+        subtitle,
+        buttonText: ctaText,
+        ctaText,
+        link: ctaLink,
+        ctaLink,
+        image,
+        placement,
+        displayOrder: Number(displayOrder),
+        isActive
+      };
       if (editingBanner) {
         await adminUpdateBanner(editingBanner._id, payload);
       } else {

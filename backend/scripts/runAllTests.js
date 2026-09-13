@@ -40,8 +40,9 @@ const testSuite = [
   { name: 'websocketReconnectResubscriptionTest.js', isNodeTest: false, desc: 'WebSocket reconnect, auto-resubscription & timer deduplication' },
   { name: 'e2eVerification.js', isNodeTest: false, desc: 'E2E verification with WebSocket push notification' },
   { name: 'promotionsAndWilayas69Test.js', isNodeTest: false, desc: '58-Wilaya boundary checks, promotions lifecycle & historical price protection' },
-  { name: 'multilingualContentTest.js', isNodeTest: false, desc: 'Dynamic multilingual content (FR/AR/EN), games, banners, search, and migration' },
-  { name: 'multilingualPublishingTest.js', isNodeTest: false, desc: 'Strict multilingual publishing enforcement & games consistency' }
+  { name: 'multilingualContentTest.js', isNodeTest: false, desc: 'Dynamic multilingual content (FR/AR/EN), banners, search, and migration' },
+  { name: 'multilingualPublishingTest.js', isNodeTest: false, desc: 'Strict multilingual publishing enforcement for products, categories, and banners' },
+  { name: 'searchHardeningTest.js', isNodeTest: false, desc: 'Search endpoint hardening: regex escaping, NaN price rejection, length caps' }
 ];
 
 console.log('================================================================');

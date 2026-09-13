@@ -88,22 +88,41 @@ categorySchema.index({ "name.en": 1 });
 
 // Virtual: translation completeness status for admin UI badges
 categorySchema.virtual('translationStatus').get(function() {
-  const n = this.name;
-  if (!n || typeof n !== 'object') return { fr: false, ar: false, en: false };
-  const fr = Boolean(n.fr && n.fr.trim().length > 0);
-  const ar = Boolean(n.ar && n.ar.trim().length > 0);
-  const en = Boolean(n.en && n.en.trim().length > 0);
+  const n = typeof this.name === 'object' && this.name !== null ? this.name : { fr: this.name || '' };
+  const d = typeof this.description === 'object' && this.description !== null ? this.description : { fr: this.description || '' };
+  const fr = Boolean(n.fr && n.fr.trim().length > 0 && d.fr && d.fr.trim().length > 0);
+  const ar = Boolean(n.ar && n.ar.trim().length > 0 && d.ar && d.ar.trim().length > 0);
+  const en = Boolean(n.en && n.en.trim().length > 0 && d.en && d.en.trim().length > 0);
   return {
     fr,
     ar,
-    en
+    en,
+    isComplete: fr && ar && en,
+    name: {
+      fr: Boolean(n.fr && n.fr.trim().length > 0),
+      ar: Boolean(n.ar && n.ar.trim().length > 0),
+      en: Boolean(n.en && n.en.trim().length > 0)
+    },
+    description: {
+      fr: Boolean(d.fr && d.fr.trim().length > 0),
+      ar: Boolean(d.ar && d.ar.trim().length > 0),
+      en: Boolean(d.en && d.en.trim().length > 0)
+    }
   };
 });
 
-// Helper: check if category has complete FR, AR, EN translations
+// Helper: check if category has complete FR, AR, EN translations (both name and description)
 export function isCategoryFullyTranslated(category) {
   const n = typeof category.name === 'object' && category.name !== null ? category.name : { fr: category.name || '' };
-  return Boolean(n.fr && n.fr.trim().length > 0 && n.ar && n.ar.trim().length > 0 && n.en && n.en.trim().length > 0);
+  const d = typeof category.description === 'object' && category.description !== null ? category.description : { fr: category.description || '' };
+  return Boolean(
+    n.fr && n.fr.trim().length > 0 &&
+    n.ar && n.ar.trim().length > 0 &&
+    n.en && n.en.trim().length > 0 &&
+    d.fr && d.fr.trim().length > 0 &&
+    d.ar && d.ar.trim().length > 0 &&
+    d.en && d.en.trim().length > 0
+  );
 }
 
 export const Category = mongoose.model('Category', categorySchema);

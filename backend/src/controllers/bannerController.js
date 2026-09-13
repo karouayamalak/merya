@@ -60,7 +60,9 @@ export const createBanner = async (req, res, next) => {
       subtitle,
       badgeText,
       buttonText,
+      ctaText,
       link,
+      ctaLink,
       image,
       placement,
       isActive,
@@ -81,13 +83,15 @@ export const createBanner = async (req, res, next) => {
     }
 
     const effectiveIsActive = isActive !== undefined ? Boolean(isActive) : true;
+    const effectiveButton = buttonText !== undefined ? buttonText : ctaText;
+    const effectiveLink = link !== undefined ? link : (ctaLink || '/shop');
 
     const banner = new Banner({
       title,
       subtitle,
       badgeText,
-      buttonText,
-      link: link || '/shop',
+      buttonText: effectiveButton,
+      link: effectiveLink,
       image: image || '',
       placement: placement || 'top_announcement',
       isActive: effectiveIsActive,
@@ -113,7 +117,9 @@ export const updateBanner = async (req, res, next) => {
       subtitle,
       badgeText,
       buttonText,
+      ctaText,
       link,
+      ctaLink,
       image,
       placement,
       isActive,
@@ -141,7 +147,8 @@ export const updateBanner = async (req, res, next) => {
     if (title !== undefined) banner.title = mergeField(title, banner.title);
     if (subtitle !== undefined) banner.subtitle = mergeField(subtitle, banner.subtitle);
     if (badgeText !== undefined) banner.badgeText = mergeField(badgeText, banner.badgeText);
-    if (buttonText !== undefined) banner.buttonText = mergeField(buttonText, banner.buttonText);
+    const incomingBtn = buttonText !== undefined ? buttonText : ctaText;
+    if (incomingBtn !== undefined) banner.buttonText = mergeField(incomingBtn, banner.buttonText);
 
     // Require complete translations if attempting to publish
     if (isActive === true) {
@@ -159,7 +166,8 @@ export const updateBanner = async (req, res, next) => {
       }
     }
 
-    if (link !== undefined) banner.link = link;
+    const incomingLink = link !== undefined ? link : ctaLink;
+    if (incomingLink !== undefined) banner.link = incomingLink;
     if (image !== undefined) banner.image = image;
     if (placement !== undefined) banner.placement = placement;
     if (isActive !== undefined) banner.isActive = isActive;

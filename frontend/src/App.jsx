@@ -8,7 +8,6 @@ import ProductDetail from './pages/ProductDetail';
 import Checkout from './pages/Checkout';
 import OrderConfirmation from './pages/OrderConfirmation';
 import OrderTracking from './pages/OrderTracking';
-import Games from './pages/Games';
 import AdminLogin from './pages/admin/AdminLogin';
 import AdminLayout from './pages/admin/AdminLayout';
 import { useAdminAuth } from './context/AdminAuthContext';
@@ -24,7 +23,6 @@ export default function App() {
     }
     if (path === '/tracking') return 'tracking';
     if (path === '/shop') return 'shop';
-    if (path === '/games') return 'games';
     if (path === '/checkout') return 'checkout';
     return 'home';
   };
@@ -39,7 +37,6 @@ export default function App() {
     let targetPath = '/';
     if (view === 'admin-portal' || view === 'admin-login') targetPath = '/admin';
     else if (view === 'shop') targetPath = '/shop';
-    else if (view === 'games') targetPath = '/games';
     else if (view === 'checkout') targetPath = '/checkout';
     else if (view === 'tracking') targetPath = '/tracking';
     else if (view === 'home') targetPath = '/';
@@ -150,10 +147,6 @@ export default function App() {
             onTrackOrder={handleTrackDirect}
             onContinueShopping={() => setCurrentView('shop')}
           />
-        )}
-
-        {currentView === 'games' && (
-          <Games onNavigateShop={() => setCurrentView('shop')} />
         )}
 
         {currentView === 'tracking' && (
