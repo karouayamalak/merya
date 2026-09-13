@@ -638,6 +638,7 @@ async function runAdversarialAudit() {
   {
     assert.strictEqual(ALGERIA_WILAYAS.length, 58);
     const baseValid = {
+      idempotencyKey: 'idem-wilaya-test-key-1',
       customer: { fullName: 'Wilaya Tester', phone: '0555123456', deliveryMethod: DELIVERY_METHODS.HOME, address: 'Valid address here' },
       items: [{ productId: '507f1f77bcf86cd799439011', colorName: 'Noir', size: 'M', quantity: 1 }]
     };

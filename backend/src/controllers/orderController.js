@@ -417,7 +417,7 @@ export const updateOrderCustomerDetails = async (req, res, next) => {
     if (TERMINAL_STATES.includes(order.status)) {
       return res.status(400).json({
         success: false,
-        message: `Orders in ${order.status} state are fully locked. Historical financial values and customer details cannot be modified.`
+        message: `Orders in ${order.status} state are fully locked. Historical financial values and customer details cannot be modified on ${order.status} orders.`
       });
     }
 

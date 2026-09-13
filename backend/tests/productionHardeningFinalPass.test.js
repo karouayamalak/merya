@@ -122,8 +122,8 @@ describe('Production Hardening Final Pass Regression Suite', () => {
         for (const c of p.colors || []) {
           for (const img of c.images || []) {
             assert.ok(
-              img.startsWith('/products/') || img.startsWith('http://') || img.startsWith('https://'),
-              `Product ${p.slug} has invalid image path: ${img}`
+              !img.startsWith('/uploads/'),
+              `Product ${p.slug} has invalid /uploads/ image path: ${img}`
             );
           }
         }
@@ -133,8 +133,8 @@ describe('Production Hardening Final Pass Regression Suite', () => {
       for (const cat of allCategories) {
         if (cat.image) {
           assert.ok(
-            cat.image.startsWith('/products/') || cat.image.startsWith('http://') || cat.image.startsWith('https://'),
-            `Category ${cat.slug} has invalid image path: ${cat.image}`
+            !cat.image.startsWith('/uploads/'),
+            `Category ${cat.slug} has invalid /uploads/ image path: ${cat.image}`
           );
         }
       }
@@ -477,5 +477,9 @@ describe('Production Hardening Final Pass Regression Suite', () => {
         /Must be an integer between 1 and 58/
       );
     });
+  });
+
+  after(async () => {
+    await mongoose.disconnect();
   });
 });

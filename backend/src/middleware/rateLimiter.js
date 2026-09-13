@@ -153,21 +153,21 @@ function createLimiter({ windowMs, max, message }) {
 // Strict limiter for admin login to block brute-force attacks
 export const loginLimiter = createLimiter({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === 'production' ? 6 : 100,
+  max: process.env.NODE_ENV === 'production' ? 6 : 10000,
   message: 'Too many login attempts. Please try again in 15 minutes.'
 });
 
 // Order tracking limiter to prevent brute-force order enumeration
 export const trackingLimiter = createLimiter({
   windowMs: 10 * 60 * 1000,
-  max: 20,
+  max: process.env.NODE_ENV === 'production' ? 20 : 1000,
   message: 'Too many tracking attempts. Please wait a few minutes before trying again.'
 });
 
 // Checkout limiter to prevent rapid spam orders
 export const checkoutLimiter = createLimiter({
   windowMs: 10 * 60 * 1000,
-  max: 15,
+  max: process.env.NODE_ENV === 'production' ? 15 : 1000,
   message: 'Too many checkout attempts. Please wait a moment.'
 });
 

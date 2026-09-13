@@ -42,7 +42,8 @@ const testSuite = [
   { name: 'promotionsAndWilayas69Test.js', isNodeTest: false, desc: '58-Wilaya boundary checks, promotions lifecycle & historical price protection' },
   { name: 'multilingualContentTest.js', isNodeTest: false, desc: 'Dynamic multilingual content (FR/AR/EN), banners, search, and migration' },
   { name: 'multilingualPublishingTest.js', isNodeTest: false, desc: 'Strict multilingual publishing enforcement for products, categories, and banners' },
-  { name: 'searchHardeningTest.js', isNodeTest: false, desc: 'Search endpoint hardening: regex escaping, NaN price rejection, length caps' }
+  { name: 'searchHardeningTest.js', isNodeTest: false, desc: 'Search endpoint hardening: regex escaping, NaN price rejection, length caps' },
+  { name: 'productionHardeningFinalPass.test.js', isNodeTest: true, desc: 'Production hardening final pass: images, idempotency, delivery, WS, 58 Wilayas' }
 ];
 
 console.log('================================================================');
@@ -67,7 +68,7 @@ for (let i = 0; i < testSuite.length; i++) {
   const child = spawnSync(process.execPath, args, {
     cwd: backendRoot,
     encoding: 'utf8',
-    env: { ...process.env },
+    env: { ...process.env, NODE_ENV: 'test' },
     timeout: 60000 // 60s per test file max
   });
 

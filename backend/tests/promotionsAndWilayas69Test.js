@@ -31,7 +31,11 @@ import { Order } from '../src/models/Order.js';
 import { DeliverySetting } from '../src/models/DeliverySetting.js';
 import { ALGERIA_WILAYAS, DELIVERY_METHODS } from '../src/config/constants.js';
 import { checkoutOrderSchema, productSchema, updateProductSchema } from '../src/middleware/validation.js';
-import { placeOrder, updateOrderItemsService } from '../src/services/orderService.js';
+import { placeOrder as basePlaceOrder, updateOrderItemsService } from '../src/services/orderService.js';
+const placeOrder = (params) => basePlaceOrder({
+  idempotencyKey: `idem-promo-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+  ...params
+});
 import { normalize58Wilayas } from '../src/seed/normalize58Wilayas.js';
 
 dotenv.config();
@@ -90,6 +94,7 @@ async function runTests() {
 
   for (const w of ALGERIA_WILAYAS) {
     const payload = {
+      idempotencyKey: `idem-wilaya-test-${w.code}`,
       customer: { ...baseCustomer, wilaya: { code: w.code, name: w.name } },
       items: baseItems
     };
@@ -103,6 +108,7 @@ async function runTests() {
   // SCENARIO 4: Invalid Wilaya codes (including 59, 60, 69, 70, 0, -1, 99, 3.14) are rejected
   for (const invalidCode of [0, 59, 60, 65, 69, 70, -1, 99, 3.14]) {
     const payload = {
+      idempotencyKey: `idem-wilaya-invalid-${invalidCode}`,
       customer: { ...baseCustomer, wilaya: { code: invalidCode, name: 'Invalid' } },
       items: baseItems
     };
@@ -184,7 +190,7 @@ async function runTests() {
     colors: [{
       colorName: 'Noir Profond',
       colorCode: '#0A0A0A',
-      images: ['/uploads/abaya_noir.jpg'],
+      images: ['/products/merya_abaya_noir_1.jpg'],
       sizes: [{ size: 'M', stock: 10 }]
     }]
   });

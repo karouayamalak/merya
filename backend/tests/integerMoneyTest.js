@@ -401,6 +401,7 @@ async function runTests() {
   // Place order and verify all financial fields are integer
   try {
     const orderResult = await placeOrder({
+      idempotencyKey: `idem-int-money-4-${Date.now()}`,
       customer: {
         fullName: 'Integer Money Test User',
         phone: '0552000001',
@@ -478,6 +479,7 @@ async function runTests() {
   try {
     // Create an order for line-item editing
     const testOrder = await placeOrder({
+      idempotencyKey: `idem-int-money-5-${Date.now()}`,
       customer: {
         fullName: 'Integer Edit Test User',
         phone: '0552000002',

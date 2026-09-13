@@ -232,6 +232,7 @@ async function runTests() {
     });
 
     const { order: testOrder } = await placeOrder({
+      idempotencyKey: `tx-cancel-key-${Date.now()}`,
       customer: {
         fullName: 'Cancel User',
         phone: '0555334455',

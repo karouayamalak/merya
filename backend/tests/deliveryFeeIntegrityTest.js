@@ -130,6 +130,7 @@ async function runTests() {
     const res = mockRes();
     const req = {
       body: {
+        idempotencyKey: `idem-del-fee-a-${Date.now()}`,
         customer: {
           fullName: 'IntegrityTest User Home',
           phone: '0551000001',
@@ -168,6 +169,7 @@ async function runTests() {
     const res = mockRes();
     const req = {
       body: {
+        idempotencyKey: `idem-del-fee-b-${Date.now()}`,
         customer: {
           fullName: 'IntegrityTest User Agency',
           phone: '0551000002',
@@ -212,6 +214,7 @@ async function runTests() {
     const res = mockRes();
     const req = {
       body: {
+        idempotencyKey: `idem-del-fee-c-${Date.now()}`,
         customer: {
           fullName: 'IntegrityTest Missing Wilaya',
           phone: '0551000003',
@@ -273,6 +276,7 @@ async function runTests() {
     // Attacker submits deliveryFee: 1 in request payload
     const req = {
       body: {
+        idempotencyKey: `idem-del-fee-d-${Date.now()}`,
         deliveryFee: 1, // Malicious tamper
         customer: {
           fullName: 'IntegrityTest Tamper Attacker 1',
@@ -311,6 +315,7 @@ async function runTests() {
     const res = mockRes();
     const req = {
       body: {
+        idempotencyKey: `idem-del-fee-e-${Date.now()}`,
         deliveryFee: 999999999, // Malicious huge fee
         customer: {
           fullName: 'IntegrityTest Tamper Attacker Huge',
@@ -347,6 +352,7 @@ async function runTests() {
   try {
     // Create an order in Wilaya 16 (home fee 500)
     const initialOrder = await placeOrder({
+      idempotencyKey: `idem-del-fee-f-${Date.now()}`,
       customer: {
         fullName: 'IntegrityTest Edit Wilaya Order',
         phone: '0551000006',
@@ -394,6 +400,7 @@ async function runTests() {
   try {
     // Order in Oran (home fee = 750, agency fee = 450)
     const initialOrder = await placeOrder({
+      idempotencyKey: `idem-del-fee-g-${Date.now()}`,
       customer: {
         fullName: 'IntegrityTest Edit Method Order',
         phone: '0551000007',
@@ -438,6 +445,7 @@ async function runTests() {
   console.log('\n── Test H: Missing / Unconfigured Fee During Admin Editing Fails Safely ──');
   try {
     const initialOrder = await placeOrder({
+      idempotencyKey: `idem-del-fee-h-${Date.now()}`,
       customer: {
         fullName: 'IntegrityTest Edit Missing Fee',
         phone: '0551000008',
@@ -496,6 +504,7 @@ async function runTests() {
   try {
     // Order in Alger (fee was 500)
     const initialOrder = await placeOrder({
+      idempotencyKey: `idem-del-fee-i-${Date.now()}`,
       customer: {
         fullName: 'IntegrityTest Historical Fee',
         phone: '0551000009',

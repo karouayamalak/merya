@@ -4,7 +4,11 @@ import dotenv from 'dotenv';
 import { Product } from '../src/models/Product.js';
 import { Category } from '../src/models/Category.js';
 import { Order } from '../src/models/Order.js';
-import { placeOrder, updateOrderStatus } from '../src/services/orderService.js';
+import { placeOrder as basePlaceOrder, updateOrderStatus } from '../src/services/orderService.js';
+const placeOrder = (params) => basePlaceOrder({
+  idempotencyKey: `idem-admin-edit-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+  ...params
+});
 import { updateOrderCustomerDetails } from '../src/controllers/orderController.js';
 import { ORDER_STATUS, DELIVERY_METHODS } from '../src/config/constants.js';
 

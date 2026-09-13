@@ -136,7 +136,7 @@ async function placeTestOrder(productA, productB, productC, qty = 1) {
       agencyName: 'Test Agency'
     },
     items,
-    idempotencyKey: `test-${Date.now()}-${Math.random()}`
+    idempotencyKey: `test-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
   });
   return order;
 }
@@ -226,7 +226,7 @@ async function runTestF() {
       { productId: productB._id, colorName: 'Red', size: 'M', quantity: 1 },
       { productId: productCWithStock._id, colorName: 'Red', size: 'M', quantity: 1 }
     ],
-    idempotencyKey: `test-f-${Date.now()}-${Math.random()}`
+    idempotencyKey: `test-f-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
   });
 
   // Advance to Returned (stock restored to A, B, C-source)

@@ -24,7 +24,11 @@ import { Category } from '../src/models/Category.js';
 import { Order } from '../src/models/Order.js';
 import { Admin } from '../src/models/Admin.js';
 import { DeliverySetting } from '../src/models/DeliverySetting.js';
-import { placeOrder, updateOrderStatus, updateOrderItemsService } from '../src/services/orderService.js';
+import { placeOrder as basePlaceOrder, updateOrderStatus, updateOrderItemsService } from '../src/services/orderService.js';
+const placeOrder = (params) => basePlaceOrder({
+  idempotencyKey: `idem-line-rev-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+  ...params
+});
 import { updateOrderItems } from '../src/controllers/orderController.js';
 import { logout } from '../src/controllers/authController.js';
 import { authenticateAdmin } from '../src/middleware/auth.js';

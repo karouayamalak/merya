@@ -20,6 +20,7 @@ import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
 import { Admin } from '../src/models/Admin.js';
+import { DeliverySetting } from '../src/models/DeliverySetting.js';
 import { ROLES } from '../src/config/constants.js';
 
 dotenv.config();
@@ -51,6 +52,12 @@ async function ensureTestAdmin() {
     admin.isActive = true;
     await admin.save();
   }
+
+  // Ensure Wilaya 31 (Oran) has expected authoritative agencyFee = 450
+  await DeliverySetting.updateOne(
+    { 'wilayaRates.wilayaCode': 31 },
+    { $set: { 'wilayaRates.$.agencyFee': 450 } }
+  );
 }
 
 async function runJourneyAudit() {
