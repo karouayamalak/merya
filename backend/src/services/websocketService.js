@@ -10,15 +10,15 @@ class WebSocketService {
     this.wss = null;
     this.orderSubscriptions = new Map(); // orderCode -> Set<WebSocket>
     this.adminClients = new Set();
+    // IP → count of active connections (decremented on close)
+    this._ipConnectionCount = new Map();
+    // IP → { count, windowStart } for handshake rate limiting (sliding window)
+    this._ipHandshakeWindow = new Map();
   }
 
   init(server, allowedOrigins = []) {
     this.wss = new WebSocketServer({ server, path: '/ws' });
     this._allowedOrigins = allowedOrigins;
-    // IP → count of active connections (decremented on close)
-    this._ipConnectionCount = new Map();
-    // IP → { count, windowStart } for handshake rate limiting (sliding window)
-    this._ipHandshakeWindow = new Map();
 
     // Constants
     this.MAX_CONNECTIONS_PER_IP = 10;
@@ -34,9 +34,8 @@ class WebSocketService {
         return;
       }
 
-      // ── Extract connecting IP ─────────────────────────────────────────────────
-      const ip = (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown')
-        .split(',')[0].trim();
+      // ── Extract connecting IP (respecting trusted proxy topology) ──────────────
+      const ip = this._extractClientIp(req);
 
       // ── IP-level handshake rate limiting (20 new connections per minute per IP) ─
       const now = Date.now();
@@ -194,6 +193,14 @@ class WebSocketService {
           this.cleanupClient(ws);
         }
       }
+
+      // Periodically purge stale handshake rate-limiting entries (older than 2 minutes)
+      const now = Date.now();
+      for (const [ipKey, hData] of this._ipHandshakeWindow.entries()) {
+        if (now - hData.windowStart > 120000) {
+          this._ipHandshakeWindow.delete(ipKey);
+        }
+      }
     }, 30000);
 
     this.wss.on('close', () => {
@@ -201,6 +208,17 @@ class WebSocketService {
     });
 
     console.log('[WebSocket] Server initialized on /ws');
+  }
+
+  /** Extract client IP adhering to reverse-proxy trust configuration */
+  _extractClientIp(req) {
+    const isProxyTrusted = process.env.NODE_ENV === 'production' || Boolean(process.env.TRUST_PROXY);
+    if (isProxyTrusted && req.headers && req.headers['x-forwarded-for']) {
+      const forwarded = String(req.headers['x-forwarded-for']);
+      const firstIp = forwarded.split(',')[0].trim();
+      if (firstIp) return firstIp;
+    }
+    return req.socket?.remoteAddress || 'unknown';
   }
 
   /** Decrement per-IP connection count safely */

@@ -66,24 +66,20 @@ export async function placeOrder({ customer, items, idempotencyKey }) {
     throw new Error('Order must contain at least one item');
   }
 
-  // 1. Check idempotency with deterministic fingerprint (early fast path)
-  if (idempotencyKey !== undefined && idempotencyKey !== null) {
-    if (typeof idempotencyKey !== 'string' || idempotencyKey.length < 8 || idempotencyKey.length > 128 || !/^[a-zA-Z0-9_-]+$/.test(idempotencyKey)) {
-      throw new Error('IDEMPOTENCY_KEY_INVALID: A valid idempotencyKey is required (8-128 alphanumeric characters, dashes, underscores).');
-    }
+  // 1. Enforce strict service-level idempotency contract
+  if (!idempotencyKey || typeof idempotencyKey !== 'string' || idempotencyKey.length < 8 || idempotencyKey.length > 128 || !/^[a-zA-Z0-9_-]+$/.test(idempotencyKey)) {
+    throw new Error('IDEMPOTENCY_KEY_REQUIRED: A valid idempotencyKey (8-128 alphanumeric characters, dashes, underscores) is strictly required.');
   }
 
   const currentFingerprint = computeOrderFingerprint({ customer, items });
 
-  if (idempotencyKey) {
-    const existingOrder = await Order.findOne({ idempotencyKey });
-    if (existingOrder) {
-      if (existingOrder.idempotencyFingerprint && existingOrder.idempotencyFingerprint !== currentFingerprint) {
-        throw new Error('IDEMPOTENCY_CONFLICT: Idempotency key reused with different request payload');
-      }
-      console.log(`[OrderService] Duplicate submission caught via idempotency key: ${idempotencyKey}`);
-      return { order: existingOrder, isDuplicate: true };
+  const existingOrder = await Order.findOne({ idempotencyKey });
+  if (existingOrder) {
+    if (existingOrder.idempotencyFingerprint && existingOrder.idempotencyFingerprint !== currentFingerprint) {
+      throw new Error('IDEMPOTENCY_CONFLICT: Idempotency key reused with different request payload');
     }
+    console.log(`[OrderService] Duplicate submission caught via idempotency key: ${idempotencyKey}`);
+    return { order: existingOrder, isDuplicate: true };
   }
 
   // 2. Strict Canonical Wilaya Verification & Availability Check

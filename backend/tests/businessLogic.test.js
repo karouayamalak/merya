@@ -88,6 +88,7 @@ describe('MERYA DZ Core Business Logic & Inventory Integrity', () => {
     await assert.rejects(
       async () => {
         await placeOrder({
+          idempotencyKey: `idemp-biz-oversell-${Date.now()}`,
           customer: {
             fullName: 'Fatima Test',
             phone: '0555000999',
@@ -118,6 +119,7 @@ describe('MERYA DZ Core Business Logic & Inventory Integrity', () => {
     ];
 
     const result = await placeOrder({
+      idempotencyKey: `idemp-biz-valid-${Date.now()}`,
       customer: {
         fullName: 'Amina Test',
         phone: '0555000999',
@@ -192,6 +194,7 @@ describe('MERYA DZ Core Business Logic & Inventory Integrity', () => {
     }
     // Create an order of 1 item
     const { order } = await placeOrder({
+      idempotencyKey: `idemp-biz-cancel-${Date.now()}`,
       customer: {
         fullName: 'Khadija Test',
         phone: '0555000999',
@@ -224,6 +227,7 @@ describe('MERYA DZ Core Business Logic & Inventory Integrity', () => {
 
   test('5. State Machine Validation: Disallows invalid transitions', async () => {
     const { order } = await placeOrder({
+      idempotencyKey: `idemp-biz-transition-${Date.now()}`,
       customer: {
         fullName: 'Nadia Test',
         phone: '0555000999',
@@ -295,6 +299,7 @@ describe('MERYA DZ Core Business Logic & Inventory Integrity', () => {
 
     // Place an order for 1 item
     const { order: lossOrder } = await placeOrder({
+      idempotencyKey: `idemp-biz-loss-${Date.now()}`,
       customer: {
         fullName: 'Loss Test Customer',
         phone: '0555000999',

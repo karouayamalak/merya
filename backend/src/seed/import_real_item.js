@@ -83,7 +83,7 @@ async function run() {
         colorName: 'Bleu Ciel Pastel',
         colorCode: '#A0C4E2',
         images: [
-          '/uploads/merya_dress_blue_1.jpg'
+          '/products/merya_dress_blue_1.jpg'
         ],
         sizes: [
           { size: 'S', stock: 8 },
@@ -96,8 +96,8 @@ async function run() {
         colorName: 'Rose Poudré',
         colorCode: '#E6B8C0',
         images: [
-          '/uploads/merya_dress_pink_1.jpg',
-          '/uploads/merya_dress_pink_2.jpg'
+          '/products/merya_dress_pink_1.jpg',
+          '/products/merya_dress_pink_2.jpg'
         ],
         sizes: [
           { size: 'S', stock: 7 },
@@ -110,8 +110,8 @@ async function run() {
         colorName: 'Marron Chocolat',
         colorCode: '#4A2E1B',
         images: [
-          '/uploads/merya_dress_brown_2.jpg',
-          '/uploads/merya_dress_brown_1.jpg'
+          '/products/merya_dress_brown_2.jpg',
+          '/products/merya_dress_brown_1.jpg'
         ],
         sizes: [
           { size: 'S', stock: 6 },

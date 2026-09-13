@@ -61,6 +61,7 @@ describe('MERYA DZ Price Consistency & Free Delivery Hardening', () => {
     await DeliverySetting.findOneAndUpdate(
       {},
       {
+        singletonKey: 'default',
         agencyDeliveryFee: 500,
         homeDeliveryFee: 800,
         freeDeliveryThreshold: 10000,
@@ -187,7 +188,7 @@ describe('MERYA DZ Price Consistency & Free Delivery Hardening', () => {
   describe('3. Authoritative Backend Consistency with Free Delivery', () => {
     test('Backend charges 800 DZD delivery when subtotal < threshold', async () => {
       const result = await placeOrder({
-        idempotencyKey: `cons-below-${Date.now()}-${Math.random()}`,
+        idempotencyKey: `cons-below-${Date.now()}-${Math.random().toString(36).substring(2)}`,
         customer: {
           fullName: 'Consistency Test Below',
           phone: '0555000010',
@@ -209,7 +210,7 @@ describe('MERYA DZ Price Consistency & Free Delivery Hardening', () => {
 
     test('Backend applies 0 DZD delivery when subtotal >= threshold', async () => {
       const result = await placeOrder({
-        idempotencyKey: `cons-above-${Date.now()}-${Math.random()}`,
+        idempotencyKey: `cons-above-${Date.now()}-${Math.random().toString(36).substring(2)}`,
         customer: {
           fullName: 'Consistency Test Above',
           phone: '0555000011',
@@ -234,7 +235,7 @@ describe('MERYA DZ Price Consistency & Free Delivery Hardening', () => {
       await testProduct.save();
 
       const result = await placeOrder({
-        idempotencyKey: `cons-promo-${Date.now()}-${Math.random()}`,
+        idempotencyKey: `cons-promo-${Date.now()}-${Math.random().toString(36).substring(2)}`,
         customer: {
           fullName: 'Consistency Test Promo',
           phone: '0555000012',

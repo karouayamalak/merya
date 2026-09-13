@@ -41,21 +41,7 @@ export default function Shop({ selectedCategory, setSelectedCategory, onSelectPr
 
         const res = await fetchProducts(params);
         if (res.success) {
-          let list = res.products || [];
-          const getEffectivePrice = (p) => (
-            p.promotion &&
-            p.promotion.active &&
-            typeof p.promotion.promotionalPrice === 'number' &&
-            p.promotion.promotionalPrice > 0 &&
-            p.promotion.promotionalPrice < p.sellingPrice
-          ) ? p.promotion.promotionalPrice : p.sellingPrice;
-
-          if (sortBy === 'price-asc') {
-            list = [...list].sort((a, b) => getEffectivePrice(a) - getEffectivePrice(b));
-          } else if (sortBy === 'price-desc') {
-            list = [...list].sort((a, b) => getEffectivePrice(b) - getEffectivePrice(a));
-          }
-          setProducts(list);
+          setProducts(res.products || []);
         }
       } catch (err) {
         console.error(err);

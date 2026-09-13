@@ -49,7 +49,7 @@ export const checkout = async (req, res, next) => {
       return res.status(error.statusCode).json({ success: false, message: error.message });
     }
 
-    if (error.message && error.message.startsWith('IDEMPOTENCY_KEY_INVALID')) {
+    if (error.message && (error.message.startsWith('IDEMPOTENCY_KEY_INVALID') || error.message.startsWith('IDEMPOTENCY_KEY_REQUIRED'))) {
       return res.status(400).json({ success: false, message: error.message });
     }
 
@@ -95,7 +95,7 @@ export const getCartQuote = async (req, res, next) => {
     const quotedItems = [];
 
     // Load delivery settings for threshold comparison and delivery validation
-    const setting = await DeliverySetting.findOne();
+    const setting = await DeliverySetting.getSingleton();
     const freeDeliveryThreshold = (setting && typeof setting.freeDeliveryThreshold === 'number' && setting.freeDeliveryThreshold > 0)
       ? setting.freeDeliveryThreshold
       : 0;
@@ -518,7 +518,7 @@ export const updateOrderCustomerDetails = async (req, res, next) => {
     // Client-supplied deliveryFee is strictly ignored and cannot tamper with the order.
     // Fee is only recalculated if Wilaya or delivery method changed.
     if (wilayaOrMethodChanged) {
-      const deliverySetting = await DeliverySetting.findOne();
+      const deliverySetting = await DeliverySetting.getSingleton();
       if (!deliverySetting) {
         return res.status(400).json({
           success: false,
@@ -602,10 +602,10 @@ export const updateOrderCustomerDetails = async (req, res, next) => {
       __v: expectedVersion
     };
 
-    // Historical financial protection: Under concurrent requests, Delivered orders must never be modified.
+    // Historical financial protection: Under concurrent requests, Delivered, Returned, or Cancelled orders must never be modified.
     // Triggered by actual wilaya/method change, not a client-supplied deliveryFee field.
     if (wilayaOrMethodChanged) {
-      casQuery.status = { $ne: ORDER_STATUS.DELIVERED };
+      casQuery.status = { $nin: [ORDER_STATUS.DELIVERED, ORDER_STATUS.RETURNED, ORDER_STATUS.CANCELLED] };
     }
 
     const casUpdate = {

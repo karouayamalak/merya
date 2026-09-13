@@ -123,7 +123,7 @@ async function seedDatabase() {
           name: 'Luxury Abayas',
           slug: 'luxury-abayas',
           description: 'Handcrafted premium Nidha and Medina silk abayas designed with modesty and graceful silhouettes.',
-          image: '/uploads/merya_dress_blue_1.jpg',
+          image: '/products/merya_dress_blue_1.jpg',
           displayOrder: 1,
           isActive: true
         },
@@ -131,7 +131,7 @@ async function seedDatabase() {
           name: 'Khimars & Hijabs',
           slug: 'khimars-and-hijabs',
           description: 'Breathable, non-slip Medina silk, modal, and premium chiffon scarves with flawless draping.',
-          image: '/uploads/merya_dress_pink_1.jpg',
+          image: '/products/merya_dress_pink_1.jpg',
           displayOrder: 2,
           isActive: true
         },
@@ -139,7 +139,7 @@ async function seedDatabase() {
           name: 'Modest Co-ord Sets',
           slug: 'modest-co-ord-sets',
           description: 'Contemporary two-piece relaxed tailored sets designed for everyday elegance and effortless style.',
-          image: '/uploads/merya_dress_brown_1.jpg',
+          image: '/products/merya_dress_brown_1.jpg',
           displayOrder: 3,
           isActive: true
         },
@@ -147,7 +147,7 @@ async function seedDatabase() {
           name: 'Flowing Dresses',
           slug: 'flowing-dresses',
           description: 'Tiered, pleated, and wrap-inspired full-coverage dresses crafted from lightweight breathable fabrics.',
-          image: '/uploads/merya_dress_pink_2.jpg',
+          image: '/products/merya_dress_pink_2.jpg',
           displayOrder: 4,
           isActive: true
         },
@@ -155,7 +155,7 @@ async function seedDatabase() {
           name: 'Kimonos & Capes',
           slug: 'kimonos-and-capes',
           description: 'Graceful outer layers, embroidered kaftans, and textured dusters for special gatherings.',
-          image: '/uploads/merya_dress_brown_2.jpg',
+          image: '/products/merya_dress_brown_2.jpg',
           displayOrder: 5,
           isActive: true
         }

@@ -23,13 +23,54 @@ rateLimitRecordSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 const RateLimitRecord = mongoose.models.RateLimitRecord ||
   mongoose.model('RateLimitRecord', rateLimitRecordSchema);
 
+const MAX_FALLBACK_KEYS = 1000;
+
 /**
- * MongoDB-backed store for express-rate-limit.
- * Implements the Store interface expected by express-rate-limit v6+.
+ * MongoDB-backed store for express-rate-limit with a bounded in-memory
+ * emergency fallback circuit breaker.
+ *
+ * Primary behavior:
+ * - Distributed atomic increments on the RateLimitRecord MongoDB collection.
+ * - TTL-indexed expiration for automated cleanup.
+ *
+ * Emergency failure behavior (e.g. database down, replica set reconnecting):
+ * - If MongoDB is unavailable, sensitive rate limiters must NOT trivially fail open
+ *   and allow unlimited brute-force attacks against login, tracking, or checkout.
+ * - An in-memory fallback Map is maintained, strictly bounded to MAX_FALLBACK_KEYS (1,000 entries).
+ * - When capacity is reached, expired or oldest entries are pruned to strictly prevent
+ *   memory exhaustion / secondary memory DoS during outages.
  */
 class MongoRateLimitStore {
   constructor(windowMs) {
     this.windowMs = windowMs;
+    // Bounded in-memory emergency cache for database outage scenarios: key -> { count, resetTime }
+    this._fallbackStore = new Map();
+  }
+
+  _recordFallbackHit(key, now) {
+    // Evict expired entries if approaching capacity
+    if (this._fallbackStore.size >= MAX_FALLBACK_KEYS) {
+      for (const [k, v] of this._fallbackStore.entries()) {
+        if (v.resetTime <= now) {
+          this._fallbackStore.delete(k);
+        }
+      }
+    }
+    // If still at capacity, evict oldest FIFO key to guarantee strict bound
+    if (this._fallbackStore.size >= MAX_FALLBACK_KEYS) {
+      const oldestKey = this._fallbackStore.keys().next().value;
+      if (oldestKey) this._fallbackStore.delete(oldestKey);
+    }
+
+    const current = this._fallbackStore.get(key);
+    if (current && current.resetTime > now) {
+      current.count += 1;
+      return { totalHits: current.count, resetTime: new Date(current.resetTime) };
+    }
+
+    const entry = { count: 1, resetTime: now + this.windowMs };
+    this._fallbackStore.set(key, entry);
+    return { totalHits: 1, resetTime: new Date(entry.resetTime) };
   }
 
   async increment(key) {
@@ -54,24 +95,32 @@ class MongoRateLimitStore {
     } catch (err) {
       // If upsert races (duplicate key on concurrent inserts), retry once
       if (err.code === 11000) {
-        const doc = await RateLimitRecord.findOneAndUpdate(
-          { key },
-          { $inc: { count: 1 } },
-          { new: true }
-        );
-        return {
-          totalHits: doc ? doc.count : 1,
-          resetTime: doc ? doc.resetTime : resetTime
-        };
+        try {
+          const doc = await RateLimitRecord.findOneAndUpdate(
+            { key },
+            { $inc: { count: 1 } },
+            { new: true }
+          );
+          if (doc) {
+            return {
+              totalHits: doc.count,
+              resetTime: doc.resetTime
+            };
+          }
+        } catch {
+          // Fall through to emergency fallback
+        }
       }
-      // On store failure (e.g., DB down), allow the request through rather than
-      // blocking all traffic — fail open is safer for production availability.
-      console.error('[RateLimit] MongoDB store error (fail-open):', err.message);
-      return { totalHits: 1, resetTime };
+      // On store failure (e.g., DB down), fall back to bounded in-memory emergency cache
+      // rather than trivially failing open and exposing sensitive endpoints to brute force.
+      console.warn(`[RateLimit] MongoDB store error, using bounded emergency fallback: ${err.message}`);
+      return this._recordFallbackHit(key, now);
     }
   }
 
   async decrement(key) {
+    const entry = this._fallbackStore.get(key);
+    if (entry && entry.count > 0) entry.count -= 1;
     await RateLimitRecord.updateOne(
       { key },
       { $inc: { count: -1 } }
@@ -79,6 +128,7 @@ class MongoRateLimitStore {
   }
 
   async resetKey(key) {
+    this._fallbackStore.delete(key);
     await RateLimitRecord.deleteOne({ key }).catch(() => {});
   }
 }
@@ -87,7 +137,7 @@ class MongoRateLimitStore {
 
 function createLimiter({ windowMs, max, message }) {
   const store = new MongoRateLimitStore(windowMs);
-  return rateLimit({
+  const limiter = rateLimit({
     windowMs,
     max,
     standardHeaders: true,
@@ -95,6 +145,9 @@ function createLimiter({ windowMs, max, message }) {
     store,
     message: { success: false, message }
   });
+  // Expose the store directly on the middleware for testability
+  limiter.store = store;
+  return limiter;
 }
 
 // Strict limiter for admin login to block brute-force attacks

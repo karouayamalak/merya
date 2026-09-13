@@ -57,7 +57,7 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
         marginBottom: '2rem'
       }}>
         <img
-          src="/uploads/merya_dress_blue_1.jpg"
+          src="/products/merya_dress_blue_1.jpg"
           alt="MERYA DZ Haute Modest Couture Campaign"
           style={{
             width: '100%',

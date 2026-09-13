@@ -15,7 +15,7 @@ async function updateLandingCategories() {
       name: 'Dresses',
       slug: 'dresses',
       description: 'Elegant, graceful full-length modest dresses crafted from fluid breathable fabrics.',
-      image: '/uploads/merya_dress_cream_1.jpg',
+      image: '/products/merya_dress_cream_1.jpg',
       displayOrder: 1,
       isActive: true,
       isArchived: false
@@ -24,7 +24,7 @@ async function updateLandingCategories() {
       name: 'Tops',
       slug: 'tops',
       description: 'Tailored modest jackets, high-neck blouses, and elegant longline tops.',
-      image: '/uploads/merya_top_white_1.jpg',
+      image: '/products/merya_top_white_1.jpg',
       displayOrder: 2,
       isActive: true,
       isArchived: false
@@ -33,7 +33,7 @@ async function updateLandingCategories() {
       name: 'Skirts',
       slug: 'skirts',
       description: 'Flowing accordion pleats and full A-line silhouettes with modest coverage.',
-      image: '/uploads/merya_skirt_beige.jpg',
+      image: '/products/merya_skirt_beige.jpg',
       displayOrder: 3,
       isActive: true,
       isArchived: false
@@ -42,7 +42,7 @@ async function updateLandingCategories() {
       name: 'Ensembles',
       slug: 'ensembles',
       description: 'Coordinated two-piece modest sets designed for effortless contemporary poise.',
-      image: '/uploads/merya_ensemble_set.jpg',
+      image: '/products/merya_ensemble_set.jpg',
       displayOrder: 4,
       isActive: true,
       isArchived: false

@@ -49,9 +49,13 @@ const deliverySettingSchema = new mongoose.Schema({
     type: String,
     required: true,
     unique: true,
-    default: 'default',
-    immutable: true
+    default: 'default'
   },
+  /**
+   * @deprecated Legacy global fallback fee. The authoritative delivery fee
+   * for customer checkout, quotes, and admin recalculation is strictly derived
+   * per-wilaya from the wilayaRates collection.
+   */
   agencyDeliveryFee: {
     type: Number,
     required: true,
@@ -62,6 +66,11 @@ const deliverySettingSchema = new mongoose.Schema({
       message: '{VALUE} is not a valid integer DZD agencyDeliveryFee'
     }
   },
+  /**
+   * @deprecated Legacy global fallback fee. The authoritative delivery fee
+   * for customer checkout, quotes, and admin recalculation is strictly derived
+   * per-wilaya from the wilayaRates collection.
+   */
   homeDeliveryFee: {
     type: Number,
     required: true,
@@ -104,9 +113,9 @@ deliverySettingSchema.statics.getSingleton = async function(session = null) {
     const all = await this.find({}, null, opts).sort({ updatedAt: -1 });
     if (all.length > 0) {
       setting = all[0];
-      if (!setting.singletonKey) {
+      if (setting.singletonKey !== 'default') {
+        await this.updateOne({ _id: setting._id }, { $set: { singletonKey: 'default' } }, opts);
         setting.singletonKey = 'default';
-        await setting.save(opts);
       }
       // Reconcile any duplicate stale settings
       if (all.length > 1) {

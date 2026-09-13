@@ -5,6 +5,24 @@ export function getImageUrl(imagePath) {
   if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
     return imagePath;
   }
+  // Repository-owned frontend static assets (must never hit backend)
+  if (
+    imagePath.startsWith('/products/') ||
+    imagePath.startsWith('/decor_') ||
+    imagePath.startsWith('/logo') ||
+    imagePath.startsWith('/favicon') ||
+    imagePath.startsWith('/icons') ||
+    imagePath.startsWith('/silk_bg')
+  ) {
+    return imagePath;
+  }
+  // Legacy /uploads/ paths for repository-owned assets map to /products/
+  if (imagePath.startsWith('/uploads/')) {
+    const filename = imagePath.replace(/^\/uploads\//, '');
+    if (filename.startsWith('merya_')) {
+      return `/products/${filename}`;
+    }
+  }
   const backendBase = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_BACKEND_URL) || '';
   return `${backendBase}${imagePath}`;
 }
@@ -88,7 +106,7 @@ export const fetchProducts = (params = {}) => {
   const query = new URLSearchParams(params).toString();
   return request(`/products?${query}`);
 };
-export const fetchProductBySlug = (slug) => request(`/products/slug/${slug}`);
+export const fetchProductBySlug = (slug) => request(`/products/slug/${encodeURIComponent(slug)}`);
 export const fetchDeliverySettings = () => request('/settings/delivery');
 export const quoteOrder = (quoteData) => request('/orders/quote', {
   method: 'POST',

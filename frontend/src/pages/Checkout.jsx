@@ -48,7 +48,27 @@ export default function Checkout({ onBack, onOrderSuccess }) {
   const [isValidatingCart, setIsValidatingCart] = useState(false);
   const [cartNotice, setCartNotice] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
-  const [idempotencyKey, setIdempotencyKey] = useState(() => `idemp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`);
+  const [idempotencyKey, setIdempotencyKey] = useState(() => {
+    try {
+      const stored = sessionStorage.getItem('merya_checkout_idempotency_key');
+      if (stored && /^[a-zA-Z0-9_-]{8,128}$/.test(stored)) {
+        return stored;
+      }
+      const newKey = `idemp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      sessionStorage.setItem('merya_checkout_idempotency_key', newKey);
+      return newKey;
+    } catch {
+      return `idemp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    }
+  });
+
+  useEffect(() => {
+    if (items.length === 0) {
+      try {
+        sessionStorage.removeItem('merya_checkout_idempotency_key');
+      } catch {}
+    }
+  }, [items.length]);
 
   // Server live-quote state — authoritative display values once a quote is obtained
   // null = no quote yet / loading; populated once server responds
@@ -304,6 +324,9 @@ export default function Checkout({ onBack, onOrderSuccess }) {
 
       const res = await submitCheckout(orderPayload);
       if (res.success) {
+        try {
+          sessionStorage.removeItem('merya_checkout_idempotency_key');
+        } catch {}
         clearCart();
         onOrderSuccess(res);
       } else {
