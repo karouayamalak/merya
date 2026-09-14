@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Building2, Home as HomeIcon, CheckCircle2, AlertCircle, Loader2, Search, Sliders } from 'lucide-react';
+import { Building2, Home as HomeIcon, CheckCircle2, AlertCircle, Loader2, Search, Sliders } from 'lucide-react';
 import { fetchDeliverySettings, adminUpdateDeliverySettings } from '../../services/api';
 import { useLanguage } from '../../context/LanguageContext';
 

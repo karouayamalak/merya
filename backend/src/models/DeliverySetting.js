@@ -93,14 +93,7 @@ deliverySettingSchema.statics.getSingleton = async function(session = null) {
         console.warn(`[DeliverySetting] Multiple delivery settings found (${all.length}). Deterministically selected newest document (_id: ${setting._id}). Run repairDuplicates() explicitly if cleanup is needed.`);
       }
       if (setting.singletonKey !== 'default') {
-        try {
-          await this.updateOne({ _id: setting._id }, { $set: { singletonKey: 'default' } }, opts);
-          setting.singletonKey = 'default';
-        } catch (err) {
-          // If a race occurred and another process set singletonKey, re-fetch
-          const existing = await this.findOne({ singletonKey: 'default' }, null, opts);
-          if (existing) setting = existing;
-        }
+        console.warn(`[DeliverySetting] Deterministically selected document (_id: ${setting._id}) has non-default singletonKey "${setting.singletonKey}". Document was NOT mutated. Run repairDuplicates() explicitly if cleanup is needed.`);
       }
     }
   }

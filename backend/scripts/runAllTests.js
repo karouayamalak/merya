@@ -6,13 +6,41 @@
  * and prints an honest, transparent execution report.
  */
 
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const backendRoot = path.resolve(__dirname, '..');
+
+let spawnedServer = null;
+async function ensureServerRunning() {
+  try {
+    const res = await fetch('http://127.0.0.1:5000/health', { signal: AbortSignal.timeout(1000) });
+    if (res.ok) return;
+  } catch {}
+
+  console.log('[Runner] Server not detected on http://localhost:5000. Spawning test server...');
+  spawnedServer = spawn(process.execPath, ['src/server.js'], {
+    cwd: backendRoot,
+    stdio: 'ignore',
+    env: { ...process.env, NODE_ENV: 'test' }
+  });
+
+  const deadline = Date.now() + 15000;
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch('http://127.0.0.1:5000/health', { signal: AbortSignal.timeout(1000) });
+      if (res.ok) {
+        console.log('[Runner] Test server ready on http://localhost:5000.\n');
+        return;
+      }
+    } catch {}
+    await new Promise(r => setTimeout(r, 500));
+  }
+  console.warn('[Runner] Warning: server did not become healthy within 15s. Continuing tests...\n');
+}
 
 const testSuite = [
   { name: 'businessLogic.test.js', isNodeTest: true, desc: 'Core business logic & inventory unit tests' },
@@ -51,6 +79,8 @@ console.log('================================================================');
 console.log('       MERYA DZ — FULL PRODUCTION TEST SUITE RUNNER            ');
 console.log('================================================================');
 console.log(`Executing ${testSuite.length} test suites sequentially...\n`);
+
+await ensureServerRunning();
 
 const results = [];
 let passedCount = 0;
@@ -118,6 +148,12 @@ console.log(`Passed:           ${passedCount}`);
 console.log(`Failed:           ${failedCount}`);
 console.log(`Total Duration:   ${(totalDurationMs / 1000).toFixed(2)}s`);
 console.log('================================================================\n');
+
+if (spawnedServer) {
+  try {
+    spawnedServer.kill();
+  } catch {}
+}
 
 if (failedCount > 0) {
   process.exit(1);

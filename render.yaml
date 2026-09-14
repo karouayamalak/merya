@@ -3,14 +3,12 @@ services:
     name: merya-backend
     runtime: node
     rootDir: backend
-    buildCommand: npm install
+    buildCommand: npm ci
     startCommand: npm start
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: 10000
       - key: HOST
         value: 0.0.0.0
       - key: MONGODB_URI

@@ -1,18 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Search,
-  Filter,
   Eye,
-  CheckCircle,
-  Truck,
-  Building2,
-  PackageCheck,
-  XCircle,
-  Clock,
-  User,
-  Phone,
-  MapPin,
-  Calendar,
   History,
   Edit2,
   X,
@@ -20,7 +9,6 @@ import {
   ShoppingBag,
   Save,
   Check,
-  RefreshCw,
   Plus,
   Trash2
 } from 'lucide-react';
@@ -69,11 +57,9 @@ export default function OrdersManager() {
 
   // Delivery settings & all 58 Wilayas for editing
   const [wilayasList, setWilayasList] = useState([]);
-  const [deliverySettings, setDeliverySettings] = useState(null);
 
   // Active modal order
   const [activeOrder, setActiveOrder] = useState(null);
-  const [loadingDetails, setLoadingDetails] = useState(false);
   const [editCustomerOpen, setEditCustomerOpen] = useState(false);
   const [statusNote, setStatusNote] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
@@ -124,7 +110,6 @@ export default function OrdersManager() {
         const res = await fetchDeliverySettings();
         if (res.success) {
           setWilayasList(res.wilayas || []);
-          setDeliverySettings(res.settings);
         }
       } catch (err) {
         console.error('Failed to load delivery settings:', err);
@@ -154,7 +139,6 @@ export default function OrdersManager() {
   };
 
   const openOrderDetails = async (orderId) => {
-    setLoadingDetails(true);
     setFeedback('');
     setEditCustomerOpen(false);
     try {
@@ -165,8 +149,6 @@ export default function OrdersManager() {
       }
     } catch (err) {
       alert(err.message);
-    } finally {
-      setLoadingDetails(false);
     }
   };
 

@@ -539,4 +539,55 @@ describe('Authoritative Delivery Pricing Source of Truth Regression Suite', () =
     const countAfter = await DeliverySetting.countDocuments();
     assert.strictEqual(countAfter, countBefore, 'Count of DeliverySetting records must not decrease during getSingleton() read');
   });
+
+  // 16. Strict version validation rejects strings, decimals, NaN, Infinity, negatives, null, booleans
+  test('16. PUT /settings/delivery rejects invalid expectedVersion formats with HTTP 400', async () => {
+    const invalidVersions = ['5', 5.5, NaN, Infinity, -Infinity, -1, null, false, true, {}, []];
+    for (const badVer of invalidVersions) {
+      const res = mockRes();
+      await updateDeliverySettings({
+        body: {
+          expectedVersion: badVer
+        },
+        admin: { _id: new mongoose.Types.ObjectId() }
+      }, res, () => {});
+      assert.strictEqual(
+        res.statusCode,
+        400,
+        `expectedVersion ${JSON.stringify(badVer)} must be rejected with HTTP 400`
+      );
+      assert.ok(
+        res.body.message.includes('expectedVersion must be a finite non-negative integer'),
+        `Error message must indicate finite non-negative integer requirement for ${JSON.stringify(badVer)}`
+      );
+    }
+  });
+
+  // 17. getSingleton() performs ZERO mutations even if non-default singletonKey exists
+  test('17. DeliverySetting.getSingleton() performs ZERO database mutations on non-default documents', async () => {
+    const original = await DeliverySetting.findOne({ singletonKey: 'default' });
+    assert.ok(original);
+
+    // Temporarily change singletonKey directly in DB to simulate corrupt/non-default key
+    await DeliverySetting.collection.updateOne(
+      { _id: original._id },
+      { $set: { singletonKey: 'non-default-key' } }
+    );
+
+    // Call getSingleton()
+    const fetched = await DeliverySetting.getSingleton();
+    assert.ok(fetched);
+    assert.strictEqual(fetched._id.toString(), original._id.toString());
+    assert.strictEqual(fetched.singletonKey, 'non-default-key', 'Returned document retains non-default singletonKey');
+
+    // Verify DB was NOT mutated by getSingleton()
+    const inDb = await DeliverySetting.collection.findOne({ _id: original._id });
+    assert.strictEqual(inDb.singletonKey, 'non-default-key', 'Database must NOT be updated by getSingleton()');
+
+    // Restore singletonKey to 'default'
+    await DeliverySetting.collection.updateOne(
+      { _id: original._id },
+      { $set: { singletonKey: 'default' } }
+    );
+  });
 });

@@ -4,6 +4,10 @@
   "description": "Production Full-Stack Backend for MERYA DZ modest fashion brand",
   "type": "module",
   "main": "src/server.js",
+  "engines": {
+    "node": ">=22.0.0",
+    "npm": ">=10.0.0"
+  },
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
