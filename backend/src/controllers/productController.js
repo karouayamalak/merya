@@ -456,9 +456,8 @@ export const updateProduct = async (req, res, next) => {
       }
     }
 
-    // Require complete translations (name + description) if attempting to publish or remain active
-    const targetActive = isActive !== undefined ? isActive : product.isActive;
-    if (targetActive === true) {
+    // Require complete translations (name + description) if attempting to publish (transitions to or sets isActive = true)
+    if (isActive === true) {
       const candidateName = product.name;
       const candidateDesc = product.description;
       const isComplete = Boolean(

@@ -35,6 +35,7 @@ describe('MERYA DZ Production 10/10 Hardening Regression Suite', () => {
   after(async () => {
     if (testCat) await Category.findByIdAndDelete(testCat._id);
     if (testProd) await Product.findByIdAndDelete(testProd._id);
+    await mongoose.disconnect();
   });
 
   // 1. Stale Product Document Update Race Protection
