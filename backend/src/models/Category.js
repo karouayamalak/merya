@@ -86,14 +86,14 @@ categorySchema.index({ "name.fr": 1 });
 categorySchema.index({ "name.ar": 1 });
 categorySchema.index({ "name.en": 1 });
 
-// Virtual: translation completeness status for admin UI badges
+// Virtual: translation presence status for admin UI badges.
+// Reports true for a locale when the category has a name translation in that locale.
+// For the strict full-translation gate (name + description in all 3 locales), use isCategoryFullyTranslated().
 categorySchema.virtual('translationStatus').get(function() {
   const n = typeof this.name === 'object' && this.name !== null ? this.name : { fr: this.name || '' };
-  const d = typeof this.description === 'object' && this.description !== null ? this.description : { fr: this.description || '' };
-  const hasDesc = Boolean((d.fr && d.fr.trim()) || (d.ar && d.ar.trim()) || (d.en && d.en.trim()));
-  const fr = Boolean(n.fr && n.fr.trim().length > 0 && (!hasDesc || (d.fr && d.fr.trim().length > 0)));
-  const ar = Boolean(n.ar && n.ar.trim().length > 0 && (!hasDesc || (d.ar && d.ar.trim().length > 0)));
-  const en = Boolean(n.en && n.en.trim().length > 0 && (!hasDesc || (d.en && d.en.trim().length > 0)));
+  const fr = Boolean(n.fr && n.fr.trim().length > 0);
+  const ar = Boolean(n.ar && n.ar.trim().length > 0);
+  const en = Boolean(n.en && n.en.trim().length > 0);
   return {
     fr,
     ar,
@@ -101,14 +101,18 @@ categorySchema.virtual('translationStatus').get(function() {
   };
 });
 
-// Helper: check if category has complete FR, AR, EN translations
+// Helper: check if category has complete FR, AR, EN translations (both name and description)
 export function isCategoryFullyTranslated(category) {
   const n = typeof category.name === 'object' && category.name !== null ? category.name : { fr: category.name || '' };
   const d = typeof category.description === 'object' && category.description !== null ? category.description : { fr: category.description || '' };
-  const hasDesc = Boolean((d.fr && d.fr.trim()) || (d.ar && d.ar.trim()) || (d.en && d.en.trim()));
-  const nameComplete = Boolean(n.fr && n.fr.trim() && n.ar && n.ar.trim() && n.en && n.en.trim());
-  const descComplete = !hasDesc || Boolean(d.fr && d.fr.trim() && d.ar && d.ar.trim() && d.en && d.en.trim());
-  return nameComplete && descComplete;
+  return Boolean(
+    n.fr && n.fr.trim().length > 0 &&
+    n.ar && n.ar.trim().length > 0 &&
+    n.en && n.en.trim().length > 0 &&
+    d.fr && d.fr.trim().length > 0 &&
+    d.ar && d.ar.trim().length > 0 &&
+    d.en && d.en.trim().length > 0
+  );
 }
 
 export const Category = mongoose.model('Category', categorySchema);

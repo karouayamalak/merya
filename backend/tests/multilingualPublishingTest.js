@@ -70,10 +70,24 @@ async function run() {
   assert.strictEqual(catUpdateFailRes.body.code, 'TRANSLATIONS_INCOMPLETE');
   pass('3. Updating draft category to published strictly blocked until translations are complete');
 
+  const catNoDescFailRes = mockRes();
+  await createCategory({
+    body: {
+      name: { fr: 'Robes Modernes', ar: 'فساتين عصرية', en: 'Modern Dresses' },
+      description: { fr: 'Seulement en français', ar: '', en: '' },
+      image: 'https://example.com/cat3.jpg',
+      isActive: true
+    }
+  }, catNoDescFailRes, () => {});
+  assert.strictEqual(catNoDescFailRes.statusCode, 400, 'Publishing category with incomplete description translations must fail');
+  assert.strictEqual(catNoDescFailRes.body.code, 'TRANSLATIONS_INCOMPLETE');
+  pass('3b. Category with incomplete description translations strictly blocked from publishing');
+
   const catCompleteRes = mockRes();
   await createCategory({
     body: {
       name: { fr: 'Robes Modernes', ar: 'فساتين عصرية', en: 'Modern Dresses' },
+      description: { fr: 'Robes modernes et élégantes', ar: 'فساتين عصرية وأنيقة', en: 'Modern and elegant dresses' },
       image: 'https://example.com/cat3.jpg',
       isActive: true
     }
@@ -81,7 +95,7 @@ async function run() {
   assert.strictEqual(catCompleteRes.statusCode, 201, 'Complete category published successfully');
   assert.strictEqual(catCompleteRes.body.category.isActive, true);
   const completeCatId = catCompleteRes.body.category._id;
-  pass('4. Fully translated category successfully published (isActive: true)');
+  pass('4. Fully translated category (name & description in FR/AR/EN) successfully published');
 
   // -------------------------------------------------------------
   // Test 2: Product Publishing Validation

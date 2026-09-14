@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import { Admin } from '../models/Admin.js';
 import { Category } from '../models/Category.js';
 import { Product } from '../models/Product.js';
+import { Banner } from '../models/Banner.js';
 import { DeliverySetting } from '../models/DeliverySetting.js';
 import { ROLES, ALGERIA_WILAYAS } from '../config/constants.js';
 
@@ -119,47 +120,87 @@ async function seedDatabase() {
     if (categoryCount === 0) {
       categories = await Category.insertMany([
         {
-          name: 'Luxury Abayas',
+          name: {
+            fr: 'Abayas de Luxe',
+            ar: 'عبايات فاخرة',
+            en: 'Luxury Abayas'
+          },
           slug: 'luxury-abayas',
-          description: 'Handcrafted premium Nidha and Medina silk abayas designed with modesty and graceful silhouettes.',
+          description: {
+            fr: 'Abayas haut de gamme confectionnées en soie de Médine et Nidha avec une coupe modeste et élégante.',
+            ar: 'عبايات فاخرة مصنوعة من حرير المدينة والندى مصممة بحشمة وأناقة راقية.',
+            en: 'Handcrafted premium Nidha and Medina silk abayas designed with modesty and graceful silhouettes.'
+          },
           image: '/products/merya_dress_blue_1.jpg',
           displayOrder: 1,
           isActive: true
         },
         {
-          name: 'Khimars & Hijabs',
+          name: {
+            fr: 'Khimars & Hijabs',
+            ar: 'خمارات وحجابات',
+            en: 'Khimars & Hijabs'
+          },
           slug: 'khimars-and-hijabs',
-          description: 'Breathable, non-slip Medina silk, modal, and premium chiffon scarves with flawless draping.',
+          description: {
+            fr: 'Foulards et khimars respirants en soie de Médine, modal et mousseline haut de gamme.',
+            ar: 'أوشحة وخمارات حرير المدينة الفاخر والمودال والشيفون بانسيابية مثالية.',
+            en: 'Breathable, non-slip Medina silk, modal, and premium chiffon scarves with flawless draping.'
+          },
           image: '/products/merya_dress_pink_1.jpg',
           displayOrder: 2,
           isActive: true
         },
         {
-          name: 'Modest Co-ord Sets',
+          name: {
+            fr: 'Ensembles Mastour',
+            ar: 'أطقم محتشمة',
+            en: 'Modest Co-ord Sets'
+          },
           slug: 'modest-co-ord-sets',
-          description: 'Contemporary two-piece relaxed tailored sets designed for everyday elegance and effortless style.',
+          description: {
+            fr: 'Ensembles deux pièces décontractés et élégants conçus pour le quotidien mastour.',
+            ar: 'أطقم نسائية محتشمة وعصرية مكونة من قطعتين لإطلالة يومية راقية.',
+            en: 'Contemporary two-piece relaxed tailored sets designed for everyday elegance and effortless style.'
+          },
           image: '/products/merya_dress_brown_1.jpg',
           displayOrder: 3,
           isActive: true
         },
         {
-          name: 'Flowing Dresses',
+          name: {
+            fr: 'Robes Évasées',
+            ar: 'فساتين انسيابية',
+            en: 'Flowing Dresses'
+          },
           slug: 'flowing-dresses',
-          description: 'Tiered, pleated, and wrap-inspired full-coverage dresses crafted from lightweight breathable fabrics.',
+          description: {
+            fr: 'Robes longues fluides confectionnées dans des tissus légers et respirants.',
+            ar: 'فساتين محتشمة واسعة مصنوعة من أقمشة خفيفة ومريحة.',
+            en: 'Tiered, pleated, and wrap-inspired full-coverage dresses crafted from lightweight breathable fabrics.'
+          },
           image: '/products/merya_dress_pink_2.jpg',
           displayOrder: 4,
           isActive: true
         },
         {
-          name: 'Kimonos & Capes',
+          name: {
+            fr: 'Kimonos & Capes',
+            ar: 'كيمونو وكاب',
+            en: 'Kimonos & Capes'
+          },
           slug: 'kimonos-and-capes',
-          description: 'Graceful outer layers, embroidered kaftans, and textured dusters for special gatherings.',
+          description: {
+            fr: 'Kaftans brodés, capes et kimonos élégants pour sublimer vos tenues de cérémonie.',
+            ar: 'عباءات كيمونو وكاب مطرزة بتصاميم راقية للمناسبات الخاصة.',
+            en: 'Graceful outer layers, embroidered kaftans, and textured dusters for special gatherings.'
+          },
           image: '/products/merya_dress_brown_2.jpg',
           displayOrder: 5,
           isActive: true
         }
       ]);
-      console.log(`[Seed] Seeded ${categories.length} categories.`);
+      console.log(`[Seed] Seeded ${categories.length} categories with complete FR/AR/EN translations.`);
     } else {
       categories = await Category.find();
     }
@@ -175,21 +216,34 @@ async function seedDatabase() {
 
       const products = [
         {
-          name: 'The Noor Medina Silk Abaya',
+          name: {
+            fr: 'Abaya en Soie de Médine Noor',
+            ar: 'عباية نور من حرير المدينة',
+            en: 'The Noor Medina Silk Abaya'
+          },
           slug: 'the-noor-medina-silk-abaya',
-          description: 'An iconic silhouette tailored from authentic Saudi Medina silk. Features flowing raglan sleeves with concealed snap buttons, a minimalist mandarin collar, and a matching tonal belt.',
+          description: {
+            fr: 'Silhouette emblématique confectionnée en soie de Médine authentique. Manches raglan fluides avec boutons-pression dissimulés et ceinture ton sur ton.',
+            ar: 'تصميم أيقوني مصنوع من حرير المدينة الأصيل مع أكمام انسيابية وأزرار مخفية وحزام متناسق.',
+            en: 'An iconic silhouette tailored from authentic Saudi Medina silk. Features flowing raglan sleeves with concealed snap buttons and a tonal belt.'
+          },
           category: abayaCat._id,
           sellingPrice: 7500, // 7,500 DZD
-          costPrice: 4800,    // 4,800 DZD (Cost for profit calculation)
+          costPrice: 4800,    // 4,800 DZD
           isActive: true,
           isBestSeller: true,
           colors: [
             {
               colorName: 'Warm Taupe',
+              colorDisplayName: {
+                fr: 'Taupe Chaud',
+                ar: 'رمادي داكن دافئ',
+                en: 'Warm Taupe'
+              },
               colorCode: '#B89C82',
               images: [
-                'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?q=80&w=1000&auto=format&fit=crop',
-                'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?q=80&w=1000&auto=format&fit=crop'
+                '/products/merya_dress_blue_1.jpg',
+                '/products/merya_dress_brown_1.jpg'
               ],
               sizes: [
                 { size: 'S', stock: 8 },
@@ -200,10 +254,14 @@ async function seedDatabase() {
             },
             {
               colorName: 'Midnight Noir',
+              colorDisplayName: {
+                fr: 'Noir Minuit',
+                ar: 'أسود داكن',
+                en: 'Midnight Noir'
+              },
               colorCode: '#1F1E24',
               images: [
-                'https://images.unsplash.com/photo-1509631179647-0177331693ae?q=80&w=1000&auto=format&fit=crop',
-                'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=1000&auto=format&fit=crop'
+                '/products/merya_dress_brown_2.jpg'
               ],
               sizes: [
                 { size: 'S', stock: 10 },
@@ -214,23 +272,36 @@ async function seedDatabase() {
             },
             {
               colorName: 'Muted Olive',
+              colorDisplayName: {
+                fr: 'Olive Poudré',
+                ar: 'زيتوني هادئ',
+                en: 'Muted Olive'
+              },
               colorCode: '#737C68',
               images: [
-                'https://images.unsplash.com/photo-1551803091-e20673f15770?q=80&w=1000&auto=format&fit=crop'
+                '/products/merya_dress_pink_1.jpg'
               ],
               sizes: [
                 { size: 'S', stock: 5 },
                 { size: 'M', stock: 7 },
                 { size: 'L', stock: 4 },
-                { size: 'XL', stock: 0 }
+                { size: 'XL', stock: 2 }
               ]
             }
           ]
         },
         {
-          name: 'Layla 2-Piece Linen Co-Ord',
+          name: {
+            fr: 'Ensemble 2 Pièces en Lin Layla',
+            ar: 'طقم ليلى قطعتين من الكتان',
+            en: 'Layla 2-Piece Linen Co-Ord'
+          },
           slug: 'layla-2-piece-linen-co-ord',
-          description: 'Engineered for modern modest everyday living. A relaxed longline tunic tunic paired with tailored wide-leg trousers crafted from premium washed linen blend.',
+          description: {
+            fr: 'Conçu pour le quotidien mastour moderne. Tunique longue décontractée assortie d’un pantalon large confectionné dans un mélange de lin lavé.',
+            ar: 'طقم أنيق مصمم للحياة اليومية المحتشمة. سترة طويلة مع بنطال واسع مريح مصنوع من مزيج الكتان الفاخر.',
+            en: 'Engineered for modern modest everyday living. A relaxed longline tunic paired with tailored wide-leg trousers crafted from premium washed linen blend.'
+          },
           category: setsCat._id,
           sellingPrice: 8900, // 8,900 DZD
           costPrice: 5400,    // 5,400 DZD
@@ -239,10 +310,15 @@ async function seedDatabase() {
           colors: [
             {
               colorName: 'Sand Beige',
+              colorDisplayName: {
+                fr: 'Beige Sable',
+                ar: 'بيج رملي',
+                en: 'Sand Beige'
+              },
               colorCode: '#D8C7B5',
               images: [
-                'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=1000&auto=format&fit=crop',
-                'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?q=80&w=1000&auto=format&fit=crop'
+                '/products/merya_ensemble_set.jpg',
+                '/products/merya_skirt_beige.jpg'
               ],
               sizes: [
                 { size: 'S', stock: 6 },
@@ -253,9 +329,14 @@ async function seedDatabase() {
             },
             {
               colorName: 'Deep Mocha',
+              colorDisplayName: {
+                fr: 'Moka Profond',
+                ar: 'موكا عميق',
+                en: 'Deep Mocha'
+              },
               colorCode: '#4A3B32',
               images: [
-                'https://images.unsplash.com/photo-1496747611176-843222e1e57c?q=80&w=1000&auto=format&fit=crop'
+                '/products/merya_dress_brown_1.jpg'
               ],
               sizes: [
                 { size: 'S', stock: 4 },
@@ -267,9 +348,17 @@ async function seedDatabase() {
           ]
         },
         {
-          name: 'Amina Triangle French Khimar',
+          name: {
+            fr: 'Khimar Pointu Triangle Amina',
+            ar: 'خمار أمينة المثلث',
+            en: 'Amina Triangle French Khimar'
+          },
           slug: 'amina-triangle-french-khimar',
-          description: 'Double-layer pointed French khimar cut from ultra-breathable Wool Peach fabric. Features integrated tie-back head straps and seamless niqab strings.',
+          description: {
+            fr: 'Khimar triangle double couche en tissu Wool Peach ultra-respirant avec attaches intégrées et maintien impeccable.',
+            ar: 'خمار مثلث من طبقتين من قماش الخوخ الفاخر فائق النعومة والتهوية مع أربطة رأس مريحة وانسيابية تامة.',
+            en: 'Double-layer pointed French khimar cut from ultra-breathable Wool Peach fabric. Features integrated tie-back head straps and seamless strings.'
+          },
           category: khimarCat._id,
           sellingPrice: 3200, // 3,200 DZD
           costPrice: 1600,    // 1,600 DZD
@@ -278,9 +367,14 @@ async function seedDatabase() {
           colors: [
             {
               colorName: 'Champagne Taupe',
+              colorDisplayName: {
+                fr: 'Taupe Champagne',
+                ar: 'شامبانيا توب',
+                en: 'Champagne Taupe'
+              },
               colorCode: '#BFA893',
               images: [
-                'https://images.unsplash.com/photo-1609357605129-26f69add5d6e?q=80&w=1000&auto=format&fit=crop'
+                '/products/merya_top_white_1.jpg'
               ],
               sizes: [
                 { size: 'Standard', stock: 25 }
@@ -288,30 +382,33 @@ async function seedDatabase() {
             },
             {
               colorName: 'Raven Black',
+              colorDisplayName: {
+                fr: 'Noir Corbeau',
+                ar: 'أسود فاحم',
+                en: 'Raven Black'
+              },
               colorCode: '#111111',
               images: [
-                'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?q=80&w=1000&auto=format&fit=crop'
+                '/products/merya_dress_brown_2.jpg'
               ],
               sizes: [
                 { size: 'Standard', stock: 30 }
-              ]
-            },
-            {
-              colorName: 'Soft Sage',
-              colorCode: '#9AA088',
-              images: [
-                'https://images.unsplash.com/photo-1551803091-e20673f15770?q=80&w=1000&auto=format&fit=crop'
-              ],
-              sizes: [
-                { size: 'Standard', stock: 15 }
               ]
             }
           ]
         },
         {
-          name: 'Zahra Tiered Pleated Maxi Dress',
+          name: {
+            fr: 'Robe Longue Plissée Zahra',
+            ar: 'فستان زهرة الطويل المكسر',
+            en: 'Zahra Tiered Pleated Maxi Dress'
+          },
           slug: 'zahra-tiered-pleated-maxi-dress',
-          description: 'An ethereal full-length dress showcasing delicate accordion micro-pleating and generous fabric flare. Lined with ultra-soft viscose for opaque coverage.',
+          description: {
+            fr: 'Robe longue vaporeuse avec micro-plissage accordéon délicat et doublure opaque ultra-douce pour une couverture parfaite.',
+            ar: 'فستان طويل وفضفاض بكسرات ناعمة وخامة انسيابية مع بطانة مريحة وغير شفافة تعكس الرقي.',
+            en: 'An ethereal full-length dress showcasing delicate accordion micro-pleating and generous fabric flare. Lined with ultra-soft viscose for opaque coverage.'
+          },
           category: dressCat._id,
           sellingPrice: 9400, // 9,400 DZD
           costPrice: 6000,    // 6,000 DZD
@@ -320,9 +417,14 @@ async function seedDatabase() {
           colors: [
             {
               colorName: 'Dusty Rose',
+              colorDisplayName: {
+                fr: 'Rose Poudré',
+                ar: 'وردي مغبر',
+                en: 'Dusty Rose'
+              },
               colorCode: '#C8A298',
               images: [
-                'https://images.unsplash.com/photo-1496747611176-843222e1e57c?q=80&w=1000&auto=format&fit=crop'
+                '/products/merya_dress_pink_2.jpg'
               ],
               sizes: [
                 { size: 'S', stock: 4 },
@@ -332,9 +434,14 @@ async function seedDatabase() {
             },
             {
               colorName: 'Caramel Macchiato',
+              colorDisplayName: {
+                fr: 'Caramel Macchiato',
+                ar: 'كراميل ماكياتو',
+                en: 'Caramel Macchiato'
+              },
               colorCode: '#8E674F',
               images: [
-                'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=1000&auto=format&fit=crop'
+                '/products/merya_dress_cream_1.jpg'
               ],
               sizes: [
                 { size: 'S', stock: 3 },
@@ -345,9 +452,17 @@ async function seedDatabase() {
           ]
         },
         {
-          name: 'Royal Organza Embroidered Kimono',
+          name: {
+            fr: 'Kimono Brodé en Organza Royal',
+            ar: 'كيمونو أورجانزا مطرز ملكي',
+            en: 'Royal Organza Embroidered Kimono'
+          },
           slug: 'royal-organza-embroidered-kimono',
-          description: 'An opulent celebratory outer layer featuring tonal floral embroidery across the hemline and cuffs. Finished with delicate hand-knotted buttons.',
+          description: {
+            fr: 'Pièce somptueuse pour vos cérémonies avec broderies florales raffinées sur l’ourlet et les poignets. Boutons faits main.',
+            ar: 'كيمونو راقي وفاخر للمناسبات مزين بتطريزات نباتية أنيقة عند الأطراف والأكمام مع أزرار يدوية الصنع.',
+            en: 'An opulent celebratory outer layer featuring tonal floral embroidery across the hemline and cuffs. Finished with delicate hand-knotted buttons.'
+          },
           category: kimonoCat._id,
           sellingPrice: 11500, // 11,500 DZD
           costPrice: 7200,     // 7,200 DZD
@@ -356,9 +471,14 @@ async function seedDatabase() {
           colors: [
             {
               colorName: 'Golden Sand',
+              colorDisplayName: {
+                fr: 'Sable Doré',
+                ar: 'رملي ذهبي',
+                en: 'Golden Sand'
+              },
               colorCode: '#D4AF37',
               images: [
-                'https://images.unsplash.com/photo-1485968579580-b6d095142e6e?q=80&w=1000&auto=format&fit=crop'
+                '/products/merya_set_cape_1.jpg'
               ],
               sizes: [
                 { size: 'S', stock: 5 },
@@ -368,9 +488,14 @@ async function seedDatabase() {
             },
             {
               colorName: 'Ivory Pearl',
+              colorDisplayName: {
+                fr: 'Perle Ivoire',
+                ar: 'لؤلؤي عاجي',
+                en: 'Ivory Pearl'
+              },
               colorCode: '#F4F0E8',
               images: [
-                'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?q=80&w=1000&auto=format&fit=crop'
+                '/products/merya_skirt_silk_1.jpg'
               ],
               sizes: [
                 { size: 'S', stock: 4 },
@@ -383,7 +508,59 @@ async function seedDatabase() {
       ];
 
       await Product.insertMany(products);
-      console.log(`[Seed] Seeded ${products.length} products with complete color-size matrices.`);
+      console.log(`[Seed] Seeded ${products.length} products with complete multilingual metadata and local assets.`);
+    }
+
+    // 5. Seed Banners if empty
+    const bannerCount = await Banner.countDocuments();
+    if (bannerCount === 0) {
+      await Banner.insertMany([
+        {
+          title: {
+            fr: 'Livraison express dans les 58 Wilayas | Paiement à la livraison',
+            ar: 'توصيل سريع متوفر إلى 58 ولاية | الدفع عند الاستلام',
+            en: 'Express delivery available across all 58 Wilayas | Cash on Delivery'
+          },
+          subtitle: {
+            fr: 'Commandez en toute confiance chez MERYA DZ',
+            ar: 'تسوقي بكل ثقة وأمان مع ماريا ديزاد',
+            en: 'Shop with full confidence at MERYA DZ'
+          },
+          buttonText: {
+            fr: 'Découvrir',
+            ar: 'اكتشفي الآن',
+            en: 'Explore Now'
+          },
+          link: '/shop',
+          image: '',
+          placement: 'top_announcement',
+          isActive: true,
+          displayOrder: 1
+        },
+        {
+          title: {
+            fr: 'Collection Modeste & Élégante 2026',
+            ar: 'تشكيلة الأناقة والحشمة 2026',
+            en: 'Modest & Elegant Collection 2026'
+          },
+          subtitle: {
+            fr: 'Des pièces intemporelles taillées dans les étoffes les plus nobles.',
+            ar: 'أزياء خالدة محتشمة مصنوعة من أجود أنواع الأقمشة الفاخرة.',
+            en: 'Timeless modest pieces tailored from the finest fabrics.'
+          },
+          buttonText: {
+            fr: 'Voir la Collection',
+            ar: 'تصفحي التشكيلة',
+            en: 'Shop the Collection'
+          },
+          link: '/shop',
+          image: '/products/merya_dress_blue_1.jpg',
+          placement: 'home_hero',
+          isActive: true,
+          displayOrder: 1
+        }
+      ]);
+      console.log('[Seed] Seeded initial promotional banners with full FR/AR/EN translations.');
     }
 
     console.log('[Seed] Database seeding completed successfully.');
