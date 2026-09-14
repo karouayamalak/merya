@@ -961,6 +961,10 @@ export async function updateOrderItemsService({
       } else {
         // New item added to order: if explicit unitPrice provided, use it; else use current product effective price
         const resolvedName = typeof prod.name === 'object' && prod.name ? (prod.name.fr || prod.name.en || prod.name.ar || 'Product') : String(prod.name || 'Product');
+        const authoritativePrice = (prod.promotion && prod.promotion.active && typeof prod.promotion.promotionalPrice === 'number' && prod.promotion.promotionalPrice > 0 && prod.promotion.promotionalPrice < prod.sellingPrice)
+          ? prod.promotion.promotionalPrice
+          : prod.sellingPrice;
+
         if (it.unitPrice !== undefined) {
           const explicitPrice = Number(it.unitPrice);
           if (!Number.isInteger(explicitPrice) || explicitPrice <= 0 || !Number.isSafeInteger(explicitPrice)) {
@@ -968,11 +972,45 @@ export async function updateOrderItemsService({
             err.statusCode = 400;
             throw err;
           }
+
+          if (explicitPrice !== authoritativePrice) {
+            // Price differs from authoritative product price — explicit override intent is mandatory
+            if (priceOverride !== true) {
+              const err = new Error(
+                `Price override for new item "${resolvedName}" (${it.colorName}, ${it.size}) requires priceOverride: true. ` +
+                `Authoritative price: ${authoritativePrice} DZD → Requested: ${explicitPrice} DZD. ` +
+                `Pass priceOverride: true and a non-empty priceOverrideReason to confirm this intentional change.`
+              );
+              err.statusCode = 400;
+              err.code = 'PRICE_OVERRIDE_REQUIRED';
+              throw err;
+            }
+            if (!priceOverrideReason || typeof priceOverrideReason !== 'string' || !priceOverrideReason.trim()) {
+              const err = new Error(
+                `A non-empty priceOverrideReason is required when overriding authoritative price for new item "${resolvedName}".`
+              );
+              err.statusCode = 400;
+              err.code = 'PRICE_OVERRIDE_REASON_REQUIRED';
+              throw err;
+            }
+            if (priceOverrideReason.trim().length > 500) {
+              const err = new Error('priceOverrideReason cannot exceed 500 characters.');
+              err.statusCode = 400;
+              throw err;
+            }
+            priceChanges.push({
+              productId: prod._id,
+              productName: resolvedName,
+              colorName: colorObj.colorName,
+              size: it.size,
+              previousPrice: authoritativePrice,
+              newPrice: explicitPrice,
+              priceOverrideReason: priceOverrideReason.trim()
+            });
+          }
           unitPrice = explicitPrice;
         } else {
-          unitPrice = (prod.promotion && prod.promotion.active && typeof prod.promotion.promotionalPrice === 'number' && prod.promotion.promotionalPrice > 0 && prod.promotion.promotionalPrice < prod.sellingPrice)
-            ? prod.promotion.promotionalPrice
-            : prod.sellingPrice;
+          unitPrice = authoritativePrice;
         }
         unitCost = prod.costPrice;
       }

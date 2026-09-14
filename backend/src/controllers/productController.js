@@ -439,8 +439,26 @@ export const updateProduct = async (req, res, next) => {
       }
     }
 
-    // Require complete translations (name + description) if attempting to publish
-    if (isActive === true) {
+    if (description !== undefined) {
+      if (typeof description === 'object' && description !== null) {
+        const currentDesc = typeof product.description === 'object' ? product.description : { fr: product.description || '', ar: '', en: '' };
+        product.description = {
+          fr: description.fr !== undefined ? description.fr : (currentDesc.fr || ''),
+          ar: description.ar !== undefined ? description.ar : (currentDesc.ar || ''),
+          en: description.en !== undefined ? description.en : (currentDesc.en || '')
+        };
+      } else if (typeof description === 'string') {
+        const currentDesc = typeof product.description === 'object' ? product.description : {};
+        product.description = {
+          ...currentDesc,
+          fr: description.trim()
+        };
+      }
+    }
+
+    // Require complete translations (name + description) if attempting to publish or remain active
+    const targetActive = isActive !== undefined ? isActive : product.isActive;
+    if (targetActive === true) {
       const candidateName = product.name;
       const candidateDesc = product.description;
       const isComplete = Boolean(
@@ -458,22 +476,6 @@ export const updateProduct = async (req, res, next) => {
       }
     }
 
-    if (description !== undefined) {
-      if (typeof description === 'object' && description !== null) {
-        const currentDesc = typeof product.description === 'object' ? product.description : { fr: product.description || '', ar: '', en: '' };
-        product.description = {
-          fr: description.fr !== undefined ? description.fr : (currentDesc.fr || ''),
-          ar: description.ar !== undefined ? description.ar : (currentDesc.ar || ''),
-          en: description.en !== undefined ? description.en : (currentDesc.en || '')
-        };
-      } else if (typeof description === 'string') {
-        const currentDesc = typeof product.description === 'object' ? product.description : {};
-        product.description = {
-          ...currentDesc,
-          fr: description.trim()
-        };
-      }
-    }
     if (category !== undefined) product.category = category;
 
     const incomingPrice = sellingPrice ?? basePrice;
@@ -586,6 +588,23 @@ export const updateProduct = async (req, res, next) => {
           })
         };
       });
+
+      // Concurrency guard: Refresh live variant stock directly from database
+      // so any concurrent checkout deductions or adjustments between findById and save are never clobbered
+      const liveProduct = await Product.findById(product._id, 'colors').lean();
+      if (liveProduct && Array.isArray(liveProduct.colors)) {
+        for (const col of product.colors) {
+          const liveCol = liveProduct.colors.find(c => c.colorName === col.colorName);
+          if (liveCol && Array.isArray(liveCol.sizes)) {
+            for (const sz of col.sizes) {
+              const liveSz = liveCol.sizes.find(s => s.size === sz.size);
+              if (liveSz) {
+                sz.stock = liveSz.stock;
+              }
+            }
+          }
+        }
+      }
     }
 
     await product.save();

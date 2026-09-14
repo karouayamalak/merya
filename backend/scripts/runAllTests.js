@@ -72,7 +72,8 @@ const testSuite = [
   { name: 'multilingualPublishingTest.js', isNodeTest: false, desc: 'Strict multilingual publishing enforcement for products, categories, and banners' },
   { name: 'searchHardeningTest.js', isNodeTest: false, desc: 'Search endpoint hardening: regex escaping, NaN price rejection, length caps' },
   { name: 'productionHardeningFinalPass.test.js', isNodeTest: true, desc: 'Production hardening final pass: images, idempotency, delivery, WS, 58 Wilayas' },
-  { name: 'authoritativeDeliverySourceOfTruth.test.js', isNodeTest: true, desc: 'Authoritative delivery pricing source of truth: wilayaRates vs legacy global fees' }
+  { name: 'authoritativeDeliverySourceOfTruth.test.js', isNodeTest: true, desc: 'Authoritative delivery pricing source of truth: wilayaRates vs legacy global fees' },
+  { name: 'productionTenOutOfTenHardening.test.js', isNodeTest: true, desc: '10/10 Hardening: variant stock overwrite race guard, translation activation, price override audit' }
 ];
 
 console.log('================================================================');
