@@ -45,10 +45,9 @@ export default function Checkout({ onBack, onOrderSuccess }) {
 
   // Submitting, Double-click protection & Cart notices
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isValidatingCart, setIsValidatingCart] = useState(false);
   const [cartNotice, setCartNotice] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
-  const [idempotencyKey, setIdempotencyKey] = useState(() => {
+  const [idempotencyKey] = useState(() => {
     try {
       const stored = sessionStorage.getItem('merya_checkout_idempotency_key');
       if (stored && /^[a-zA-Z0-9_-]{8,128}$/.test(stored)) {
@@ -204,8 +203,6 @@ export default function Checkout({ onBack, onOrderSuccess }) {
     freeDeliveryThreshold > 0 &&
     subtotal >= freeDeliveryThreshold
   );
-
-  const estimatedTotal = activeDeliveryFee !== null ? subtotal + activeDeliveryFee : null;
 
   const hasValidLiveQuote = Boolean(
     liveQuote &&

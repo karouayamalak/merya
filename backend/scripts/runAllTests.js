@@ -22,7 +22,7 @@ async function ensureServerRunning() {
   } catch {}
 
   console.log('[Runner] Server not detected on http://localhost:5000. Spawning test server...');
-  spawnedServer = spawn(process.execPath, ['src/server.js'], {
+  spawnedServer = spawn(process.execPath, ['--env-file=.env', 'src/server.js'], {
     cwd: backendRoot,
     stdio: 'ignore',
     env: { ...process.env, NODE_ENV: 'test' }
@@ -92,7 +92,7 @@ const totalStart = Date.now();
 for (let i = 0; i < testSuite.length; i++) {
   const item = testSuite[i];
   const testPath = path.join('tests', item.name);
-  const args = item.isNodeTest ? ['--test', testPath] : [testPath];
+  const args = ['--env-file=.env', ...(item.isNodeTest ? ['--test', testPath] : [testPath])];
 
   process.stdout.write(`[${i + 1}/${testSuite.length}] Running ${item.name} ... `);
   const start = Date.now();

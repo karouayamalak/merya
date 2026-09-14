@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Warehouse, Plus, Minus, Save, Check, AlertCircle, Loader2 } from 'lucide-react';
+import { Plus, Minus, Save, Check, Loader2 } from 'lucide-react';
 import { adminGetProducts, adminAdjustStock } from '../../services/api';
 import { useLanguage } from '../../context/LanguageContext';
 
