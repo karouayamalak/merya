@@ -727,8 +727,8 @@ export async function updateOrderItemsService({
       throw err;
     }
 
-    // 2. Concurrency check (CAS)
-    if (expectedVersion !== undefined && order.__v !== Number(expectedVersion)) {
+    // 2. Concurrency check (CAS) — expectedVersion is pre-validated as an integer by the controller
+    if (expectedVersion !== undefined && order.__v !== expectedVersion) {
       const err = new Error('CONCURRENT_CONFLICT: Order was modified concurrently. Please refresh and retry.');
       err.statusCode = 409;
       err.code = 'CONCURRENT_CONFLICT';

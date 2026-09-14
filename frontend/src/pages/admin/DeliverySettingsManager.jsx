@@ -69,8 +69,9 @@ export default function DeliverySettingsManager() {
     setSaving(true);
 
     try {
+      const parsedThreshold = Math.max(0, parseInt(freeThreshold, 10) || 0);
       const res = await adminUpdateDeliverySettings({
-        freeDeliveryThreshold: Number(freeThreshold),
+        freeDeliveryThreshold: parsedThreshold,
         wilayaRates: wilayaRates,
         ...(version !== null && version !== undefined ? { expectedVersion: version } : {})
       });
@@ -85,7 +86,11 @@ export default function DeliverySettingsManager() {
         }
       }
     } catch (err) {
-      setError(err.message || t('common.error'));
+      if (err.status === 409 || err.code === 'CONCURRENT_CONFLICT') {
+        setError('Settings were modified by another administrator. Please refresh the page to load the latest configuration before saving.');
+      } else {
+        setError(err.message || t('common.error'));
+      }
     } finally {
       setSaving(false);
     }

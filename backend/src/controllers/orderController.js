@@ -591,9 +591,25 @@ export const updateOrderCustomerDetails = async (req, res, next) => {
     };
 
     // ── Optimistic Concurrency Control (CAS on __v) ───────────────────────────
-    const expectedVersion = req.body.expectedVersion !== undefined
-      ? Number(req.body.expectedVersion)
-      : order.__v;
+    // Strict version validation: reject non-numbers, NaN, Infinity, decimals, negatives.
+    let expectedVersion;
+    if (req.body.expectedVersion !== undefined) {
+      const rv = req.body.expectedVersion;
+      if (
+        typeof rv !== 'number' ||
+        !Number.isFinite(rv) ||
+        !Number.isInteger(rv) ||
+        rv < 0
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: 'expectedVersion must be a finite non-negative integer.'
+        });
+      }
+      expectedVersion = rv;
+    } else {
+      expectedVersion = order.__v;
+    }
 
     // CAS: add status guard if admin is changing delivery destination/method,
     // which is the only operation that can alter financial values.
@@ -702,7 +718,7 @@ export const adjustVariantStock = async (req, res, next) => {
 export const updateOrderItems = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { items, expectedVersion, reason, priceOverride, priceOverrideReason } = req.body;
+    const { items, reason, priceOverride, priceOverrideReason } = req.body;
     const adminUsername = req.admin?.username || 'Admin';
 
     if (!items) {
@@ -710,6 +726,24 @@ export const updateOrderItems = async (req, res, next) => {
         success: false,
         message: 'items array is required'
       });
+    }
+
+    // Strict version validation: reject non-numbers, NaN, Infinity, decimals, negatives.
+    let expectedVersion;
+    if (req.body.expectedVersion !== undefined) {
+      const rv = req.body.expectedVersion;
+      if (
+        typeof rv !== 'number' ||
+        !Number.isFinite(rv) ||
+        !Number.isInteger(rv) ||
+        rv < 0
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: 'expectedVersion must be a finite non-negative integer.'
+        });
+      }
+      expectedVersion = rv;
     }
 
     const updatedOrder = await updateOrderItemsService({

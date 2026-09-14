@@ -292,12 +292,20 @@ export const updateDeliverySettings = async (req, res, next) => {
         };
       });
 
-      settings = await DeliverySetting.create({
-        singletonKey: 'default',
-        freeDeliveryThreshold: freeDeliveryThreshold !== undefined ? freeDeliveryThreshold : 0,
-        wilayaRates: canonicalRates,
-        updatedBy: req.admin?._id
-      });
+      try {
+        settings = await DeliverySetting.create({
+          singletonKey: 'default',
+          freeDeliveryThreshold: freeDeliveryThreshold !== undefined ? freeDeliveryThreshold : 0,
+          wilayaRates: canonicalRates,
+          updatedBy: req.admin?._id
+        });
+      } catch (err) {
+        if (err.code === 11000) {
+          settings = await DeliverySetting.getSingleton();
+        } else {
+          throw err;
+        }
+      }
 
       return res.json({
         success: true,
@@ -311,11 +319,29 @@ export const updateDeliverySettings = async (req, res, next) => {
     }
 
     // ── Optimistic Concurrency Control (CAS on __v) ───────────────────────────
-    const expectedVersion = req.body.expectedVersion !== undefined
-      ? Number(req.body.expectedVersion)
-      : (req.body.__v !== undefined
-          ? Number(req.body.__v)
-          : (req.body.version !== undefined ? Number(req.body.version) : settings.__v));
+    // Strict version validation: reject non-numbers, NaN, Infinity, decimals, negatives.
+    // Never use Number() coercion on untrusted input without first checking typeof.
+    const rawVersion = req.body.expectedVersion !== undefined
+      ? req.body.expectedVersion
+      : (req.body.__v !== undefined ? req.body.__v : req.body.version);
+
+    let expectedVersion;
+    if (rawVersion !== undefined) {
+      if (
+        typeof rawVersion !== 'number' ||
+        !Number.isFinite(rawVersion) ||
+        !Number.isInteger(rawVersion) ||
+        rawVersion < 0
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: 'expectedVersion must be a finite non-negative integer.'
+        });
+      }
+      expectedVersion = rawVersion;
+    } else {
+      expectedVersion = settings.__v;
+    }
 
     const updateFields = {
       updatedBy: req.admin?._id

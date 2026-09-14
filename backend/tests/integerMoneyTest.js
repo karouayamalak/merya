@@ -6,7 +6,7 @@
  *
  * Enforces integer-only DZD monetary amounts across:
  * - Product creation & update (sellingPrice, costPrice)
- * - Delivery settings (homeFee, agencyFee, agencyDeliveryFee, homeDeliveryFee, freeDeliveryThreshold)
+ * - Delivery settings (wilayaRates[].homeFee, wilayaRates[].agencyFee, freeDeliveryThreshold, and rejection of legacy global fee fields)
  * - Order checkout & line-item snapshots (unitPrice, unitCost, subtotal, deliveryFee, totalPrice)
  * - Order line-item editing
  *

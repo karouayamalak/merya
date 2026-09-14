@@ -146,7 +146,7 @@ The platform is built around these core principles:
 | **Products** | Create/edit/delete, multi-color + multi-size, image bulk upload |
 | **Categories** | Create/edit/delete/reorder, image upload, active toggle |
 | **Inventory** | Per-variant quick stock adjustment table |
-| **Delivery Settings** | Global fees + per-wilaya overrides for all 58 wilayas |
+| **Delivery Settings** | Authoritative per-wilaya rates for all 58 wilayas (home & agency fees) |
 
 ---
 
@@ -642,9 +642,11 @@ INITIAL_ADMIN_USERNAME="Store Owner"
 - Inline quick-adjust input for rapid stock corrections
 
 #### 🚚 Delivery Settings Manager
-- Configure global agency and home delivery base fees
-- Override fees per wilaya (all 58 wilaya individually configurable)
-- Toggle wilaya availability
+- Authoritative per-wilaya rates across all 58 Algerian wilayas (`wilayaRates[]`)
+- Distinct Home Delivery (à domicile) and Agency Pickup (stopdesk) fees per wilaya (integer DZD)
+- Free delivery threshold configuration (order subtotal threshold in DZD)
+- Toggle individual wilaya availability (fail-closed for disabled zones)
+- Optimistic Concurrency Control (CAS on `__v`) preventing conflicting admin overwrites
 
 ---
 
@@ -726,87 +728,103 @@ Runs a full verification pipeline against the live servers:
 
 ## Deployment
 
-### Prerequisites
-- VPS or cloud instance with Node.js 20+
-- MongoDB Atlas cluster (or self-hosted MongoDB)
-- A domain name with HTTPS (SSL certificate via Let's Encrypt or Cloudflare)
+## Deployment
 
-### Backend
+### Render Deployment (Backend Web Service)
+
+The repository includes a ready-to-deploy [`render.yaml`](render.yaml) blueprint configuring the backend as a Render Web Service.
+
+| Setting | Value | Description |
+|---|---|---|
+| **Service Type** | Web Service | Node.js web application |
+| **Runtime** | `node` | Node.js 20+ runtime environment |
+| **Root Directory** | `backend` | Backend application root directory |
+| **Build Command** | `npm install` | Clean install of dependencies |
+| **Start Command** | `npm start` | Executes `node src/server.js` |
+| **Health Check Path** | `/health` | Lightweight liveness probe (HTTP 200) |
+| **Readiness Probe** | `/ready` or `/health/ready` | MongoDB connectivity check (HTTP 200/503) |
+| **Listening Host** | `0.0.0.0` | Injected via `HOST=0.0.0.0` |
+| **Port** | Injected by Render (`process.env.PORT`) | Defaults to 10000 on Render, 5000 locally |
+
+### Required Environment Variables
+
+#### Backend (`backend/.env` / Render Dashboard)
+
+| Variable | Required in Production | Description |
+|---|---|---|
+| `NODE_ENV` | Yes | Must be set to `production`. Activates strict CORS, Secure cookies, and fails fast if critical keys are missing. |
+| `PORT` | Yes (injected) | Injected automatically by Render (default `10000`). |
+| `HOST` | Yes | Set to `0.0.0.0` for container binding. |
+| `MONGODB_URI` | Yes | MongoDB Atlas replica set URI. **Must support multi-document transactions** (e.g. `mongodb+srv://...`). |
+| `JWT_SECRET` | Yes | Cryptographic secret for signing admin JWT tokens (min 64 hex characters). Never commit to git. |
+| `COOKIE_SECRET` | Yes | Secret for signing HTTP cookies. |
+| `CSRF_SECRET` | Yes | Secret for HMAC-SHA256 CSRF double-submit token verification. |
+| `CLIENT_ORIGIN` | Yes | Production URL of the frontend (e.g. `https://merya.vercel.app`). Enforces strict CORS and WebSocket Origin validation. |
+| `COOKIE_SAME_SITE` | Yes | Set to `none` when frontend and backend are hosted on different domains (e.g. Vercel + Render). |
+| `CLOUDINARY_CLOUD_NAME` | Yes | Cloudinary cloud name for persistent product/category image uploads. |
+| `CLOUDINARY_API_KEY` | Yes | Cloudinary API key. |
+| `CLOUDINARY_API_SECRET` | Yes | Cloudinary API secret. Image uploads fail fast if Cloudinary is omitted in production. |
+| `INITIAL_ADMIN_EMAIL` | Optional | Admin bootstrap email for initial database seeding. |
+| `INITIAL_ADMIN_PASSWORD` | Optional | Admin bootstrap password for initial database seeding. |
+| `INITIAL_ADMIN_USERNAME` | Optional | Admin display name (default: "Store Owner"). |
+
+#### Frontend (`frontend/.env` / Vercel Dashboard)
+
+| Variable | Description | Example |
+|---|---|---|
+| `VITE_API_URL` | Backend base URL for REST API | `https://merya-api.onrender.com` |
+| `VITE_BACKEND_URL` | Backend root URL for static assets | `https://merya-api.onrender.com` |
+| `VITE_WS_URL` | Backend WebSocket endpoint | `wss://merya-api.onrender.com/ws` |
+
+> 🔒 **Security Notice:** Never prefix backend secret keys (`JWT_SECRET`, `MONGODB_URI`, `CLOUDINARY_API_SECRET`) with `VITE_`. Any `VITE_*` variable is bundled directly into public client-side JavaScript.
+
+---
+
+### Delivery Pricing Architecture
+
+1. **Sole Authoritative Model:**
+   The only authoritative source of delivery pricing is the database singleton document:
+   `DeliverySetting.wilayaRates[]`.
+2. **58 Wilayas Enforcement:**
+   Every configuration must contain exactly 58 entries corresponding to canonical Algerian wilayas 1 through 58.
+3. **Strict Integer DZD Pricing:**
+   `homeFee` and `agencyFee` must be finite, non-negative integers in Algerian Dinars (DZD). Fractional amounts, strings, negatives, and NaN values are strictly rejected.
+4. **Client-Supplied Fees Ignored:**
+   Client-provided `deliveryFee`, `totalPrice`, or legacy global fees (`agencyDeliveryFee`, `homeDeliveryFee`) are never trusted, never accepted, and never override server calculations.
+5. **Historical Immutability:**
+   When delivery rates change in admin settings, previously placed orders retain their original `Order.deliveryFee` snapshots permanently.
+6. **Optimistic Concurrency Control (OCC):**
+   Delivery setting updates require matching `expectedVersion` (CAS on `__v`). Stale updates receive `HTTP 409 CONCURRENT_CONFLICT`.
+
+---
+
+### Database Seed & Migration Procedure
+
+Run from the `backend/` directory:
 
 ```bash
-# Install production dependencies
+# 1. Initial Database Seed (creates default admin, categories, products, and 58 wilayas)
 cd backend
-npm install --omit=dev
+node src/seed/seed.js
 
-# Set all environment variables in .env
-# Ensure NODE_ENV=production
-
-# Start with a process manager (recommended: PM2)
-npm install -g pm2
-pm2 start src/server.js --name merya-backend
-pm2 save
-pm2 startup
+# 2. Normalize 58 Wilayas (verifies 58 wilayas, unsets legacy global fee fields if present)
+node src/seed/normalize58Wilayas.js
 ```
 
-### Frontend
+---
 
-```bash
-cd frontend
-npm run build
-# Deploy the generated /dist folder to your static hosting or CDN
-# (Vercel, Netlify, Nginx, etc.)
-```
+### Production Deployment Checklist
 
-### Nginx Reverse Proxy (example)
-
-```nginx
-server {
-    listen 443 ssl;
-    server_name meryadz.com;
-
-    # Serve frontend static files
-    root /var/www/merya/frontend/dist;
-    index index.html;
-    try_files $uri $uri/ /index.html;
-
-    # Proxy API requests to backend
-    location /api/ {
-        proxy_pass http://localhost:5000;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-
-    # Proxy WebSocket connections
-    location /ws {
-        proxy_pass http://localhost:5000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-    }
-
-    # Serve uploaded images
-    location /uploads/ {
-        alias /var/www/merya/backend/uploads/;
-        expires 30d;
-        add_header Cache-Control "public, immutable";
-    }
-}
-```
-
-### Important Production Checklist
-
-- [ ] Configure `INITIAL_ADMIN_EMAIL` and strong `INITIAL_ADMIN_PASSWORD` in production secrets before running `npm run seed`
-- [ ] Set strong random `JWT_SECRET` (min 64 chars)
-- [ ] Set strong random `COOKIE_SECRET`
-- [ ] Set `NODE_ENV=production`
-- [ ] Point `CLIENT_ORIGIN` to your real domain (e.g. `https://meryadz.com`)
-- [ ] Ensure `TRUST_PROXY=1` is configured for reverse proxy (Render edge load balancer)
-- [ ] Confirm `/health` (liveness) and `/ready` (database readiness) probes respond successfully
-- [ ] Enable HTTPS — JWT cookies require `Secure` flag in production
-- [ ] Set up MongoDB Atlas backups
-- [ ] Configure PM2 / cloud runner to auto-restart on crash
-- [ ] Set up log rotation
+- [ ] `NODE_ENV=production` set on Render service
+- [ ] `HOST=0.0.0.0` configured
+- [ ] `MONGODB_URI` points to MongoDB Atlas replica set with transaction support
+- [ ] `CLIENT_ORIGIN` matches exact production frontend URL (no trailing slash)
+- [ ] `COOKIE_SAME_SITE=none` configured for cross-domain SPA
+- [ ] Cloudinary environment variables configured for persistent uploads
+- [ ] `/health` responds with HTTP 200 (liveness)
+- [ ] `/ready` responds with HTTP 200 (database readiness)
+- [ ] Initial database seed executed (`node src/seed/seed.js`)
+- [ ] All 30 test suites pass (`npm run test:all`)
 
 ---
 
