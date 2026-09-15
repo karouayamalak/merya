@@ -1076,7 +1076,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                           <Loader2 size={19} className="animate-spin" />
                           <span>{t('checkout.loadingRates')}</span>
                         </>
-                      ) : Boolean(settingsError) ? (
+                      ) : settingsError ? (
                         <>
                           <AlertCircle size={19} />
                           <span>{t('checkout.ratesUnavailable')}</span>

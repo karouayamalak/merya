@@ -5,7 +5,7 @@ import { fetchProducts, fetchCategories } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 
 export default function Shop({ selectedCategory, setSelectedCategory, onSelectProduct }) {
-  const { t, isRtl, localized } = useLanguage();
+  const { t, localized } = useLanguage();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [search, setSearch] = useState('');

@@ -30,6 +30,31 @@ export default function OrderTracking({ initialPhone = '', initialOrderCode = ''
   const [orderData, setOrderData] = useState(null);
   const [liveFlash, setLiveFlash] = useState(false);
 
+  const handleLookup = async (phoneVal = phone, codeVal = orderCode) => {
+    if (!phoneVal.trim() || !codeVal.trim()) {
+      setError(t('tracking.enterPhoneAndCode'));
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const res = await trackOrder(phoneVal.trim(), codeVal.trim().toUpperCase());
+      if (res.success) {
+        setOrderData(res.order);
+      } else {
+        setError(res.message || t('tracking.notFoundDesc'));
+        setOrderData(null);
+      }
+    } catch (err) {
+      setError(err.message || t('tracking.notFoundDesc'));
+      setOrderData(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // If initial props are provided, trigger search automatically
   useEffect(() => {
     if (initialPhone && initialOrderCode) {
@@ -60,31 +85,6 @@ export default function OrderTracking({ initialPhone = '', initialOrderCode = ''
 
     return () => unsubscribe();
   }, [orderData?.orderCode, phone, subscribeOrder]);
-
-  const handleLookup = async (phoneVal = phone, codeVal = orderCode) => {
-    if (!phoneVal.trim() || !codeVal.trim()) {
-      setError(t('tracking.enterPhoneAndCode'));
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-
-    try {
-      const res = await trackOrder(phoneVal.trim(), codeVal.trim().toUpperCase());
-      if (res.success) {
-        setOrderData(res.order);
-      } else {
-        setError(res.message || t('tracking.notFoundDesc'));
-        setOrderData(null);
-      }
-    } catch (err) {
-      setError(err.message || t('tracking.notFoundDesc'));
-      setOrderData(null);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const getStepIndex = (status, steps) => {
     if (status === 'Cancelled') return -1;

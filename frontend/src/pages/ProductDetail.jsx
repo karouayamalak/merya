@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, ShoppingBag, ShieldCheck, Truck, RotateCcw, Check, AlertCircle } from 'lucide-react';
+import { ArrowLeft, ShoppingBag, ShieldCheck, Truck, Check, AlertCircle } from 'lucide-react';
 import { useCart } from '../context/CartContext';
-import ProductCard from '../components/ProductCard';
 import { getImageUrl } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 
-export default function ProductDetail({ product, onBack, onSelectRelated }) {
+export default function ProductDetail({ product, onBack, _onSelectRelated }) {
   const { addToCart } = useCart();
   const { t, formatCurrency, isRtl, localized } = useLanguage();
 

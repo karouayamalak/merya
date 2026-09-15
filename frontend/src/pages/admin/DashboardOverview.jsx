@@ -15,7 +15,7 @@ import { adminGetDashboard } from '../../services/api';
 import { useLanguage } from '../../context/LanguageContext';
 
 export default function DashboardOverview({ onNavigateToOrders }) {
-  const { t, formatCurrency, isRtl, localized } = useLanguage();
+  const { t, formatCurrency, localized } = useLanguage();
   const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
 
