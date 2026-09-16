@@ -13,7 +13,8 @@
     "dev": "node --watch src/server.js",
     "seed": "node src/seed/seed.js",
     "test": "node --env-file=.env --test --test-concurrency=1 tests/**/*.test.js",
-    "test:all": "node --env-file=.env scripts/runAllTests.js"
+    "test:all": "node --env-file=.env scripts/runAllTests.js",
+    "reset:blank": "node scripts/resetToBlankStore.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

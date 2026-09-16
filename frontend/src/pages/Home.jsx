@@ -200,6 +200,10 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
                 <div key={n} className="skeleton" style={{ height: '360px', borderRadius: 'var(--radius-xl)' }} />
               ))}
             </div>
+          ) : categories.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: '#777' }}>
+              <p style={{ fontSize: '0.95rem' }}>{t('shop.noProducts')}</p>
+            </div>
           ) : (
             <div style={{
               display: 'grid',
@@ -321,6 +325,10 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
                   <div className="skeleton" style={{ height: '16px', width: '40%' }} />
                 </div>
               ))}
+            </div>
+          ) : bestSellers.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: '#777' }}>
+              <p style={{ fontSize: '0.95rem' }}>{t('shop.noProducts')}</p>
             </div>
           ) : (
             <div style={{
