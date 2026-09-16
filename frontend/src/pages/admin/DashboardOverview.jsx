@@ -55,9 +55,9 @@ export default function DashboardOverview({ onNavigateToOrders }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
       {/* Top Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.85rem' }}>
         <div>
-          <h1 className="heading-display" style={{ fontSize: '1.8rem', color: 'var(--color-espresso)' }}>
+          <h1 className="heading-display" style={{ fontSize: '1.6rem', color: 'var(--color-espresso)' }}>
             {t('admin.dashboard.title').toUpperCase()}
           </h1>
           <p style={{ fontSize: '0.85rem', color: '#666', marginTop: '0.2rem' }}>
@@ -78,8 +78,8 @@ export default function DashboardOverview({ onNavigateToOrders }) {
       {/* Primary KPI Cards */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-        gap: '1.5rem'
+        gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+        gap: '1rem'
       }}>
         {/* Realized Revenue */}
         <div style={{
