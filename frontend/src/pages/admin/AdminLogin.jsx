@@ -78,7 +78,7 @@ export default function AdminLogin({ onLoginSuccess, onBackToStore }) {
             fontSize: '0.85rem',
             marginBottom: '1.5rem'
           }}>
-            <AlertCircle size={16} flexShrink={0} />
+            <AlertCircle size={16} style={{ flexShrink: 0 }} />
             <span>{error}</span>
           </div>
         )}

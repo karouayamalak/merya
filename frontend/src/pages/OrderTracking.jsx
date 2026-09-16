@@ -220,7 +220,7 @@ export default function OrderTracking({ initialPhone = '', initialOrderCode = ''
               gap: '0.6rem',
               fontSize: '0.85rem'
             }}>
-              <AlertCircle size={17} flexShrink={0} />
+              <AlertCircle size={17} style={{ flexShrink: 0 }} />
               <span>{error}</span>
             </div>
           )}

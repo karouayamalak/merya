@@ -236,7 +236,6 @@ export default function Checkout({ onBack, onOrderSuccess }) {
     !isWilayaAvailable ||
     items.length === 0 ||
     isSubmitting === true ||
-    isValidatingCart === true ||
     liveQuoteLoading === true ||
     !hasValidLiveQuote;
 
@@ -715,7 +714,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                   zIndex: 2
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.84rem' }}>
-                    <AlertCircle size={18} flexShrink={0} />
+                    <AlertCircle size={18} style={{ flexShrink: 0 }} />
                     <span>{settingsError || t('checkout.deliverySettingsError')}</span>
                   </div>
                   <button
@@ -756,7 +755,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                   position: 'relative',
                   zIndex: 2
                 }}>
-                  <AlertCircle size={20} flexShrink={0} color="#D97706" />
+                  <AlertCircle size={20} color="#D97706" style={{ flexShrink: 0 }} />
                   <div style={{ flex: 1 }}>{cartNotice}</div>
                 </div>
               )}
@@ -777,7 +776,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                   position: 'relative',
                   zIndex: 2
                 }}>
-                  <AlertCircle size={17} flexShrink={0} />
+                  <AlertCircle size={17} style={{ flexShrink: 0 }} />
                   <span>{errorMessage}</span>
                 </div>
               )}
@@ -882,7 +881,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                           fontSize: '0.8rem',
                           color: '#B91C1C'
                         }}>
-                          <AlertCircle size={14} flexShrink={0} />
+                          <AlertCircle size={14} style={{ flexShrink: 0 }} />
                           <span>{t('checkout.wilayaSuspended')}</span>
                         </div>
                       )}
@@ -1443,7 +1442,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
               gap: '0.65rem',
               alignItems: 'flex-start'
             }}>
-              <ShieldCheck size={20} color="#9F8268" flexShrink={0} style={{ marginTop: '2px' }} />
+              <ShieldCheck size={20} color="#9F8268" style={{ marginTop: '2px', flexShrink: 0 }} />
               <div>
                 <strong style={{ color: '#2A241F' }}>{t('checkout.codGuaranteeTitle')}</strong> {t('checkout.codGuaranteeDesc')}
               </div>
