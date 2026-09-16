@@ -14,6 +14,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const backendRoot = path.resolve(__dirname, '..');
 
+const testDbUri = process.env.MONGODB_TEST_URI || process.env.MONGODB_LOCAL_URI || process.env.MONGODB_URI;
+
 let spawnedServer = null;
 async function ensureServerRunning() {
   try {
@@ -25,7 +27,7 @@ async function ensureServerRunning() {
   spawnedServer = spawn(process.execPath, ['--env-file=.env', 'src/server.js'], {
     cwd: backendRoot,
     stdio: 'ignore',
-    env: { ...process.env, NODE_ENV: 'test' }
+    env: { ...process.env, NODE_ENV: 'test', MONGODB_URI: testDbUri }
   });
 
   const deadline = Date.now() + 15000;
@@ -102,7 +104,7 @@ for (let i = 0; i < testSuite.length; i++) {
   const child = spawnSync(process.execPath, args, {
     cwd: backendRoot,
     encoding: 'utf8',
-    env: { ...process.env, NODE_ENV: 'test' },
+    env: { ...process.env, NODE_ENV: 'test', MONGODB_URI: testDbUri },
     timeout: 60000 // 60s per test file max
   });
 

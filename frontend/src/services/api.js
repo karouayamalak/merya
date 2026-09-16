@@ -94,9 +94,14 @@ async function request(endpoint, options = {}) {
   }
 
   if (!res.ok) {
-    const err = new Error(data.message || (data.errors ? data.errors.join(', ') : 'Request failed'));
+    let errorMsg = data.message || 'Request failed';
+    if (data.errors && Array.isArray(data.errors) && data.errors.length > 0) {
+      errorMsg = `${errorMsg}: ${data.errors.join(', ')}`;
+    }
+    const err = new Error(errorMsg);
     err.status = res.status;
     err.code = data.code || null;
+    err.errors = data.errors || null;
     throw err;
   }
 

@@ -1,4 +1,14 @@
+import dns from 'node:dns';
 import mongoose from 'mongoose';
+
+// Ensure DNS resolution succeeds for mongodb+srv on systems where default DNS fails SRV lookup
+if (typeof dns.setServers === 'function') {
+  try {
+    dns.setServers(['8.8.8.8', '1.1.1.1']);
+  } catch (e) {
+    // Non-critical if network environment restricts setting custom DNS
+  }
+}
 
 export const connectDB = async () => {
   const isProduction = process.env.NODE_ENV === 'production';

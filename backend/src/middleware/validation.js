@@ -132,14 +132,16 @@ export const adminLoginSchema = z.object({
 
 // Strict multilingual schemas for product name & description
 const multilingualStringSchema = (maxLength = 150) => z.object({
-  fr: z.string({ invalid_type_error: 'French translation must be a string' }).max(maxLength).optional().default(''),
-  ar: z.string({ invalid_type_error: 'Arabic translation must be a string' }).max(maxLength).optional().default(''),
-  en: z.string({ invalid_type_error: 'English translation must be a string' }).max(maxLength).optional().default('')
+  fr: z.string({ invalid_type_error: 'French translation must be a string' }).max(maxLength).nullable().optional().transform(v => (v ?? '').trim()),
+  ar: z.string({ invalid_type_error: 'Arabic translation must be a string' }).max(maxLength).nullable().optional().transform(v => (v ?? '').trim()),
+  en: z.string({ invalid_type_error: 'English translation must be a string' }).max(maxLength).nullable().optional().transform(v => (v ?? '').trim())
 }, { invalid_type_error: 'Must be an object with language keys: fr, ar, en' });
 
 const localizedFieldSchema = (maxLength = 150) => z.union([
   multilingualStringSchema(maxLength),
-  z.string().max(maxLength).transform(s => ({ fr: s, ar: '', en: '' }))
+  z.string().max(maxLength).transform(s => ({ fr: s.trim(), ar: '', en: '' })),
+  z.null().transform(() => ({ fr: '', ar: '', en: '' })),
+  z.undefined().transform(() => ({ fr: '', ar: '', en: '' }))
 ]);
 
 // Helper to validate color and size uniqueness
@@ -180,22 +182,30 @@ export const productSchema = z.object({
   name: localizedFieldSchema(150),
   description: localizedFieldSchema(3000),
   category: z.string().min(1, 'Category is required'),
-  sellingPrice: z.number().int({ message: 'Selling price must be an integer in DZD' }).positive({ message: 'Selling price must be positive' }).optional(),
-  basePrice: z.number().int({ message: 'Base price must be an integer in DZD' }).positive({ message: 'Base price must be positive' }).optional(),
-  costPrice: z.number().int({ message: 'Cost price must be an integer in DZD' }).nonnegative({ message: 'Cost price cannot be negative' }),
+  sellingPrice: z.coerce.number().int({ message: 'Selling price must be an integer in DZD' }).positive({ message: 'Selling price must be positive' }).optional(),
+  basePrice: z.coerce.number().int({ message: 'Base price must be an integer in DZD' }).positive({ message: 'Base price must be positive' }).optional(),
+  costPrice: z.coerce.number().int({ message: 'Cost price must be an integer in DZD' }).nonnegative({ message: 'Cost price cannot be negative' }),
   promotion: z.object({
     active: z.boolean().default(false),
-    promotionalPrice: z.number().int({ message: 'Promotional price must be an integer in DZD' }).positive({ message: 'Promotional price must be positive' }).nullable().optional()
+    promotionalPrice: z.union([
+      z.coerce.number().int({ message: 'Promotional price must be an integer in DZD' }).positive({ message: 'Promotional price must be positive' }),
+      z.null(),
+      z.literal(''),
+      z.undefined()
+    ]).optional().transform(v => (v === '' || v === null || v === undefined) ? null : Number(v))
   }).optional(),
   isActive: z.boolean().optional(),
   isBestSeller: z.boolean().optional(),
   colors: z.array(z.object({
-    colorName: z.string().min(1, 'Color name is required').max(50),
-    colorDisplayName: localizedFieldSchema(50).optional(),
+    _id: z.any().optional(),
+    colorName: z.string().min(1, 'Color name is required').max(100),
+    colorDisplayName: localizedFieldSchema(100).optional(),
     colorCode: z.string().min(1, 'Color code is required'),
     images: z.array(z.string()).min(1, 'At least one image is required per color'),
     sizes: z.array(z.object({
-      size: z.enum(['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Standard', 'One Size'])
+      _id: z.any().optional(),
+      size: z.enum(['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Standard', 'One Size']),
+      stock: z.coerce.number().int().nonnegative().optional().default(0)
     })).min(1, 'At least one size is required')
   })).min(1, 'At least one color variant is required')
 }).superRefine((data, ctx) => {
@@ -262,25 +272,32 @@ export const updateProductSchema = z.object({
   name: localizedFieldSchema(150).optional(),
   description: localizedFieldSchema(3000).optional(),
   category: z.string().min(1).optional(),
-  sellingPrice: z.number().int({ message: 'Selling price must be an integer in DZD' }).positive({ message: 'Selling price must be positive' }).optional(),
-  basePrice: z.number().int({ message: 'Base price must be an integer in DZD' }).positive({ message: 'Base price must be positive' }).optional(),
-  costPrice: z.number().int({ message: 'Cost price must be an integer in DZD' }).nonnegative({ message: 'Cost price cannot be negative' }).optional(),
+  sellingPrice: z.coerce.number().int({ message: 'Selling price must be an integer in DZD' }).positive({ message: 'Selling price must be positive' }).optional(),
+  basePrice: z.coerce.number().int({ message: 'Base price must be an integer in DZD' }).positive({ message: 'Base price must be positive' }).optional(),
+  costPrice: z.coerce.number().int({ message: 'Cost price must be an integer in DZD' }).nonnegative({ message: 'Cost price cannot be negative' }).optional(),
   promotion: z.object({
-    active: z.boolean(),
-    promotionalPrice: z.number().int({ message: 'Promotional price must be an integer in DZD' }).positive({ message: 'Promotional price must be positive' }).nullable().optional()
+    active: z.boolean().default(false),
+    promotionalPrice: z.union([
+      z.coerce.number().int({ message: 'Promotional price must be an integer in DZD' }).positive({ message: 'Promotional price must be positive' }),
+      z.null(),
+      z.literal(''),
+      z.undefined()
+    ]).optional().transform(v => (v === '' || v === null || v === undefined) ? null : Number(v))
   }).optional(),
   isActive: z.boolean().optional(),
   isBestSeller: z.boolean().optional(),
   isArchived: z.boolean().optional(),
   expectedVersion: z.number().int().nonnegative().optional(),
   colors: z.array(z.object({
-    colorName: z.string().min(1).max(50),
-    colorDisplayName: localizedFieldSchema(50).optional(),
-    colorCode: z.string().min(1),
-    images: z.array(z.string()).optional(),
+    _id: z.any().optional(),
+    colorName: z.string().min(1, 'Color name is required').max(100),
+    colorDisplayName: localizedFieldSchema(100).optional(),
+    colorCode: z.string().min(1, 'Color code is required'),
+    images: z.array(z.string()).optional().default([]),
     sizes: z.array(z.object({
+      _id: z.any().optional(),
       size: z.enum(['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Standard', 'One Size']),
-      stock: z.number().int().nonnegative().optional()
+      stock: z.coerce.number().int().nonnegative().optional().default(0)
     })).optional()
   })).optional()
 }).superRefine((data, ctx) => {
