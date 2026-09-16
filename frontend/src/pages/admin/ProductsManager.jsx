@@ -335,7 +335,7 @@ export default function ProductsManager() {
               <tr style={{ backgroundColor: 'var(--color-bg-card)', borderBottom: '1px solid var(--color-border)' }}>
                 <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.products.productName')}</th>
                 <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.products.category')}</th>
-                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Translations</th>
+                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.products.translations')}</th>
                 <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.products.sellingPrice')}</th>
                 <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.products.costPrice')}</th>
                 <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.products.variants')}</th>
@@ -461,7 +461,7 @@ export default function ProductsManager() {
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid var(--color-border)', paddingBottom: '1rem' }}>
               <h2 style={{ fontSize: '1.3rem', fontWeight: '800' }}>
-                {editingProduct ? 'Edit Product' : 'Create New Product'}
+                {editingProduct ? t('admin.products.editProduct') : t('admin.products.createNewProduct')}
               </h2>
               <button onClick={() => setModalOpen(false)}><X size={22} /></button>
             </div>
@@ -501,7 +501,7 @@ export default function ProductsManager() {
                 <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1rem', marginBottom: '0.75rem' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>
-                      Product Name ({activeLang.toUpperCase()}){activeLang === 'fr' && <span style={{ color: 'var(--color-danger)' }}> *</span>}
+                      {t('admin.products.productName')} ({activeLang.toUpperCase()}){activeLang === 'fr' && <span style={{ color: 'var(--color-danger)' }}> *</span>}
                     </label>
                     <input
                       type="text"
@@ -514,7 +514,7 @@ export default function ProductsManager() {
                   </div>
 
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>Category *</label>
+                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>{t('admin.products.category')} *</label>
                     <select
                       value={categoryId}
                       onChange={(e) => setCategoryId(e.target.value)}
@@ -530,7 +530,7 @@ export default function ProductsManager() {
 
                 <div>
                   <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>
-                    Description ({activeLang.toUpperCase()})
+                    {t('admin.categories.description')} ({activeLang.toUpperCase()})
                   </label>
                   <textarea
                     rows={3}
@@ -545,7 +545,7 @@ export default function ProductsManager() {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '1rem' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>Selling Price (DZD) *</label>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>{t('admin.products.sellingPrice')} (DA) *</label>
                   <input
                     type="number"
                     required
@@ -556,7 +556,7 @@ export default function ProductsManager() {
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>Cost Price (DZD) *</label>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>{t('admin.products.costPrice')} (DA) *</label>
                   <input
                     type="number"
                     required
@@ -573,7 +573,7 @@ export default function ProductsManager() {
                     checked={isBestSeller}
                     onChange={(e) => setIsBestSeller(e.target.checked)}
                   />
-                  <label htmlFor="bestSellerCheck" style={{ fontSize: '0.85rem', fontWeight: '600' }}>Best Seller</label>
+                  <label htmlFor="bestSellerCheck" style={{ fontSize: '0.85rem', fontWeight: '600' }}>{t('admin.products.bestSeller')}</label>
                 </div>
 
                 <div style={{ paddingTop: '1.2rem' }}>
@@ -594,7 +594,7 @@ export default function ProductsManager() {
                       }}
                     />
                     <label htmlFor="activeCheck" style={{ fontSize: '0.85rem', fontWeight: '600', cursor: 'pointer' }}>
-                      Active (Published to store)
+                      {t('admin.products.activePublished')}
                     </label>
                   </div>
                   {(!name.fr?.trim() || !name.ar?.trim() || !name.en?.trim()) && (

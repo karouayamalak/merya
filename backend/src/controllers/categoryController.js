@@ -38,13 +38,16 @@ const extractBaseName = (name) => {
   return name.fr || name.en || name.ar || '';
 };
 
-// Public: Get active, non-archived categories sorted by displayOrder
+// Public: Get active, non-archived categories sorted by displayOrder.
+// Defense-in-depth: enforces translation completeness so incomplete/legacy records are never exposed.
 export const getCategories = async (req, res, next) => {
   try {
-    const categories = await Category.find({
+    const rawCategories = await Category.find({
       isActive: true,
       isArchived: false
     }).sort({ displayOrder: 1, createdAt: 1 });
+
+    const categories = rawCategories.filter(cat => isCategoryFullyTranslated(cat));
 
     res.json({ success: true, count: categories.length, categories });
   } catch (error) {
@@ -106,7 +109,8 @@ export const createCategory = async (req, res, next) => {
       });
     }
 
-    const effectiveIsActive = isActive !== undefined ? Boolean(isActive) : true;
+    // When isActive is omitted: only activate if complete, otherwise safely default to inactive draft
+    const effectiveIsActive = isActive !== undefined ? Boolean(isActive) : isComplete;
 
     const category = new Category({
       name,

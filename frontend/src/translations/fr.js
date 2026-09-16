@@ -364,6 +364,26 @@ export default {
       variants: 'Variantes (Couleurs & Tailles)',
       editProduct: 'Modifier le produit',
       archiveProduct: 'Archiver le produit',
+      uploadImage: 'Téléverser image',
+      translations: 'Traductions',
+      createNewProduct: 'Créer un nouveau produit',
+      bestSeller: 'Coup de cœur',
+      activePublished: 'Actif (Publié dans la boutique)'
+    },
+    banners: {
+      title: 'Promotions & Bannières',
+      subtitle: 'Gérez les bannières promotionnelles sur la boutique (multilingue)',
+      addBanner: 'Ajouter une bannière',
+      image: 'Image',
+      bannerTitle: 'Titre',
+      placement: 'Emplacement',
+      ctaLink: 'Lien CTA',
+      order: 'Ordre',
+      status: 'Statut',
+      noBanners: 'Aucune bannière pour le moment. Cliquez sur "Ajouter une bannière" pour en créer une.',
+      editBanner: 'Modifier la bannière',
+      createBanner: 'Créer une bannière',
+      replaceImage: 'Remplacer l\'image',
       uploadImage: 'Téléverser image'
     },
     categories: {

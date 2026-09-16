@@ -67,7 +67,7 @@ function TranslationBadge({ field }) {
 }
 
 export default function BannersManager() {
-  const { isRtl } = useLanguage();
+  const { t, isRtl } = useLanguage();
   const [banners, setBanners] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -217,15 +217,15 @@ export default function BannersManager() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
         <div>
           <h1 className="heading-display" style={{ fontSize: '1.8rem', color: 'var(--color-espresso)' }}>
-            BANNERS MANAGER
+            {t('admin.banners.title')}
           </h1>
           <p style={{ fontSize: '0.85rem', color: '#666', marginTop: '0.2rem' }}>
-            Manage promotional banners across the storefront (multilingual)
+            {t('admin.banners.subtitle')}
           </p>
         </div>
         <button onClick={openCreate} className="btn btn-primary btn-sm">
           <Plus size={16} className="rtl-flip" />
-          <span>Add Banner</span>
+          <span>{t('admin.banners.addBanner')}</span>
         </button>
       </div>
 
@@ -281,20 +281,20 @@ export default function BannersManager() {
           </div>
         ) : banners.length === 0 ? (
           <div style={{ padding: '3rem', textAlign: 'center', color: '#777' }}>
-            <p>No banners yet. Click "Add Banner" to create one.</p>
+            <p>{t('admin.banners.noBanners')}</p>
           </div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: isRtl ? 'right' : 'left', fontSize: '0.88rem' }}>
             <thead>
               <tr style={{ backgroundColor: 'var(--color-bg-card)', borderBottom: '1px solid var(--color-border)' }}>
-                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Image</th>
-                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Title</th>
-                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Translations</th>
-                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Placement</th>
-                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>CTA Link</th>
-                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Order</th>
-                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Status</th>
-                <th style={{ padding: '1rem', textAlign: isRtl ? 'left' : 'right' }}>Actions</th>
+                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.banners.image')}</th>
+                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.banners.bannerTitle')}</th>
+                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.products.translations')}</th>
+                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.banners.placement')}</th>
+                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.banners.ctaLink')}</th>
+                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.banners.order')}</th>
+                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.banners.status')}</th>
+                <th style={{ padding: '1rem', textAlign: isRtl ? 'left' : 'right' }}>{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -324,15 +324,15 @@ export default function BannersManager() {
                   <td style={{ padding: '1rem' }}>{b.displayOrder}</td>
                   <td style={{ padding: '1rem' }}>
                     {b.isActive
-                      ? <span className="badge badge-delivered">Active</span>
-                      : <span className="badge badge-cancelled">Inactive</span>
+                      ? <span className="badge badge-delivered">{t('admin.products.active')}</span>
+                      : <span className="badge badge-cancelled">{t('admin.products.inactive')}</span>
                     }
                   </td>
                   <td style={{ padding: '1rem', textAlign: isRtl ? 'left' : 'right' }}>
                     <div style={{ display: 'inline-flex', gap: '0.5rem' }}>
                       <button onClick={() => openEdit(b)} className="btn btn-secondary btn-sm" style={{ padding: '0.35rem 0.7rem' }}>
                         <Edit2 size={13} />
-                        <span>Edit</span>
+                        <span>{t('common.edit')}</span>
                       </button>
                       <button onClick={() => handleDelete(b)} className="btn btn-secondary btn-sm" style={{ padding: '0.35rem 0.7rem', color: 'var(--color-danger)' }}>
                         <Trash2 size={13} />
@@ -360,7 +360,7 @@ export default function BannersManager() {
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid var(--color-border)', paddingBottom: '1rem' }}>
               <h2 style={{ fontSize: '1.2rem', fontWeight: '800' }}>
-                {editingBanner ? 'Edit Banner' : 'Add New Banner'}
+                {editingBanner ? t('admin.banners.editBanner') : t('admin.banners.createBanner')}
               </h2>
               <button onClick={() => setModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={20} /></button>
             </div>
@@ -423,14 +423,14 @@ export default function BannersManager() {
               {/* Banner Image */}
               <div>
                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.5rem' }}>
-                  Banner Image *
+                  {t('admin.banners.image')} *
                 </label>
                 {image ? (
                   <div style={{ position: 'relative', borderRadius: 'var(--radius-md)', overflow: 'hidden', aspectRatio: '16 / 6', marginBottom: '0.5rem' }}>
                     <img src={image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     <div style={{ position: 'absolute', bottom: '0.5rem', right: '0.5rem' }}>
                       <label className="btn btn-primary btn-sm" style={{ cursor: 'pointer' }}>
-                        <Upload size={13} /> Replace Image
+                        <Upload size={13} /> {t('admin.banners.replaceImage')}
                         <input type="file" accept="image/*" onChange={(e) => handleImageUpload(e.target.files[0])} style={{ display: 'none' }} />
                       </label>
                     </div>
@@ -438,7 +438,7 @@ export default function BannersManager() {
                 ) : (
                   <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
                     {uploadingImage ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-                    {uploadingImage ? 'Uploading...' : 'Upload Banner Image'}
+                    {uploadingImage ? t('common.loading') : t('admin.banners.uploadImage')}
                     <input type="file" accept="image/*" onChange={(e) => handleImageUpload(e.target.files[0])} style={{ display: 'none' }} />
                   </label>
                 )}
@@ -483,7 +483,7 @@ export default function BannersManager() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', paddingTop: '1.2rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <input type="checkbox" id="bannerActive" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
-                    <label htmlFor="bannerActive" style={{ fontSize: '0.85rem', fontWeight: '600' }}>Active (Published)</label>
+                    <label htmlFor="bannerActive" style={{ fontSize: '0.85rem', fontWeight: '600' }}>{t('admin.products.activePublished')}</label>
                   </div>
                   {(!title.fr?.trim() || !title.ar?.trim() || !title.en?.trim()) && (
                     <span style={{ fontSize: '0.72rem', color: '#b45309', fontWeight: '500' }}>
@@ -494,10 +494,10 @@ export default function BannersManager() {
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '0.5rem' }}>
-                <button type="button" onClick={() => setModalOpen(false)} className="btn btn-secondary btn-sm">Cancel</button>
+                <button type="button" onClick={() => setModalOpen(false)} className="btn btn-secondary btn-sm">{t('common.cancel')}</button>
                 <button type="submit" disabled={modalLoading} className="btn btn-primary btn-sm">
                   {modalLoading ? <Loader2 size={16} className="animate-spin" /> : null}
-                  <span>Save Banner</span>
+                  <span>{t('common.save')}</span>
                 </button>
               </div>
             </form>

@@ -19,7 +19,8 @@ export const getBannerTranslationStatus = (banner) => {
   };
 };
 
-// Public: Get active banners by placement or all active
+// Public: Get active banners by placement or all active.
+// Defense-in-depth: enforces translation completeness so incomplete/legacy records are never exposed.
 export const getBanners = async (req, res, next) => {
   try {
     const { placement } = req.query;
@@ -28,7 +29,8 @@ export const getBanners = async (req, res, next) => {
       query.placement = placement;
     }
 
-    const banners = await Banner.find(query).sort({ displayOrder: 1, createdAt: -1 });
+    const rawBanners = await Banner.find(query).sort({ displayOrder: 1, createdAt: -1 });
+    const banners = rawBanners.filter(b => isBannerFullyTranslated(b));
     res.json({ success: true, count: banners.length, banners });
   } catch (error) {
     next(error);
@@ -82,7 +84,8 @@ export const createBanner = async (req, res, next) => {
       });
     }
 
-    const effectiveIsActive = isActive !== undefined ? Boolean(isActive) : true;
+    // When isActive is omitted: only activate if complete, otherwise safely default to inactive draft
+    const effectiveIsActive = isActive !== undefined ? Boolean(isActive) : isComplete;
     const effectiveButton = buttonText !== undefined ? buttonText : ctaText;
     const effectiveLink = link !== undefined ? link : (ctaLink || '/shop');
 

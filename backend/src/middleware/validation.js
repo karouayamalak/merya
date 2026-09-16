@@ -323,3 +323,51 @@ export const statusChangeSchema = z.object({
     }
   }
 });
+
+// Category validation schemas — strict: rejects unknown fields, oversized strings, invalid types
+export const categorySchema = z.object({
+  name: localizedFieldSchema(100),
+  description: localizedFieldSchema(1000).optional(),
+  image: z.string().min(1, 'Category image URL/path is required').max(500, 'Image URL too long'),
+  displayOrder: z.number().int().nonnegative().optional(),
+  isActive: z.boolean().optional()
+}).strict();
+
+export const updateCategorySchema = z.object({
+  name: localizedFieldSchema(100).optional(),
+  description: localizedFieldSchema(1000).optional(),
+  image: z.string().min(1).max(500).optional(),
+  displayOrder: z.number().int().nonnegative().optional(),
+  isActive: z.boolean().optional(),
+  isArchived: z.boolean().optional()
+}).strict();
+
+// Banner validation schemas — strict: rejects unknown fields, oversized strings, invalid types
+export const bannerSchema = z.object({
+  title: localizedFieldSchema(150),
+  subtitle: localizedFieldSchema(300).optional(),
+  badgeText: localizedFieldSchema(100).optional(),
+  buttonText: localizedFieldSchema(100).optional(),
+  ctaText: localizedFieldSchema(100).optional(),
+  link: z.string().max(300).optional(),
+  ctaLink: z.string().max(300).optional(),
+  image: z.string().max(500).optional(),
+  placement: z.enum(['home_hero', 'home_middle', 'top_announcement', 'promo_bar', 'hero', 'homepage-strip', 'shop-top', 'sidebar', 'popup']).optional(),
+  displayOrder: z.number().int().nonnegative().optional(),
+  isActive: z.boolean().optional()
+}).strict();
+
+export const updateBannerSchema = z.object({
+  title: localizedFieldSchema(150).optional(),
+  subtitle: localizedFieldSchema(300).optional(),
+  badgeText: localizedFieldSchema(100).optional(),
+  buttonText: localizedFieldSchema(100).optional(),
+  ctaText: localizedFieldSchema(100).optional(),
+  link: z.string().max(300).optional(),
+  ctaLink: z.string().max(300).optional(),
+  image: z.string().max(500).optional(),
+  placement: z.enum(['home_hero', 'home_middle', 'top_announcement', 'promo_bar', 'hero', 'homepage-strip', 'shop-top', 'sidebar', 'popup']).optional(),
+  displayOrder: z.number().int().nonnegative().optional(),
+  isActive: z.boolean().optional()
+}).strict();
+

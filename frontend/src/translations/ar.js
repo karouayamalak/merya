@@ -364,6 +364,26 @@ export default {
       variants: 'الموديلات (الألوان والمقاسات)',
       editProduct: 'تعديل المنتج',
       archiveProduct: 'أرشفة المنتج',
+      uploadImage: 'رفع صورة',
+      translations: 'الترجمات',
+      createNewProduct: 'إنشاء منتج جديد',
+      bestSeller: 'الأكثر طلباً',
+      activePublished: 'نشط (معروض في المتجر)'
+    },
+    banners: {
+      title: 'العروض الترويجية واللافتات',
+      subtitle: 'إدارة لافتات المتجر الإعلانية بمختلف اللغات',
+      addBanner: 'إضافة لافتة',
+      image: 'الصورة',
+      bannerTitle: 'العنوان',
+      placement: 'الموقع',
+      ctaLink: 'الرابط الترويجي',
+      order: 'الترتيب',
+      status: 'الحالة',
+      noBanners: 'لا توجد لافتات حالياً. اضغط على "إضافة لافتة" لإنشاء واحدة.',
+      editBanner: 'تعديل اللافتة',
+      createBanner: 'إنشاء لافتة',
+      replaceImage: 'استبدال الصورة',
       uploadImage: 'رفع صورة'
     },
     categories: {

@@ -364,6 +364,26 @@ export default {
       variants: 'Variants (Colors & Sizes)',
       editProduct: 'Edit Product',
       archiveProduct: 'Archive Product',
+      uploadImage: 'Upload Image',
+      translations: 'Translations',
+      createNewProduct: 'Create New Product',
+      bestSeller: 'Best Seller',
+      activePublished: 'Active (Published to store)'
+    },
+    banners: {
+      title: 'Promotions & Banners',
+      subtitle: 'Manage promotional banners across the storefront (multilingual)',
+      addBanner: 'Add Banner',
+      image: 'Image',
+      bannerTitle: 'Title',
+      placement: 'Placement',
+      ctaLink: 'CTA Link',
+      order: 'Order',
+      status: 'Status',
+      noBanners: 'No banners yet. Click "Add Banner" to create one.',
+      editBanner: 'Edit Banner',
+      createBanner: 'Create Banner',
+      replaceImage: 'Replace Image',
       uploadImage: 'Upload Image'
     },
     categories: {
