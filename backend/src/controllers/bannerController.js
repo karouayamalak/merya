@@ -153,13 +153,16 @@ export const updateBanner = async (req, res, next) => {
     const incomingBtn = buttonText !== undefined ? buttonText : ctaText;
     if (incomingBtn !== undefined) banner.buttonText = mergeField(incomingBtn, banner.buttonText);
 
-    // Require complete translations if attempting to publish
-    if (isActive === true) {
-      const candidateTitle = banner.title;
-      const isComplete = Boolean(
-        candidateTitle && typeof candidateTitle === 'object' &&
-        candidateTitle.fr?.trim() && candidateTitle.ar?.trim() && candidateTitle.en?.trim()
-      );
+    const incomingLink = link !== undefined ? link : ctaLink;
+    if (incomingLink !== undefined) banner.link = incomingLink;
+    if (image !== undefined) banner.image = image;
+    if (placement !== undefined) banner.placement = placement;
+    if (isActive !== undefined) banner.isActive = isActive;
+    if (displayOrder !== undefined) banner.displayOrder = displayOrder;
+
+    // Final-state check: If banner is active (newly set or remaining active), require complete translations
+    if (banner.isActive === true) {
+      const isComplete = isBannerFullyTranslated(banner);
       if (!isComplete) {
         return res.status(400).json({
           success: false,
@@ -168,13 +171,6 @@ export const updateBanner = async (req, res, next) => {
         });
       }
     }
-
-    const incomingLink = link !== undefined ? link : ctaLink;
-    if (incomingLink !== undefined) banner.link = incomingLink;
-    if (image !== undefined) banner.image = image;
-    if (placement !== undefined) banner.placement = placement;
-    if (isActive !== undefined) banner.isActive = isActive;
-    if (displayOrder !== undefined) banner.displayOrder = displayOrder;
 
     await banner.save();
     const bObj = banner.toObject({ getters: true });

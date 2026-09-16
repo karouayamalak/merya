@@ -1,4 +1,4 @@
-import { Product } from '../models/Product.js';
+import { Product, isProductFullyTranslated } from '../models/Product.js';
 import { Category } from '../models/Category.js';
 import { Order } from '../models/Order.js';
 import { ORDER_STATUS } from '../config/constants.js';
@@ -51,7 +51,13 @@ export const getProducts = async (req, res, next) => {
 
     const filter = {
       isActive: true,
-      isArchived: false
+      isArchived: false,
+      'name.fr': { $regex: /\S/ },
+      'name.ar': { $regex: /\S/ },
+      'name.en': { $regex: /\S/ },
+      'description.fr': { $regex: /\S/ },
+      'description.ar': { $regex: /\S/ },
+      'description.en': { $regex: /\S/ }
     };
 
     if (category) {
@@ -166,6 +172,9 @@ export const getProducts = async (req, res, next) => {
     if (typeof res.setHeader === 'function') {
       res.setHeader('Cache-Control', 'no-cache, must-revalidate');
     }
+    // Defense-in-depth: guarantee no incomplete products are ever serialized
+    products = products.filter(p => isProductFullyTranslated(p));
+
     res.json({
       success: true,
       products,
@@ -186,25 +195,43 @@ export const getProductBySlug = async (req, res, next) => {
   try {
     const { slug } = req.params;
 
-    const product = await Product.findOne({ slug, isActive: true, isArchived: false })
+    const product = await Product.findOne({
+      slug,
+      isActive: true,
+      isArchived: false,
+      'name.fr': { $regex: /\S/ },
+      'name.ar': { $regex: /\S/ },
+      'name.en': { $regex: /\S/ },
+      'description.fr': { $regex: /\S/ },
+      'description.ar': { $regex: /\S/ },
+      'description.en': { $regex: /\S/ }
+    })
       .select('-costPrice')
       .populate('category', 'name slug');
 
-    if (!product) {
+    if (!product || !isProductFullyTranslated(product)) {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
 
     res.setHeader('Cache-Control', 'no-cache, must-revalidate');
 
-    // Related products in the same category
-    const relatedProducts = await Product.find({
+    // Related products in the same category (active, unarchived, and fully translated)
+    const rawRelated = await Product.find({
       category: product.category._id,
       _id: { $ne: product._id },
       isActive: true,
-      isArchived: false
+      isArchived: false,
+      'name.fr': { $regex: /\S/ },
+      'name.ar': { $regex: /\S/ },
+      'name.en': { $regex: /\S/ },
+      'description.fr': { $regex: /\S/ },
+      'description.ar': { $regex: /\S/ },
+      'description.en': { $regex: /\S/ }
     })
       .select('-costPrice')
       .limit(4);
+
+    const relatedProducts = rawRelated.filter(p => isProductFullyTranslated(p));
 
     res.json({ success: true, product, relatedProducts });
   } catch (error) {
@@ -364,7 +391,8 @@ export const createProduct = async (req, res, next) => {
       });
     }
 
-    const effectiveIsActive = isActive !== undefined ? Boolean(isActive) : true;
+    // When isActive is omitted: automatically use false unless the product is fully translated
+    const effectiveIsActive = isActive !== undefined ? Boolean(isActive) : (isComplete ? true : false);
 
     const product = new Product({
       name,
@@ -478,24 +506,7 @@ export const updateProduct = async (req, res, next) => {
       }
     }
 
-    // Require complete translations (name + description) if attempting to publish (transitions to or sets isActive = true)
-    if (isActive === true) {
-      const candidateName = product.name;
-      const candidateDesc = product.description;
-      const isComplete = Boolean(
-        candidateName && typeof candidateName === 'object' &&
-        candidateName.fr?.trim() && candidateName.ar?.trim() && candidateName.en?.trim() &&
-        candidateDesc && typeof candidateDesc === 'object' &&
-        candidateDesc.fr?.trim() && candidateDesc.ar?.trim() && candidateDesc.en?.trim()
-      );
-      if (!isComplete) {
-        return res.status(400).json({
-          success: false,
-          code: 'TRANSLATIONS_INCOMPLETE',
-          message: 'Cannot publish product: complete name and description translations in French, Arabic, and English are required before publishing. Please provide all translations or save as an unpublished draft.'
-        });
-      }
-    }
+
 
     if (category !== undefined) product.category = category;
 
@@ -534,6 +545,18 @@ export const updateProduct = async (req, res, next) => {
       product.costPrice = costPrice;
     }
     if (isActive !== undefined) product.isActive = isActive;
+
+    // Final-state check: If product is active (whether newly set or remaining active), require complete translations
+    if (product.isActive === true) {
+      const isComplete = isProductFullyTranslated(product);
+      if (!isComplete) {
+        return res.status(400).json({
+          success: false,
+          code: 'TRANSLATIONS_INCOMPLETE',
+          message: 'Cannot publish product: complete name and description translations in French, Arabic, and English are required before publishing. Please provide all translations or save as an unpublished draft.'
+        });
+      }
+    }
     if (isBestSeller !== undefined) product.isBestSeller = isBestSeller;
     if (isArchived === true && !product.isArchived) {
       const activeOrders = await Order.find({

@@ -245,8 +245,9 @@ async function runTests() {
     const resCreate = mockRes();
     const reqCreate = {
       body: {
-        name: `Integer Prod ${Date.now()}`,
-        description: 'Valid integer product',
+        name: { fr: `Integer Prod ${Date.now()}`, ar: 'منتج بالدينار', en: `Integer Prod ${Date.now()}` },
+        description: { fr: 'Valid integer product', ar: 'منتج دينار صالح', en: 'Valid integer product' },
+        isActive: true,
         category: testCat._id.toString(),
         sellingPrice: 2500,
         costPrice: 1200,

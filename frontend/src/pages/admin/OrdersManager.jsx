@@ -155,7 +155,7 @@ export default function OrdersManager() {
   // Quick status change directly from table
   const handleQuickStatusChange = async (orderId, newStatus) => {
     if (newStatus === 'Cancelled') {
-      const ok = window.confirm('Are you sure you want to cancel this order? Reserved stock will be restored automatically.');
+      const ok = window.confirm(t('admin.orders.cancelOrder') + '?');
       if (!ok) return;
     }
 
@@ -179,7 +179,7 @@ export default function OrdersManager() {
   const handleModalStatusChange = async (newStatus) => {
     if (!activeOrder) return;
     if (newStatus === 'Cancelled') {
-      const ok = window.confirm('Are you sure you want to cancel this order? Reserved stock will be restored automatically.');
+      const ok = window.confirm(t('admin.orders.cancelOrder') + '?');
       if (!ok) return;
     }
 
@@ -190,7 +190,7 @@ export default function OrdersManager() {
       if (res.success) {
         setActiveOrder(res.order);
         setStatusNote('');
-        setFeedback(`Order status updated to "${newStatus}"!`);
+        setFeedback(t('admin.orders.statusUpdated'));
         setOrders(prev => prev.map(o => o._id === activeOrder._id ? { ...o, status: newStatus } : o));
       }
     } catch (err) {
@@ -260,7 +260,7 @@ export default function OrdersManager() {
         setActiveOrder(res.order);
         populateEditForm(res.order);
         setEditCustomerOpen(false);
-        setFeedback('All order details and delivery info updated successfully!');
+        setFeedback(t('admin.orders.saveOrderChanges') + ' ✓');
         loadOrders();
       }
     } catch (err) {
@@ -307,11 +307,11 @@ export default function OrdersManager() {
     e.preventDefault();
     if (!activeOrder) return;
     if (editItemsList.length === 0) {
-      alert('Order must contain at least one item.');
+      alert(t('admin.orders.saveLineItems') + ': ' + t('common.required'));
       return;
     }
 
-    const ok = window.confirm('Are you sure you want to save these item changes? Inventory will be atomically adjusted in the database.');
+    const ok = window.confirm(t('admin.orders.saveLineItems') + '?');
     if (!ok) return;
 
     setItemsActionLoading(true);
@@ -332,7 +332,7 @@ export default function OrdersManager() {
       if (res.success) {
         setActiveOrder(res.order);
         setEditItemsOpen(false);
-        setFeedback('Order line items updated and inventory atomically adjusted!');
+        setFeedback(t('admin.orders.saveLineItems') + ' ✓');
         loadOrders();
       }
     } catch (err) {
@@ -553,7 +553,7 @@ export default function OrdersManager() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid var(--color-border)', paddingBottom: '1rem' }}>
               <div>
                 <span style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#777' }}>
-                  Order Details & Edit
+                  {t('admin.orders.orderDetailsEdit')}
                 </span>
                 <h2 style={{ fontSize: '1.4rem', fontWeight: '800', fontFamily: 'monospace', color: 'var(--color-espresso)' }}>
                   #{activeOrder.orderCode}
@@ -568,7 +568,7 @@ export default function OrdersManager() {
                   fontSize: '0.82rem',
                   ...getStatusBadgeStyle(activeOrder.status)
                 }}>
-                  {activeOrder.status}
+                  {getStatusLabel(activeOrder.status)}
                 </span>
                 <button
                   onClick={() => setActiveOrder(null)}
@@ -605,7 +605,7 @@ export default function OrdersManager() {
               border: '1px solid var(--color-border)'
             }}>
               <h4 style={{ fontSize: '0.85rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.75rem', color: 'var(--color-espresso)' }}>
-                Update Order Status
+                {t('admin.orders.changeStatus')}
               </h4>
 
               <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
@@ -642,7 +642,7 @@ export default function OrdersManager() {
                       }}
                     >
                       {isActive && <Check size={13} style={{ marginRight: '0.25rem' }} />}
-                      <span>{st}</span>
+                      <span>{getStatusLabel(st)}</span>
                     </button>
                   );
                 })}
@@ -651,7 +651,7 @@ export default function OrdersManager() {
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <input
                   type="text"
-                  placeholder="Add note for this status update (optional)..."
+                  placeholder={`${t('admin.orders.modificationReason')} (${t('common.optional')})`}
                   value={statusNote}
                   onChange={(e) => setStatusNote(e.target.value)}
                   style={{
@@ -676,7 +676,7 @@ export default function OrdersManager() {
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                 <h4 style={{ fontSize: '0.85rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--color-espresso)' }}>
-                  Customer & Delivery Details
+                  {t('admin.orders.customerDeliveryDetails')}
                 </h4>
 
                 <button
@@ -685,7 +685,7 @@ export default function OrdersManager() {
                   style={{ padding: '0.3rem 0.7rem', fontSize: '0.78rem' }}
                 >
                   <Edit2 size={12} />
-                  <span>{editCustomerOpen ? 'Cancel Edit' : 'Edit Order Details'}</span>
+                  <span>{editCustomerOpen ? t('admin.orders.cancelEdit') : t('admin.orders.editOrderDetails')}</span>
                 </button>
               </div>
 
@@ -693,7 +693,7 @@ export default function OrdersManager() {
                 <form onSubmit={handleSaveCustomer} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                     <div>
-                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.3rem' }}>Customer Full Name *</label>
+                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.3rem' }}>{t('admin.orders.customerFullName')} *</label>
                       <input
                         type="text"
                         required
@@ -704,7 +704,7 @@ export default function OrdersManager() {
                     </div>
 
                     <div>
-                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.3rem' }}>Phone Number *</label>
+                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.3rem' }}>{t('admin.orders.phoneNumber')} *</label>
                       <input
                         type="tel"
                         required
@@ -717,7 +717,7 @@ export default function OrdersManager() {
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                     <div>
-                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.3rem' }}>Wilaya (58 Wilayas) *</label>
+                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.3rem' }}>{t('admin.orders.wilayaField')} *</label>
                       <select
                         value={editWilayaCode}
                         onChange={(e) => handleWilayaOrMethodChange(e.target.value, editDeliveryMethod)}
@@ -738,21 +738,21 @@ export default function OrdersManager() {
                     </div>
 
                     <div>
-                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.3rem' }}>Delivery Method *</label>
+                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.3rem' }}>{t('admin.orders.deliveryMethod')} *</label>
                       <select
                         value={editDeliveryMethod}
                         onChange={(e) => handleWilayaOrMethodChange(editWilayaCode, e.target.value)}
                         style={{ width: '100%', padding: '0.55rem', borderRadius: '6px', border: '1px solid var(--color-border)', backgroundColor: '#FFF' }}
                       >
-                        <option value="home">Home Delivery (À domicile)</option>
-                        <option value="agency">Stop Desk / Agency Pickup (Au bureau)</option>
+                        <option value="home">{t('admin.orders.homeDelivery')}</option>
+                        <option value="agency">{t('admin.orders.stopDesk')}</option>
                       </select>
                     </div>
                   </div>
 
                   {editDeliveryMethod === 'home' ? (
                     <div>
-                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.3rem' }}>Home Delivery Address *</label>
+                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.3rem' }}>{t('admin.orders.homeAddress')} *</label>
                       <input
                         type="text"
                         required
@@ -764,7 +764,7 @@ export default function OrdersManager() {
                     </div>
                   ) : (
                     <div>
-                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.3rem' }}>Agency / Bureau Stop Desk Name *</label>
+                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.3rem' }}>{t('admin.orders.agencyName')} *</label>
                       <input
                         type="text"
                         required
@@ -785,7 +785,7 @@ export default function OrdersManager() {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                     <div>
                       <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.3rem' }}>
-                        Authoritative Delivery Fee (DZD)
+                        {t('admin.orders.authoritativeFee')}
                       </label>
                       <div style={{
                         padding: '0.55rem',
@@ -795,26 +795,26 @@ export default function OrdersManager() {
                         fontWeight: '700',
                         color: editDeliveryFee !== null ? 'var(--color-espresso)' : '#D32F2F'
                       }}>
-                        {editDeliveryFee !== null ? `${editDeliveryFee} DZD` : 'Not Configured'}
+                        {editDeliveryFee !== null ? `${editDeliveryFee} DZD` : t('admin.orders.notConfigured')}
                       </div>
                       <span style={{ fontSize: '0.72rem', color: '#666' }}>
-                        Determined authoritatively by server delivery configuration
+                        {t('admin.orders.feeDescription')}
                       </span>
                     </div>
 
                     <div>
-                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.3rem' }}>New Total Preview</label>
+                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.3rem' }}>{t('admin.orders.newTotalPreview')}</label>
                       <div style={{ padding: '0.55rem', backgroundColor: '#FFF', borderRadius: '6px', border: '1px solid var(--color-border)', fontWeight: '800' }}>
                         {editDeliveryFee !== null ? `${(activeOrder.subtotal + Number(editDeliveryFee)).toLocaleString()} DZD` : 'N/A'}
                       </div>
                       <span style={{ fontSize: '0.72rem', color: '#666' }}>
-                        Subtotal ({activeOrder.subtotal.toLocaleString()} DZD) + Delivery Fee
+                        {t('admin.orders.itemsSubtotal')} ({activeOrder.subtotal.toLocaleString()} DZD) + {t('admin.orders.deliveryFee')}
                       </span>
                     </div>
                   </div>
 
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.3rem' }}>Customer Notes / Instructions</label>
+                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.3rem' }}>{t('admin.orders.customerNotes')}</label>
                     <textarea
                       rows={2}
                       value={editNotes}
@@ -830,7 +830,7 @@ export default function OrdersManager() {
                       onClick={() => setEditCustomerOpen(false)}
                       className="btn btn-secondary btn-sm"
                     >
-                      Cancel
+                      {t('common.cancel')}
                     </button>
                     <button
                       type="submit"
@@ -839,22 +839,22 @@ export default function OrdersManager() {
                       style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}
                     >
                       {actionLoading ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                      <span>Save Order Changes</span>
+                      <span>{t('admin.orders.saveOrderChanges')}</span>
                     </button>
                   </div>
                 </form>
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', fontSize: '0.88rem' }}>
-                  <div><strong>Full Name:</strong> {activeOrder.customer.fullName}</div>
-                  <div><strong>Phone:</strong> <a href={`tel:${activeOrder.customer.phone}`} style={{ textDecoration: 'underline', color: 'var(--color-espresso)', fontWeight: '700' }}>{activeOrder.customer.phone}</a></div>
-                  <div><strong>Delivery Mode:</strong> {String(activeOrder.customer.deliveryMethod).toLowerCase() === 'agency' ? 'Agency Stop Desk' : 'Home Delivery'}</div>
-                  <div><strong>Wilaya:</strong> {activeOrder.customer.wilaya?.code} - {activeOrder.customer.wilaya?.name}</div>
+                  <div><strong>{t('admin.orders.customerFullName')}:</strong> {activeOrder.customer.fullName}</div>
+                  <div><strong>{t('admin.orders.phoneNumber')}:</strong> <a href={`tel:${activeOrder.customer.phone}`} style={{ textDecoration: 'underline', color: 'var(--color-espresso)', fontWeight: '700' }}>{activeOrder.customer.phone}</a></div>
+                  <div><strong>{t('admin.orders.deliveryMethod')}:</strong> {String(activeOrder.customer.deliveryMethod).toLowerCase() === 'agency' ? t('admin.orders.stopDesk') : t('admin.orders.homeDelivery')}</div>
+                  <div><strong>{t('admin.orders.wilaya')}:</strong> {activeOrder.customer.wilaya?.code} - {activeOrder.customer.wilaya?.name}</div>
                   <div style={{ gridColumn: 'span 2' }}>
-                    <strong>Destination Address:</strong> {activeOrder.customer.address || activeOrder.customer.agencyName || 'Not specified'}
+                    <strong>{t('admin.orders.homeAddress')}:</strong> {activeOrder.customer.address || activeOrder.customer.agencyName || t('admin.orders.notConfigured')}
                   </div>
                   {activeOrder.customer.notes && (
                     <div style={{ gridColumn: 'span 2', color: '#666', backgroundColor: '#FFF', padding: '0.5rem', borderRadius: '4px', border: '1px solid #EEE' }}>
-                      <strong>Client Notes:</strong> {activeOrder.customer.notes}
+                      <strong>{t('admin.orders.customerNotes')}:</strong> {activeOrder.customer.notes}
                     </div>
                   )}
                 </div>
@@ -865,7 +865,7 @@ export default function OrdersManager() {
             <div style={{ marginBottom: '1.5rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
                 <h4 style={{ fontSize: '0.85rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em', margin: 0, color: 'var(--color-espresso)' }}>
-                  Order Items Snapshot
+                  {t('admin.orders.orderItemsSnapshot')}
                 </h4>
                 {activeOrder.status !== 'Delivered' && activeOrder.status !== 'Cancelled' && (
                   <button
@@ -875,7 +875,7 @@ export default function OrdersManager() {
                     style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem', padding: '0.3rem 0.6rem' }}
                   >
                     <Edit2 size={12} />
-                    <span>{editItemsOpen ? 'Cancel Edit' : 'Edit Items'}</span>
+                    <span>{editItemsOpen ? t('admin.orders.cancelItemEdit') : t('admin.orders.editItems')}</span>
                   </button>
                 )}
               </div>
@@ -885,7 +885,7 @@ export default function OrdersManager() {
                   {loadingProducts ? (
                     <div style={{ padding: '1rem', textAlign: 'center', fontSize: '0.85rem', color: '#666' }}>
                       <Loader2 size={18} className="animate-spin" style={{ display: 'inline', marginRight: '0.5rem' }} />
-                      Loading product catalog...
+                      {t('admin.orders.loadingCatalog')}
                     </div>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
@@ -984,7 +984,7 @@ export default function OrdersManager() {
                                   style={{ width: '100%', padding: '0.45rem', fontSize: '0.8rem', borderRadius: '4px', border: '1px solid var(--color-border)' }}
                                 >
                                   {availableSizes.map((s, sIdx) => (
-                                    <option key={sIdx} value={s.size}>{s.size} ({s.stock} avail)</option>
+                                    <option key={sIdx} value={s.size}>{s.size} ({s.stock} {t('admin.orders.avail')})</option>
                                   ))}
                                 </select>
                               </div>
@@ -1040,7 +1040,7 @@ export default function OrdersManager() {
                       </div>
 
                       <div>
-                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '0.2rem' }}>Modification Reason</label>
+                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', marginBottom: '0.2rem' }}>{t('admin.orders.modificationReason')}</label>
                         <input
                           type="text"
                           value={editItemsReason}
@@ -1056,7 +1056,7 @@ export default function OrdersManager() {
                           onClick={() => setEditItemsOpen(false)}
                           className="btn btn-secondary btn-sm"
                         >
-                          Cancel
+                          {t('common.cancel')}
                         </button>
                         <button
                           type="submit"
@@ -1080,7 +1080,7 @@ export default function OrdersManager() {
                         <div style={{ fontWeight: '700', fontSize: '0.88rem' }}>
                           {typeof item.productName === 'object' ? (localized(item.productName) || item.productName?.fr || item.productName?.en || '—') : (item.productName || '—')}
                         </div>
-                        <div style={{ fontSize: '0.78rem', color: '#666' }}>Color: {item.colorName} • Size: {item.size} • Qty: {item.quantity}</div>
+                        <div style={{ fontSize: '0.78rem', color: '#666' }}>{t('admin.orders.color')}: {item.colorName} • {t('admin.orders.size')}: {item.size} • {t('admin.orders.quantity')}: {item.quantity}</div>
                       </div>
                       <div style={{ textAlign: 'right', fontSize: '0.88rem' }}>
                         <div style={{ fontWeight: '700' }}>{(item.unitPrice * item.quantity).toLocaleString()} DZD</div>
@@ -1125,7 +1125,7 @@ export default function OrdersManager() {
                 {activeOrder.auditHistory?.map((entry, idx) => (
                   <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #EEE', paddingBottom: '0.3rem' }}>
                     <div>
-                      <strong style={{ color: 'var(--color-espresso)' }}>{entry.action}</strong>: {entry.note || 'No notes'}
+                      <strong style={{ color: 'var(--color-espresso)' }}>{entry.action}</strong>: {entry.note || t('admin.orders.noNotes')}
                       <span style={{ fontSize: '0.72rem', color: '#999', marginLeft: '0.4rem' }}>({entry.performedBy})</span>
                     </div>
                     <div style={{ color: '#888' }}>

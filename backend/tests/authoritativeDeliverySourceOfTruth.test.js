@@ -56,6 +56,7 @@ describe('Authoritative Delivery Pricing Source of Truth Regression Suite', () =
       category: testCategory._id,
       sellingPrice: 4000,
       costPrice: 2000,
+      isActive: true,
       colors: [
         {
           colorName: 'Noir',

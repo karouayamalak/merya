@@ -264,7 +264,7 @@ export default function ProductsManager() {
 
   const handleDeleteProduct = async (product) => {
     const displayName = (n) => { if (!n) return '—'; if (typeof n === 'string') return n; return n.fr || n.en || n.ar || '—'; };
-    if (!window.confirm(`Are you sure you want to permanently delete "${displayName(product.name)}"? This action cannot be undone.`)) return;
+    if (!window.confirm(t('admin.products.deleteConfirm').replace('{name}', displayName(product.name)))) return;
     try {
       await adminArchiveProduct(product._id);
       loadData();
@@ -357,7 +357,7 @@ export default function ProductsManager() {
                         <div style={{ fontWeight: '700' }}>{typeof p.name === 'object' ? (p.name.fr || p.name.en || p.name.ar || '—') : (p.name || '—')}</div>
                         {p.isBestSeller && (
                           <span style={{ fontSize: '0.68rem', backgroundColor: 'var(--color-espresso)', color: '#FFF', padding: '0.15rem 0.45rem', borderRadius: '4px', textTransform: 'uppercase' }}>
-                            Best Seller
+                            {t('admin.products.bestSeller')}
                           </span>
                         )}
                       </div>
@@ -585,7 +585,7 @@ export default function ProductsManager() {
                       onChange={(e) => {
                         const complete = Boolean(name.fr?.trim() && name.ar?.trim() && name.en?.trim());
                         if (e.target.checked && !complete) {
-                          setModalError('Cannot publish product: French, Arabic, and English translations are required before publishing. Incomplete products are saved as draft.');
+                          setModalError(t('admin.products.cannotPublishMissingTranslations'));
                           setIsActive(false);
                         } else {
                           setModalError('');
@@ -600,7 +600,7 @@ export default function ProductsManager() {
                   {(!name.fr?.trim() || !name.ar?.trim() || !name.en?.trim()) && (
                     <div style={{ fontSize: '0.74rem', color: '#D97706', marginTop: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                       <AlertTriangle size={12} />
-                      <span>Missing translations: will be saved as Draft</span>
+                      <span>{t('admin.products.missingTranslationsDraft')}</span>
                     </div>
                   )}
                 </div>
@@ -624,7 +624,7 @@ export default function ProductsManager() {
                       style={{ width: '16px', height: '16px', cursor: 'pointer' }}
                     />
                     <label htmlFor="promoToggle" style={{ fontSize: '0.88rem', fontWeight: '700', cursor: 'pointer', color: isPromotionActive ? '#B91C1C' : 'inherit' }}>
-                      🔥 Product on Promotion / Sale Price
+                      {t('admin.products.promoToggleLabel')}
                     </label>
                   </div>
                   {isPromotionActive && promotionalPrice && Number(promotionalPrice) > 0 && Number(promotionalPrice) < Number(sellingPrice) && (
@@ -645,7 +645,7 @@ export default function ProductsManager() {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', alignItems: 'center', paddingTop: '0.5rem' }}>
                     <div>
                       <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', color: '#991B1B', marginBottom: '0.3rem' }}>
-                        Promotional Price (DZD) *
+                        {t('admin.products.promotionalPriceLabel')}
                       </label>
                       <input
                         type="number"
@@ -664,11 +664,11 @@ export default function ProductsManager() {
                       />
                     </div>
                     <div style={{ fontSize: '0.82rem', color: '#7F1D1D', lineHeight: 1.4 }}>
-                      <div>Normal Price: <strong>{Number(sellingPrice).toLocaleString()} DZD</strong></div>
+                      <div>{t('admin.products.normalPrice')} <strong>{Number(sellingPrice).toLocaleString()} DZD</strong></div>
                       {promotionalPrice && Number(promotionalPrice) > 0 ? (
-                        <div>Customer Pays: <strong style={{ color: '#DC2626' }}>{Number(promotionalPrice).toLocaleString()} DZD</strong></div>
+                        <div>{t('admin.products.customerPays')} <strong style={{ color: '#DC2626' }}>{Number(promotionalPrice).toLocaleString()} DZD</strong></div>
                       ) : (
-                        <div style={{ color: '#991B1B' }}>Enter promotional price lower than normal price</div>
+                        <div style={{ color: '#991B1B' }}>{t('admin.products.promoLowerHint')}</div>
                       )}
                     </div>
                   </div>
@@ -679,11 +679,11 @@ export default function ProductsManager() {
               <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '1.25rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                   <h3 style={{ fontSize: '0.95rem', fontWeight: '800', textTransform: 'uppercase' }}>
-                    Color Variants & Stock Matrix
+                    {t('admin.products.colorVariantsMatrix')}
                   </h3>
                   <button type="button" onClick={handleAddColor} className="btn btn-secondary btn-sm">
                     <Plus size={14} />
-                    <span>Add Color</span>
+                    <span>{t('admin.products.addColor')}</span>
                   </button>
                 </div>
 
@@ -702,8 +702,7 @@ export default function ProductsManager() {
                   }}>
                     <span style={{ fontSize: '1rem' }}>⚠️</span>
                     <span>
-                      <strong>Stock is read-only here.</strong> To adjust live stock levels, use the{' '}
-                      <strong>Inventory Manager</strong> tab — changes there are transactionally safe and fully audited.
+                      {t('admin.products.stockReadOnlyNotice')}
                     </span>
                   </div>
                 )}
@@ -725,7 +724,7 @@ export default function ProductsManager() {
                             type="text"
                             value={color.colorName}
                             onChange={(e) => handleColorChange(cIdx, 'colorName', e.target.value)}
-                            placeholder="Color Name (e.g. Noir) — internal key, never change for existing variants"
+                            placeholder={t('admin.products.colorNamePlaceholder')}
                             style={{ padding: '0.45rem', borderRadius: '4px', border: '1px solid #CCC', fontWeight: '700', minWidth: '180px' }}
                           />
                           <input
@@ -743,7 +742,7 @@ export default function ProductsManager() {
                       {/* Localized display names for customer storefront */}
                       <div style={{ marginBottom: '1rem' }}>
                         <div style={{ fontSize: '0.75rem', fontWeight: '700', color: '#888', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                          Display Name for Customers (FR / AR / EN) — optional
+                          {t('admin.products.displayNameOptional')}
                         </div>
                         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                           {['fr', 'ar', 'en'].map(lng => (
@@ -770,7 +769,7 @@ export default function ProductsManager() {
                       {/* Sizes & Stock */}
                       <div style={{ marginBottom: '1rem' }}>
                         <div style={{ fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.4rem', color: '#666' }}>
-                          {editingProduct ? 'CURRENT STOCK PER SIZE (read-only — adjust in Inventory Manager):' : 'INITIAL STOCK PER SIZE:'}
+                          {editingProduct ? t('admin.products.currentStockPerSize') : t('admin.products.initialStockPerSize')}
                         </div>
                         <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
                           {AVAILABLE_SIZES.map(sz => {
@@ -813,7 +812,7 @@ export default function ProductsManager() {
                       {/* Image URLs / Upload */}
                       <div>
                         <div style={{ fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.4rem', color: '#666' }}>
-                          IMAGES FOR THIS COLOR:
+                          {t('admin.products.imagesForColor')}
                         </div>
                         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
                           {color.images?.map((img, iIdx) => (
@@ -875,11 +874,11 @@ export default function ProductsManager() {
               {/* Submit Buttons */}
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1rem' }}>
                 <button type="button" onClick={() => setModalOpen(false)} className="btn btn-secondary btn-sm">
-                  Cancel
+                  {t('common.cancel')}
                 </button>
                 <button type="submit" disabled={modalLoading} className="btn btn-primary btn-sm">
                   {modalLoading ? <Loader2 size={16} className="animate-spin" /> : null}
-                  <span>{editingProduct ? 'Save Changes' : 'Create Product'}</span>
+                  <span>{editingProduct ? t('admin.products.saveChanges') : t('admin.products.createProduct')}</span>
                 </button>
               </div>
             </form>

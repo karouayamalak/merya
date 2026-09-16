@@ -157,7 +157,7 @@ export default function BannersManager() {
 
     const isTitleComplete = Boolean(title.fr?.trim() && title.ar?.trim() && title.en?.trim());
     if (isActive && !isTitleComplete) {
-      return setError('Cannot publish banner: complete French, Arabic, and English translations are required before publishing. Please complete all translations or uncheck "Active" to save as a draft.');
+      return setError(t('admin.banners.cannotPublishMissingTranslations'));
     }
 
     if (!image.trim()) return setError('Please upload a banner image');
@@ -192,7 +192,7 @@ export default function BannersManager() {
 
   const handleDelete = async (banner) => {
     const displayTitle = typeof banner.title === 'object' ? (banner.title.fr || banner.title.en || '') : (banner.title || '');
-    if (!window.confirm(`Delete banner "${displayTitle}"? This cannot be undone.`)) return;
+    if (!window.confirm(t('admin.banners.deleteConfirm').replace('{title}', displayTitle))) return;
     try {
       await adminDeleteBanner(banner._id);
       loadBanners();
@@ -378,7 +378,7 @@ export default function BannersManager() {
 
                 <div style={{ marginBottom: '0.75rem' }}>
                   <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>
-                    Title ({activeLang.toUpperCase()})
+                    {t('admin.banners.bannerTitle')} ({activeLang.toUpperCase()})
                     {activeLang === 'fr' && <span style={{ color: 'var(--color-danger)' }}> *</span>}
                   </label>
                   <input
@@ -393,7 +393,7 @@ export default function BannersManager() {
 
                 <div style={{ marginBottom: '0.75rem' }}>
                   <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>
-                    Subtitle ({activeLang.toUpperCase()}) <span style={{ fontWeight: '400', color: '#888' }}>(optional)</span>
+                    {t('admin.banners.bannerSubtitle')} ({activeLang.toUpperCase()}) <span style={{ fontWeight: '400', color: '#888' }}>({t('common.optional')})</span>
                   </label>
                   <input
                     type="text"
@@ -407,7 +407,7 @@ export default function BannersManager() {
 
                 <div>
                   <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>
-                    CTA Button Text ({activeLang.toUpperCase()}) <span style={{ fontWeight: '400', color: '#888' }}>(optional)</span>
+                    {t('admin.banners.ctaText')} ({activeLang.toUpperCase()}) <span style={{ fontWeight: '400', color: '#888' }}>({t('common.optional')})</span>
                   </label>
                   <input
                     type="text"
@@ -448,7 +448,7 @@ export default function BannersManager() {
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1rem' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>
-                    CTA Link URL <span style={{ fontWeight: '400', color: '#888' }}>(optional)</span>
+                    {t('admin.banners.ctaLink')} <span style={{ fontWeight: '400', color: '#888' }}>({t('common.optional')})</span>
                   </label>
                   <input
                     type="text"
@@ -459,7 +459,7 @@ export default function BannersManager() {
                   />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>Placement *</label>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>{t('admin.banners.placement')} *</label>
                   <select
                     value={placement}
                     onChange={(e) => setPlacement(e.target.value)}
@@ -472,7 +472,7 @@ export default function BannersManager() {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>Display Order</label>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>{t('admin.banners.order')}</label>
                   <input
                     type="number" min="1"
                     value={displayOrder}
@@ -487,7 +487,7 @@ export default function BannersManager() {
                   </div>
                   {(!title.fr?.trim() || !title.ar?.trim() || !title.en?.trim()) && (
                     <span style={{ fontSize: '0.72rem', color: '#b45309', fontWeight: '500' }}>
-                      Requires complete FR, AR & EN titles to publish. Otherwise save as draft.
+                      {t('admin.banners.requiresCompleteDraft')}
                     </span>
                   )}
                 </div>

@@ -153,7 +153,7 @@ const productSchema = new mongoose.Schema({
   },
   isActive: {
     type: Boolean,
-    default: true,
+    default: false,
     index: true
   },
   isArchived: {

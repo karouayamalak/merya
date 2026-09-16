@@ -163,7 +163,7 @@ export default function CategoriesManager() {
   };
 
   const handleArchive = async (id) => {
-    if (!window.confirm('Archive this category? It will be safely preserved for historical orders.')) return;
+    if (!window.confirm(t('admin.categories.archiveConfirm'))) return;
     try {
       await adminArchiveCategory(id);
       loadCategories();
@@ -214,11 +214,11 @@ export default function CategoriesManager() {
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: isRtl ? 'right' : 'left', fontSize: '0.88rem' }}>
             <thead>
               <tr style={{ backgroundColor: 'var(--color-bg-card)', borderBottom: '1px solid var(--color-border)' }}>
-                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Image</th>
+                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.banners.image')}</th>
                 <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.categories.categoryName')}</th>
-                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Translations</th>
+                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.products.translations')}</th>
                 <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.categories.slug')}</th>
-                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>Order</th>
+                <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.banners.order')}</th>
                 <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.products.status')}</th>
                 <th style={{ padding: '1rem', textAlign: isRtl ? 'left' : 'right' }}>{t('common.actions')}</th>
               </tr>
@@ -354,7 +354,7 @@ export default function CategoriesManager() {
                 {/* Description field for active lang */}
                 <div>
                   <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>
-                    Description ({activeLang.toUpperCase()}) <span style={{ color: '#888', fontWeight: '400' }}>(optional)</span>
+                    {t('admin.categories.description')} ({activeLang.toUpperCase()}) <span style={{ color: '#888', fontWeight: '400' }}>({t('common.optional')})</span>
                   </label>
                   <textarea
                     value={description[activeLang]}
@@ -388,10 +388,10 @@ export default function CategoriesManager() {
                       style={{ width: '80px', height: '100px', objectFit: 'cover', borderRadius: '6px', boxShadow: 'var(--shadow-sm)' }}
                     />
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      <span style={{ fontSize: '0.8rem', color: '#555', fontWeight: '600' }}>Image ready</span>
+                      <span style={{ fontSize: '0.8rem', color: '#555', fontWeight: '600' }}>{t('admin.categories.imageReady')}</span>
                       <label className="btn btn-secondary btn-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer', width: 'fit-content' }}>
                         <Upload size={13} />
-                        <span>Change</span>
+                        <span>{t('admin.categories.changeImage')}</span>
                         <input type="file" accept="image/*" onChange={(e) => handleImageUpload(e.target.files[0])} style={{ display: 'none' }} />
                       </label>
                     </div>
@@ -422,7 +422,7 @@ export default function CategoriesManager() {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>Order</label>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>{t('admin.banners.order')}</label>
                   <input
                     type="number"
                     value={displayOrder}
@@ -439,7 +439,7 @@ export default function CategoriesManager() {
                       onChange={(e) => {
                         const complete = Boolean(name.fr?.trim() && name.ar?.trim() && name.en?.trim());
                         if (e.target.checked && !complete) {
-                          setError('Cannot publish category: French, Arabic, and English translations are required before publishing. Incomplete categories are saved as draft.');
+                          setError(t('admin.categories.cannotPublishMissingTranslations'));
                           setIsActive(false);
                         } else {
                           setError('');
@@ -448,13 +448,13 @@ export default function CategoriesManager() {
                       }}
                     />
                     <label htmlFor="catActive" style={{ fontSize: '0.85rem', fontWeight: '600', cursor: 'pointer' }}>
-                      {t('admin.products.active')} (Published)
+                      {t('admin.products.activePublished')}
                     </label>
                   </div>
                   {(!name.fr?.trim() || !name.ar?.trim() || !name.en?.trim()) && (
                     <div style={{ fontSize: '0.74rem', color: '#D97706', marginTop: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                       <AlertTriangle size={12} />
-                      <span>Missing translations: will be saved as Draft</span>
+                      <span>{t('admin.products.missingTranslationsDraft')}</span>
                     </div>
                   )}
                 </div>
