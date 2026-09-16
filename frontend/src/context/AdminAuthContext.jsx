@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { adminGetMe, adminLogin as apiLogin, adminLogout as apiLogout, getCsrfToken, clearCsrfToken } from '../services/api';
 
 const AdminAuthContext = createContext();
@@ -7,11 +7,7 @@ export function AdminAuthProvider({ children }) {
   const [admin, setAdmin] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    checkAuth();
-  }, []);
-
-  const checkAuth = async () => {
+  const checkAuth = useCallback(async () => {
     try {
       const res = await adminGetMe();
       if (res.success && res.admin) {
@@ -27,7 +23,11 @@ export function AdminAuthProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
 
   const login = async (email, password) => {
     const res = await apiLogin(email, password);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Edit2, Search, Check, X, Trash2, Upload, Loader2, AlertTriangle } from 'lucide-react';
 import { adminGetProducts, adminCreateProduct, adminUpdateProduct, adminArchiveProduct, adminGetCategories, adminUploadImage } from '../../services/api';
 import { useLanguage } from '../../context/LanguageContext';
@@ -78,7 +78,7 @@ export default function ProductsManager() {
     }
   ]);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const [prodRes, catRes] = await Promise.all([
@@ -92,12 +92,12 @@ export default function ProductsManager() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [search]);
 
   useEffect(() => {
     const timer = setTimeout(loadData, 250);
     return () => clearTimeout(timer);
-  }, [search]);
+  }, [loadData]);
 
   const openCreateModal = () => {
     setEditingProduct(null);

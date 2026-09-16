@@ -146,7 +146,6 @@ export default {
     address: 'العنوان التفصيلي للتوصيل',
     addressPlaceholder: 'الشارع، الحي، رقم العمارة أو علامة مميزة...',
     agencyName: 'اسم مكتب التوصيل / Stop-Desk',
-    agencyNamePlaceholder: 'مثال: مكتب ياليدين / كازي تور وسط المدينة',
     notes: 'ملاحظات إضافية للموزع (اختياري)',
     notesPlaceholder: 'أوقات التواجد، توجيهات الوصول...',
     orderSummary: 'ملخص الطلب',

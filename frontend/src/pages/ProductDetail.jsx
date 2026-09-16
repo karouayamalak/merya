@@ -23,7 +23,7 @@ export default function ProductDetail({ product, onBack, _onSelectRelated }) {
     const firstAvailableSize = activeColor.sizes?.find(s => s.stock > 0);
     setSelectedSize(firstAvailableSize ? firstAvailableSize.size : (activeColor.sizes?.[0]?.size || ''));
     setQuantity(1);
-  }, [selectedColorIndex, product]);
+  }, [selectedColorIndex, product, activeColor.sizes]);
 
   const activeSizeObj = activeColor.sizes?.find(s => s.size === selectedSize);
   const currentStock = activeSizeObj ? activeSizeObj.stock : 0;

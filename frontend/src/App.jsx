@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import CartDrawer from './components/CartDrawer';
@@ -22,7 +22,7 @@ export default function App() {
     return match ? decodeURIComponent(match[1]) : null;
   };
 
-  const getViewFromPath = () => {
+  const getViewFromPath = useCallback(() => {
     const rawPath = window.location.pathname.toLowerCase();
     const path = rawPath.replace(/\/+$/, '') || '/';
     if (path.startsWith('/admin')) {
@@ -34,13 +34,13 @@ export default function App() {
     if (path === '/order-confirmation') return 'order-confirmation';
     if (path.startsWith('/product/') || path.startsWith('/products/')) return 'product-detail';
     return 'home';
-  };
+  }, [isAuthenticated]);
 
   // Navigation router state
   const [currentView, setCurrentViewState] = useState(getViewFromPath);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [productLoading, setProductLoading] = useState(false);
+  const [_productLoading, setProductLoading] = useState(false);
 
   const setCurrentView = (view, customPath) => {
     setCurrentViewState(view);
@@ -98,7 +98,7 @@ export default function App() {
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+  }, [getViewFromPath]);
 
   // Completed order data for confirmation & tracking (survives refresh via sessionStorage)
   const [confirmedOrder, setConfirmedOrder] = useState(() => {

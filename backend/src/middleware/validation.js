@@ -272,6 +272,7 @@ export const updateProductSchema = z.object({
   isActive: z.boolean().optional(),
   isBestSeller: z.boolean().optional(),
   isArchived: z.boolean().optional(),
+  expectedVersion: z.number().int().nonnegative().optional(),
   colors: z.array(z.object({
     colorName: z.string().min(1).max(50),
     colorDisplayName: localizedFieldSchema(50).optional(),

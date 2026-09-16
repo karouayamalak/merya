@@ -146,7 +146,6 @@ export default {
     address: 'Detailed Delivery Address',
     addressPlaceholder: 'Street, neighborhood, building number or landmark...',
     agencyName: 'Agency / Stop-Desk Name',
-    agencyNamePlaceholder: 'E.g. Yalidine / Kazi Tour downtown office',
     notes: 'Delivery Instructions (Optional)',
     notesPlaceholder: 'Preferred time of delivery, access notes...',
     orderSummary: 'Order Summary',

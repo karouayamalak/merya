@@ -74,7 +74,7 @@ export default function CategoryTile({ category, onClick }) {
           alignItems: 'center',
           gap: '0.3rem'
         }}>
-          Shop Collection →
+          {t('home.viewCollection')} →
         </span>
       </div>
 

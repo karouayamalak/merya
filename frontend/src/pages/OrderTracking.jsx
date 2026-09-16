@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Compass, Search, CheckCircle, Clock, Truck, Building2, PackageCheck, XCircle, Wifi, AlertCircle, Loader2 } from 'lucide-react';
 import { trackOrder } from '../services/api';
 import { useWebSocket } from '../context/WebSocketContext';
@@ -30,7 +30,7 @@ export default function OrderTracking({ initialPhone = '', initialOrderCode = ''
   const [orderData, setOrderData] = useState(null);
   const [liveFlash, setLiveFlash] = useState(false);
 
-  const handleLookup = async (phoneVal = phone, codeVal = orderCode) => {
+  const handleLookup = useCallback(async (phoneVal = phone, codeVal = orderCode) => {
     if (!phoneVal.trim() || !codeVal.trim()) {
       setError(t('tracking.enterPhoneAndCode'));
       return;
@@ -53,14 +53,14 @@ export default function OrderTracking({ initialPhone = '', initialOrderCode = ''
     } finally {
       setLoading(false);
     }
-  };
+  }, [phone, orderCode, t]);
 
   // If initial props are provided, trigger search automatically
   useEffect(() => {
     if (initialPhone && initialOrderCode) {
       handleLookup(initialPhone, initialOrderCode);
     }
-  }, [initialPhone, initialOrderCode]);
+  }, [initialPhone, initialOrderCode, handleLookup]);
 
   // Subscribe to real-time WebSocket updates whenever order is loaded
   useEffect(() => {

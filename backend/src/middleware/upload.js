@@ -2,7 +2,7 @@ import multer from 'multer';
 import sharp from 'sharp';
 import path from 'path';
 import fs from 'fs';
-import { v4 as uuidv4 } from 'uuid';
+import crypto from 'crypto';
 import { v2 as cloudinary } from 'cloudinary';
 
 const uploadDir = path.resolve('uploads');
@@ -88,7 +88,7 @@ export const processAndSaveImage = async (buffer) => {
   }
 
   // Local filesystem fallback ONLY for local development / offline testing
-  const filename = `${uuidv4()}.webp`;
+  const filename = `${crypto.randomUUID()}.webp`;
   const filepath = path.join(uploadDir, filename);
   await fs.promises.writeFile(filepath, optimizedBuffer);
   return `/uploads/${filename}`;

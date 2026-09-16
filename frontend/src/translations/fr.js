@@ -146,7 +146,6 @@ export default {
     address: 'Adresse de livraison détaillée',
     addressPlaceholder: 'Rue, quartier, numéro de bâtiment ou repère...',
     agencyName: 'Nom du bureau relais / Stop-Desk',
-    agencyNamePlaceholder: 'Ex: Yalidine / Kazi Tour / Bureau Centre-Ville',
     notes: 'Instructions pour le livreur (Optionnel)',
     notesPlaceholder: 'Disponibilité horaire, instructions d\'accès...',
     orderSummary: 'Récapitulatif de la Commande',

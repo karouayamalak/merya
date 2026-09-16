@@ -73,7 +73,9 @@ const testSuite = [
   { name: 'searchHardeningTest.js', isNodeTest: false, desc: 'Search endpoint hardening: regex escaping, NaN price rejection, length caps' },
   { name: 'productionHardeningFinalPass.test.js', isNodeTest: true, desc: 'Production hardening final pass: images, idempotency, delivery, WS, 58 Wilayas' },
   { name: 'authoritativeDeliverySourceOfTruth.test.js', isNodeTest: true, desc: 'Authoritative delivery pricing source of truth: wilayaRates vs legacy global fees' },
-  { name: 'productionTenOutOfTenHardening.test.js', isNodeTest: true, desc: '10/10 Hardening: variant stock overwrite race guard, translation activation, price override audit' }
+  { name: 'productionTenOutOfTenHardening.test.js', isNodeTest: true, desc: '10/10 Hardening: variant stock overwrite race guard, translation activation, price override audit' },
+  { name: 'rateLimiterAdversarial.test.js', isNodeTest: true, desc: 'Rate limiter adversarial suite: namespaces, expired record reset, bounded memory' },
+  { name: 'inventoryConcurrencyAdversarial.test.js', isNodeTest: true, desc: 'Inventory concurrency adversarial suite: 16 race scenarios, CAS, and 409 conflict' }
 ];
 
 console.log('================================================================');

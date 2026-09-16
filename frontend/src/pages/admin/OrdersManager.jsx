@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Search,
   Eye,
@@ -85,7 +85,7 @@ export default function OrdersManager() {
   const [itemsActionLoading, setItemsActionLoading] = useState(false);
 
   // Load orders
-  const loadOrders = async () => {
+  const loadOrders = useCallback(async () => {
     setLoading(true);
     try {
       const params = {};
@@ -101,7 +101,7 @@ export default function OrdersManager() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [search, statusFilter]);
 
   // Load wilayas and delivery settings on mount
   useEffect(() => {
@@ -121,7 +121,7 @@ export default function OrdersManager() {
   useEffect(() => {
     const timer = setTimeout(loadOrders, 250);
     return () => clearTimeout(timer);
-  }, [search, statusFilter]);
+  }, [loadOrders]);
 
   const populateEditForm = (order) => {
     const wCode = order.customer.wilaya?.code || 16;

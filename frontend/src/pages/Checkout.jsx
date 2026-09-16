@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   ArrowLeft,
   ShieldCheck,
@@ -76,7 +76,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
   const [liveQuoteError, setLiveQuoteError] = useState('');
   const liveQuoteDebounceRef = useRef(null);
 
-  const loadSettings = async () => {
+  const loadSettings = useCallback(async () => {
     setLoadingSettings(true);
     setSettingsError(null);
     try {
@@ -109,11 +109,11 @@ export default function Checkout({ onBack, onOrderSuccess }) {
       setDeliverySettings(null);
       setSelectedWilayaCode(null);
     }
-  };
+  }, [t]);
 
   useEffect(() => {
     loadSettings();
-  }, []);
+  }, [loadSettings]);
 
   /**
    * Reactive live-quote effect.

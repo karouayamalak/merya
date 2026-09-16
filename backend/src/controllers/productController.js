@@ -3,6 +3,7 @@ import { Category } from '../models/Category.js';
 import { Order } from '../models/Order.js';
 import { ORDER_STATUS } from '../config/constants.js';
 import { parsePaginationParams } from '../utils/pagination.js';
+import { withTransactionRetry } from '../utils/transactionRetry.js';
 
 // Safely escape regex metacharacters to prevent injection / catastrophic backtracking
 function escapeRegex(str) {
@@ -396,11 +397,32 @@ export const createProduct = async (req, res, next) => {
 export const updateProduct = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { name, description, category, sellingPrice, basePrice, costPrice, promotion, isActive, isBestSeller, isArchived, colors } = req.body;
+    const {
+      name,
+      description,
+      category,
+      sellingPrice,
+      basePrice,
+      costPrice,
+      promotion,
+      isActive,
+      isBestSeller,
+      isArchived,
+      colors,
+      expectedVersion
+    } = req.body;
 
     const product = await Product.findById(id);
     if (!product) {
       return res.status(404).json({ success: false, message: 'Product not found' });
+    }
+
+    if (expectedVersion !== undefined && product.__v !== expectedVersion) {
+      return res.status(409).json({
+        success: false,
+        code: 'CONCURRENT_CONFLICT',
+        message: 'CONCURRENT_CONFLICT: Product was modified concurrently. Please refresh and retry.'
+      });
     }
 
     if (name !== undefined) {
@@ -537,6 +559,21 @@ export const updateProduct = async (req, res, next) => {
       product.isArchived = isArchived;
     }
 
+    // Build the atomic metadata update object from in-memory mutations.
+    // This MUST be constructed after all the in-memory product mutations above
+    // so that findOneAndUpdate writes the intended values (not an undefined reference).
+    const metaUpdate = {};
+    if (name !== undefined) metaUpdate.name = product.name;
+    if (description !== undefined) metaUpdate.description = product.description;
+    if (name !== undefined && product.slug) metaUpdate.slug = product.slug;
+    if (category !== undefined) metaUpdate.category = product.category;
+    if (incomingPrice !== undefined) metaUpdate.sellingPrice = product.sellingPrice;
+    if (promotion !== undefined) metaUpdate.promotion = product.promotion;
+    if (costPrice !== undefined) metaUpdate.costPrice = product.costPrice;
+    if (isActive !== undefined) metaUpdate.isActive = product.isActive;
+    if (isBestSeller !== undefined) metaUpdate.isBestSeller = product.isBestSeller;
+    if (isArchived !== undefined || isArchived === true) metaUpdate.isArchived = product.isArchived;
+
     if (colors !== undefined) {
       // 1. Protect active orders from destructive variant removal or rename
       const activeOrders = await Order.find({
@@ -588,31 +625,91 @@ export const updateProduct = async (req, res, next) => {
         };
       });
 
-      // Concurrency guard: Refresh live variant stock directly from database
-      // so any concurrent checkout deductions or adjustments between findById and save are never clobbered
-      const liveProduct = await Product.findById(product._id, 'colors').lean();
-      if (liveProduct && Array.isArray(liveProduct.colors)) {
-        for (const col of product.colors) {
-          const liveCol = liveProduct.colors.find(c => c.colorName === col.colorName);
-          if (liveCol && Array.isArray(liveCol.sizes)) {
-            for (const sz of col.sizes) {
-              const liveSz = liveCol.sizes.find(s => s.size === sz.size);
-              if (liveSz) {
-                sz.stock = liveSz.stock;
-              }
-            }
-          }
+      // Atomic stock-preserving color update with optimistic concurrency control (CAS):
+      // Reads live stock directly from DB inside transaction and verifies __v so no concurrent
+      // checkout or adjustment between read and write can be clobbered.
+      const colorsUpdate = await withTransactionRetry(async (session) => {
+        const live = await Product.findById(product._id, 'colors __v', session ? { session } : {}).lean();
+        if (!live) {
+          throw Object.assign(new Error('Product not found during atomic color update'), { statusCode: 404 });
         }
-      }
+
+        if (expectedVersion !== undefined && live.__v !== expectedVersion) {
+          throw Object.assign(
+            new Error('CONCURRENT_CONFLICT: Product was modified concurrently. Please refresh and retry.'),
+            { statusCode: 409, code: 'CONCURRENT_CONFLICT' }
+          );
+        }
+
+        const mergedColors = product.colors.map((col) => {
+          const liveCol = (live.colors || []).find(c => c.colorName === col.colorName);
+          return {
+            colorName: col.colorName,
+            colorDisplayName: col.colorDisplayName,
+            colorCode: col.colorCode,
+            images: col.images,
+            sizes: col.sizes.map((sz) => {
+              const liveSz = liveCol?.sizes?.find(s => s.size === sz.size);
+              return { size: sz.size, stock: liveSz !== undefined ? liveSz.stock : 0 };
+            })
+          };
+        });
+
+        // Single atomic mutation: update colors AND metadata together with version guard
+        const updated = await Product.findOneAndUpdate(
+          { _id: product._id, __v: live.__v },
+          {
+            $set: { colors: mergedColors, ...metaUpdate },
+            $inc: { __v: 1 }
+          },
+          { new: true, ...(session ? { session } : {}) }
+        );
+
+        if (!updated) {
+          throw Object.assign(
+            new Error('CONCURRENT_CONFLICT: Product was modified concurrently. Please refresh and retry.'),
+            { statusCode: 409, code: 'CONCURRENT_CONFLICT' }
+          );
+        }
+        return updated;
+      });
+
+      return res.json({ success: true, product: colorsUpdate });
     }
 
-    await product.save();
-    res.json({ success: true, product });
+    // No colors change — save metadata directly with version-guarded CAS
+    const query = { _id: product._id };
+    if (expectedVersion !== undefined) {
+      query.__v = expectedVersion;
+    }
+
+    const finalProduct = await Product.findOneAndUpdate(
+      query,
+      { $set: metaUpdate, $inc: { __v: 1 } },
+      { new: true }
+    );
+
+    if (!finalProduct && expectedVersion !== undefined) {
+      return res.status(409).json({
+        success: false,
+        code: 'CONCURRENT_CONFLICT',
+        message: 'CONCURRENT_CONFLICT: Product was modified concurrently. Please refresh and retry.'
+      });
+    }
+
+    res.json({ success: true, product: finalProduct });
   } catch (error) {
     if (error.code === 11000) {
       return res.status(409).json({
         success: false,
         message: 'A product with this name or slug already exists. Please choose a distinct name.'
+      });
+    }
+    if (error.code === 'CONCURRENT_CONFLICT' || error.statusCode === 409 || error.message?.includes('CONCURRENT_CONFLICT')) {
+      return res.status(409).json({
+        success: false,
+        code: 'CONCURRENT_CONFLICT',
+        message: error.message || 'CONCURRENT_CONFLICT: Product was modified concurrently. Please refresh and retry.'
       });
     }
     next(error);

@@ -50,7 +50,8 @@ export async function deductStockAtomic(items, session = null) {
       },
       {
         $inc: {
-          'colors.$[c].sizes.$[s].stock': -quantity
+          'colors.$[c].sizes.$[s].stock': -quantity,
+          __v: 1
         }
       },
       {
@@ -73,7 +74,12 @@ export async function deductStockAtomic(items, session = null) {
       for (const ded of deductionsMade) {
         await Product.updateOne(
           { _id: ded.productId },
-          { $inc: { 'colors.$[c].sizes.$[s].stock': ded.quantity } },
+          {
+            $inc: {
+              'colors.$[c].sizes.$[s].stock': ded.quantity,
+              __v: 1
+            }
+          },
           { arrayFilters: [{ 'c.colorName': ded.colorName }, { 's.size': ded.size }] }
         );
       }
@@ -119,7 +125,8 @@ export async function restoreStockAtomic(items, session = null) {
       },
       {
         $inc: {
-          'colors.$[c].sizes.$[s].stock': quantity
+          'colors.$[c].sizes.$[s].stock': quantity,
+          __v: 1
         }
       },
       updateOpts

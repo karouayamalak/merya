@@ -833,7 +833,10 @@ export async function updateOrderItemsService({
             }
           },
           {
-            $inc: { 'colors.$[c].sizes.$[s].stock': -netDelta }
+            $inc: {
+              'colors.$[c].sizes.$[s].stock': -netDelta,
+              __v: 1
+            }
           },
           {
             session,
@@ -861,7 +864,10 @@ export async function updateOrderItemsService({
             'colors.sizes.size': sVal
           },
           {
-            $inc: { 'colors.$[c].sizes.$[s].stock': restoreUnits }
+            $inc: {
+              'colors.$[c].sizes.$[s].stock': restoreUnits,
+              __v: 1
+            }
           },
           {
             session,
