@@ -36,13 +36,19 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
         const [catRes, prodRes, bannerRes] = await Promise.all([
           fetchCategories(),
           fetchProducts({ isBestSeller: 'true', limit: 8 }),
-          fetchBanners({ isActive: 'true' }).catch(() => ({ banners: [] }))
+          fetchBanners({ isActive: 'true' })
         ]);
         if (catRes.success) setCategories(catRes.categories || []);
         if (prodRes.success) setBestSellers(prodRes.products || []);
-        if (bannerRes?.banners) setBanners(bannerRes.banners);
+        if (bannerRes?.success && bannerRes.banners) {
+          setBanners(bannerRes.banners);
+        } else if (bannerRes?.banners) {
+          // Backward compatibility if API doesn't return success flag
+          setBanners(bannerRes.banners);
+        }
       } catch (err) {
-        console.error('Failed to load homepage data', err);
+        console.error('Failed to load homepage banners:', err);
+        setBanners([]);
       } finally {
         setLoading(false);
       }
