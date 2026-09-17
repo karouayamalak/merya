@@ -33,21 +33,38 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
   useEffect(() => {
     async function loadData() {
       try {
-        const [catRes, prodRes, bannerRes] = await Promise.all([
+        const [catRes, prodRes, bannerRes] = await Promise.allSettled([
           fetchCategories(),
           fetchProducts({ isBestSeller: 'true', limit: 8 }),
           fetchBanners({ isActive: 'true' })
         ]);
-        if (catRes.success) setCategories(catRes.categories || []);
-        if (prodRes.success) setBestSellers(prodRes.products || []);
-        if (bannerRes?.success && bannerRes.banners) {
-          setBanners(bannerRes.banners);
-        } else if (bannerRes?.banners) {
-          // Backward compatibility if API doesn't return success flag
-          setBanners(bannerRes.banners);
+
+        if (catRes.status === 'fulfilled' && catRes.value?.success) {
+          setCategories(catRes.value.categories || []);
+        } else {
+          console.error('Failed to load categories:', catRes.status === 'rejected' ? catRes.reason : catRes.value);
+          setCategories([]);
+        }
+
+        if (prodRes.status === 'fulfilled' && prodRes.value?.success) {
+          setBestSellers(prodRes.value.products || []);
+        } else {
+          console.error('Failed to load products:', prodRes.status === 'rejected' ? prodRes.reason : prodRes.value);
+          setBestSellers([]);
+        }
+
+        if (bannerRes.status === 'fulfilled' && bannerRes.value?.success) {
+          setBanners(bannerRes.value.banners || []);
+        } else if (bannerRes.status === 'fulfilled' && bannerRes.value?.banners) {
+          setBanners(bannerRes.value.banners || []);
+        } else {
+          console.error('Failed to load banners:', bannerRes.status === 'rejected' ? bannerRes.reason : bannerRes.value);
+          setBanners([]);
         }
       } catch (err) {
-        console.error('Failed to load homepage banners:', err);
+        console.error('Unexpected error loading homepage data:', err);
+        setCategories([]);
+        setBestSellers([]);
         setBanners([]);
       } finally {
         setLoading(false);
