@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { ArrowRight } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import CategoryTile from '../components/CategoryTile';
 import ProductCard from '../components/ProductCard';
 import { fetchCategories, fetchProducts, fetchBanners } from '../services/api';
@@ -11,6 +11,24 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
   const [bestSellers, setBestSellers] = useState([]);
   const [banners, setBanners] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [currentSlide, setCurrentSlide] = useState(0);
+
+  const goToNext = useCallback(() => {
+    if (banners.length > 0) {
+      setCurrentSlide((prev) => (prev + 1) % banners.length);
+    }
+  }, [banners.length]);
+
+  const goToPrev = useCallback(() => {
+    if (banners.length > 0) {
+      setCurrentSlide((prev) => (prev - 1 + banners.length) % banners.length);
+    }
+  }, [banners.length]);
+
+  // Reset to first slide when banners change
+  useEffect(() => {
+    setCurrentSlide(0);
+  }, [banners.length]);
 
   useEffect(() => {
     async function loadData() {
@@ -222,79 +240,179 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
         </div>
       </section>
 
-      {/* PROMOTIONAL CAMPAIGN BANNER (Active owner-created banners) */}
+      {/* PROMOTIONAL CAMPAIGN BANNER CAROUSEL (Active owner-created banners) */}
       {banners && banners.length > 0 && (
         <section style={{
           padding: '2rem 0',
           backgroundColor: 'var(--color-bg-base)'
         }}>
           <div className="container">
-            <div style={{
-              position: 'relative',
-              borderRadius: 'var(--radius-xl)',
-              overflow: 'hidden',
-              minHeight: '260px',
-              display: 'flex',
-              alignItems: 'center',
-              boxShadow: 'var(--shadow-md)',
-              background: banners[0].image ? `url(${banners[0].image}) center/cover no-repeat` : 'linear-gradient(135deg, #2A241F 0%, #4A3B32 100%)',
-              color: '#FFFFFF',
-              padding: '3rem 2.5rem'
-            }}>
-              {banners[0].image && (
+            <div style={{ position: 'relative' }}>
+              <div style={{ overflow: 'hidden' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    transition: 'transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+                    transform: `translateX(-${currentSlide * 100}%)`
+                  }}
+                >
+                  {banners.map((banner, index) => (
+                    <div
+                      key={banner._id || index}
+                      style={{
+                        flex: '0 0 100%',
+                        minWidth: '100%',
+                        position: 'relative',
+                        borderRadius: 'var(--radius-xl)',
+                        overflow: 'hidden',
+                        minHeight: '260px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        boxShadow: 'var(--shadow-md)',
+                        background: banner.image ? `url(${banner.image}) center/cover no-repeat` : 'linear-gradient(135deg, #2A241F 0%, #4A3B32 100%)',
+                        color: '#FFFFFF',
+                        padding: '3rem 2.5rem'
+                      }}
+                    >
+                      {banner.image && (
+                        <div style={{
+                          position: 'absolute',
+                          inset: 0,
+                          background: 'linear-gradient(to right, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.35) 100%)',
+                          pointerEvents: 'none'
+                        }} />
+                      )}
+                      <div style={{ position: 'relative', zIndex: 2, maxWidth: '580px' }}>
+                        <h3 style={{
+                          fontFamily: "var(--font-serif, 'Cormorant Garamond', Georgia, serif)",
+                          fontSize: 'clamp(1.6rem, 2.8vw, 2.4rem)',
+                          fontWeight: '700',
+                          color: '#FFFFFF',
+                          marginBottom: '0.6rem'
+                        }}>
+                          {localized(banner.title)}
+                        </h3>
+                        {localized(banner.subtitle) && (
+                          <p style={{
+                            fontSize: '1rem',
+                            color: 'rgba(255,255,255,0.88)',
+                            marginBottom: '1.5rem',
+                            lineHeight: '1.6'
+                          }}>
+                            {localized(banner.subtitle)}
+                          </p>
+                        )}
+                        {(localized(banner.buttonText) || localized(banner.ctaText)) && (
+                          <button
+                            onClick={() => {
+                              const linkUrl = banner.link || banner.ctaLink;
+                              if (linkUrl && linkUrl.startsWith('http')) {
+                                window.open(linkUrl, '_blank');
+                              } else {
+                                setCurrentView('shop');
+                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                              }
+                            }}
+                            className="btn btn-primary"
+                            style={{
+                              backgroundColor: '#FFFFFF',
+                              color: 'var(--color-espresso)',
+                              border: 'none',
+                              fontWeight: '700',
+                              padding: '0.75rem 1.8rem',
+                              borderRadius: 'var(--radius-full)'
+                            }}
+                          >
+                            <span>{localized(banner.buttonText) || localized(banner.ctaText)}</span>
+                            <ArrowRight size={15} className="rtl-flip" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {banners.length > 1 && (
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  marginTop: '1.5rem'
+                }}>
+                  <button
+                    onClick={goToPrev}
+                    className="btn btn-secondary"
+                    style={{
+                      padding: '0.5rem',
+                      borderRadius: '50%',
+                      minWidth: '44px',
+                      minHeight: '44px'
+                    }}
+                    aria-label={t('carousel.previous') || 'Previous'}
+                  >
+                    <ChevronLeft size={20} className={isRtl ? 'rtl-flip' : ''} />
+                  </button>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    {banners.map((_, index) => (
+                      <button
+                        key={index}
+                        onClick={() => setCurrentSlide(index)}
+                        className={index === currentSlide ? 'active' : ''}
+                        style={{
+                          width: '10px',
+                          height: '10px',
+                          borderRadius: '50%',
+                          border: 'none',
+                          backgroundColor: index === currentSlide ? 'var(--color-espresso)' : 'rgba(255,255,255,0.4)',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease'
+                        }}
+                        aria-label={`${t('carousel.slide') || 'Slide'} ${index + 1}`}
+                      />
+                    ))}
+                  </div>
+                  <button
+                    onClick={goToNext}
+                    className="btn btn-secondary"
+                    style={{
+                      padding: '0.5rem',
+                      borderRadius: '50%',
+                      minWidth: '44px',
+                      minHeight: '44px'
+                    }}
+                    aria-label={t('carousel.next') || 'Next'}
+                  >
+                    <ChevronRight size={20} className={isRtl ? 'rtl-flip' : ''} />
+                  </button>
+                </div>
+              )}
+              {banners.length > 1 && (
                 <div style={{
                   position: 'absolute',
-                  inset: 0,
-                  background: 'linear-gradient(to right, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.35) 100%)',
+                  bottom: '1rem',
+                  left: '0',
+                  right: '0',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  gap: '0.5rem',
                   pointerEvents: 'none'
-                }} />
-              )}
-              <div style={{ position: 'relative', zIndex: 2, maxWidth: '580px' }}>
-                <h3 style={{
-                  fontFamily: "var(--font-serif, 'Cormorant Garamond', Georgia, serif)",
-                  fontSize: 'clamp(1.6rem, 2.8vw, 2.4rem)',
-                  fontWeight: '700',
-                  color: '#FFFFFF',
-                  marginBottom: '0.6rem'
                 }}>
-                  {localized(banners[0].title)}
-                </h3>
-                {localized(banners[0].subtitle) && (
-                  <p style={{
-                    fontSize: '1rem',
-                    color: 'rgba(255,255,255,0.88)',
-                    marginBottom: '1.5rem',
-                    lineHeight: '1.6'
-                  }}>
-                    {localized(banners[0].subtitle)}
-                  </p>
-                )}
-                {(localized(banners[0].buttonText) || localized(banners[0].ctaText)) && (
-                  <button
-                    onClick={() => {
-                      const linkUrl = banners[0].link || banners[0].ctaLink;
-                      if (linkUrl && linkUrl.startsWith('http')) {
-                        window.open(linkUrl, '_blank');
-                      } else {
-                        setCurrentView('shop');
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                      }
-                    }}
-                    className="btn btn-primary"
-                    style={{
-                      backgroundColor: '#FFFFFF',
-                      color: 'var(--color-espresso)',
-                      border: 'none',
-                      fontWeight: '700',
-                      padding: '0.75rem 1.8rem',
-                      borderRadius: 'var(--radius-full)'
-                    }}
-                  >
-                    <span>{localized(banners[0].buttonText) || localized(banners[0].ctaText)}</span>
-                    <ArrowRight size={15} className="rtl-flip" />
-                  </button>
-                )}
-              </div>
+                  {banners.map((_, index) => (
+                    <div
+                      key={index}
+                      className={index === currentSlide ? 'active' : ''}
+                      style={{
+                        width: '10px',
+                        height: '10px',
+                        borderRadius: '50%',
+                        backgroundColor: index === currentSlide ? 'var(--color-espresso)' : 'rgba(255,255,255,0.4)',
+                        transition: 'all 0.3s ease'
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </section>
