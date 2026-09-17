@@ -37,7 +37,12 @@ export default {
     previous: 'السابق',
     next: 'التالي',
     page: 'صفحة',
-    pageOf: 'من'
+    pageOf: 'من',
+    carousel: {
+      next: 'التالي',
+      previous: 'السابق',
+      slide: 'الشريحة'
+    }
   },
   nav: {
     home: 'الرئيسية',

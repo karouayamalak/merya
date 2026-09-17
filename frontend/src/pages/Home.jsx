@@ -9,34 +9,34 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
   const { t, isRtl, localized } = useLanguage();
   const [categories, setCategories] = useState([]);
   const [bestSellers, setBestSellers] = useState([]);
-  const [banners, setBanners] = useState([]);
+  const [heroBanners, setHeroBanners] = useState([]);
+  const [announcementBanners, setAnnouncementBanners] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentSlide, setCurrentSlide] = useState(0);
 
   const goToNext = useCallback(() => {
-    if (banners.length > 0) {
-      setCurrentSlide((prev) => (prev + 1) % banners.length);
+    if (heroBanners.length > 0) {
+      setCurrentSlide((prev) => (prev + 1) % heroBanners.length);
     }
-  }, [banners.length]);
+  }, [heroBanners.length]);
 
   const goToPrev = useCallback(() => {
-    if (banners.length > 0) {
-      setCurrentSlide((prev) => (prev - 1 + banners.length) % banners.length);
+    if (heroBanners.length > 0) {
+      setCurrentSlide((prev) => (prev - 1 + heroBanners.length) % heroBanners.length);
     }
-  }, [banners.length]);
+  }, [heroBanners.length]);
 
   // Reset to first slide when banners change
   useEffect(() => {
     setCurrentSlide(0);
-  }, [banners.length]);
+  }, [heroBanners.length]);
 
   useEffect(() => {
     async function loadData() {
       try {
-        const [catRes, prodRes, bannerRes] = await Promise.allSettled([
+        const [catRes, prodRes] = await Promise.allSettled([
           fetchCategories(),
-          fetchProducts({ isBestSeller: 'true', limit: 8 }),
-          fetchBanners({ isActive: 'true' })
+          fetchProducts({ isBestSeller: 'true', limit: 8 })
         ]);
 
         if (catRes.status === 'fulfilled' && catRes.value?.success) {
@@ -53,19 +53,50 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
           setBestSellers([]);
         }
 
-        if (bannerRes.status === 'fulfilled' && bannerRes.value?.success) {
-          setBanners(bannerRes.value.banners || []);
-        } else if (bannerRes.status === 'fulfilled' && bannerRes.value?.banners) {
-          setBanners(bannerRes.value.banners || []);
-        } else {
-          console.error('Failed to load banners:', bannerRes.status === 'rejected' ? bannerRes.reason : bannerRes.value);
-          setBanners([]);
+        // Fetch banners for multiple placements
+        const heroPlacements = ['home_hero', 'hero'];
+        const announcementPlacements = ['top_announcement'];
+        
+        const heroPromises = heroPlacements.map(p => fetchBanners({ isActive: 'true', placement: p }));
+        const announcementPromises = announcementPlacements.map(p => fetchBanners({ isActive: 'true', placement: p }));
+        
+        const heroResults = await Promise.allSettled(heroPromises);
+        const announcementResults = await Promise.allSettled(announcementPromises);
+        
+        let heroBanners = [];
+        let announcementBanners = [];
+        
+        for (const res of heroResults) {
+          if (res.status === 'fulfilled' && res.value?.success) {
+            heroBanners = heroBanners.concat(res.value.banners || []);
+          } else if (res.status === 'fulfilled' && res.value?.banners) {
+            heroBanners = heroBanners.concat(res.value.banners || []);
+          } else {
+            console.error('Failed to load hero banners:', res.status === 'rejected' ? res.reason : res.value);
+          }
         }
+        
+        for (const res of announcementResults) {
+          if (res.status === 'fulfilled' && res.value?.success) {
+            announcementBanners = announcementBanners.concat(res.value.banners || []);
+          } else if (res.status === 'fulfilled' && res.value?.banners) {
+            announcementBanners = announcementBanners.concat(res.value.banners || []);
+          } else {
+            console.error('Failed to load announcement banners:', res.status === 'rejected' ? res.reason : res.value);
+          }
+        }
+        
+        console.log('Hero banners loaded:', heroBanners);
+        console.log('Announcement banners loaded:', announcementBanners);
+        setHeroBanners(heroBanners);
+        setAnnouncementBanners(announcementBanners);
+        
       } catch (err) {
         console.error('Unexpected error loading homepage data:', err);
         setCategories([]);
         setBestSellers([]);
-        setBanners([]);
+        setHeroBanners([]);
+        setAnnouncementBanners([]);
       } finally {
         setLoading(false);
       }
@@ -263,8 +294,8 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
         </div>
       </section>
 
-      {/* PROMOTIONAL CAMPAIGN BANNER CAROUSEL (Active owner-created banners) */}
-      {banners && banners.length > 0 && (
+      {/* PROMOTIONAL CAMPAIGN BANNER CAROUSEL (Active owner-created banners with home_hero/hero placement) */}
+      {heroBanners && heroBanners.length > 0 && (
         <section style={{
           padding: '2rem 0',
           backgroundColor: 'var(--color-bg-base)'
@@ -279,7 +310,7 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
                     transform: `translateX(-${currentSlide * 100}%)`
                   }}
                 >
-                  {banners.map((banner, index) => (
+                  {heroBanners.map((banner, index) => (
                     <div
                       key={banner._id || index}
                       style={{
@@ -355,91 +386,137 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
                   ))}
                 </div>
               </div>
-              {banners.length > 1 && (
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  gap: '0.75rem',
-                  marginTop: '1.5rem'
-                }}>
-                  <button
-                    onClick={goToPrev}
-                    className="btn btn-secondary"
-                    style={{
-                      padding: '0.5rem',
-                      borderRadius: '50%',
-                      minWidth: '44px',
-                      minHeight: '44px'
-                    }}
-                    aria-label={t('carousel.previous') || 'Previous'}
-                  >
-                    <ChevronLeft size={20} className={isRtl ? 'rtl-flip' : ''} />
-                  </button>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    {banners.map((_, index) => (
-                      <button
-                        key={index}
-                        onClick={() => setCurrentSlide(index)}
-                        className={index === currentSlide ? 'active' : ''}
-                        style={{
-                          width: '10px',
-                          height: '10px',
-                          borderRadius: '50%',
-                          border: 'none',
-                          backgroundColor: index === currentSlide ? 'var(--color-espresso)' : 'rgba(255,255,255,0.4)',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s ease'
-                        }}
-                        aria-label={`${t('carousel.slide') || 'Slide'} ${index + 1}`}
-                      />
-                    ))}
-                  </div>
-                  <button
-                    onClick={goToNext}
-                    className="btn btn-secondary"
-                    style={{
-                      padding: '0.5rem',
-                      borderRadius: '50%',
-                      minWidth: '44px',
-                      minHeight: '44px'
-                    }}
-                    aria-label={t('carousel.next') || 'Next'}
-                  >
-                    <ChevronRight size={20} className={isRtl ? 'rtl-flip' : ''} />
-                  </button>
-                </div>
-              )}
-              {banners.length > 1 && (
-                <div style={{
-                  position: 'absolute',
-                  bottom: '1rem',
-                  left: '0',
-                  right: '0',
-                  display: 'flex',
-                  justifyContent: 'center',
-                  gap: '0.5rem',
-                  pointerEvents: 'none'
-                }}>
-                  {banners.map((_, index) => (
-                    <div
+            </div>
+            {heroBanners.length > 1 && (
+              <div style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                gap: '0.75rem',
+                marginTop: '1.5rem'
+              }}>
+                <button
+                  onClick={goToPrev}
+                  className="btn btn-secondary"
+                  style={{
+                    padding: '0.5rem',
+                    borderRadius: '50%',
+                    minWidth: '44px',
+                    minHeight: '44px'
+                  }}
+                  aria-label={t('carousel.previous') || 'Previous'}
+                >
+                  <ChevronLeft size={20} className={isRtl ? 'rtl-flip' : ''} />
+                </button>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  {heroBanners.map((_, index) => (
+                    <button
                       key={index}
+                      onClick={() => setCurrentSlide(index)}
                       className={index === currentSlide ? 'active' : ''}
                       style={{
                         width: '10px',
                         height: '10px',
                         borderRadius: '50%',
+                        border: 'none',
                         backgroundColor: index === currentSlide ? 'var(--color-espresso)' : 'rgba(255,255,255,0.4)',
-                        transition: 'all 0.3s ease'
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
                       }}
+                      aria-label={`${t('carousel.slide') || 'Slide'} ${index + 1}`}
                     />
                   ))}
                 </div>
-              )}
-            </div>
+                <button
+                  onClick={goToNext}
+                  className="btn btn-secondary"
+                  style={{
+                    padding: '0.5rem',
+                    borderRadius: '50%',
+                    minWidth: '44px',
+                    minHeight: '44px'
+                  }}
+                  aria-label={t('carousel.next') || 'Next'}
+                >
+                  <ChevronRight size={20} className={isRtl ? 'rtl-flip' : ''} />
+                </button>
+              </div>
+            )}
+            {heroBanners.length > 1 && (
+              <div style={{
+                position: 'absolute',
+                bottom: '1rem',
+                left: '0',
+                right: '0',
+                display: 'flex',
+                justifyContent: 'center',
+                gap: '0.5rem',
+                pointerEvents: 'none'
+              }}>
+                {heroBanners.map((_, index) => (
+                  <div
+                    key={index}
+                    className={index === currentSlide ? 'active' : ''}
+                    style={{
+                      width: '10px',
+                      height: '10px',
+                      borderRadius: '50%',
+                      backgroundColor: index === currentSlide ? 'var(--color-espresso)' : 'rgba(255,255,255,0.4)',
+                      transition: 'all 0.3s ease'
+                    }}
+                  />
+                ))}
+              </div>
+            )}
           </div>
-        </section>
+        </div>
+      </section>
       )}
+
+      {/* TOP ANNOUNCEMENT BAR (for top_announcement placement) */}
+      {announcementBanners && announcementBanners.length > 0 && (
+        <section style={{
+          backgroundColor: 'var(--color-primary-dark)',
+          color: '#FFFFFF',
+          padding: '0.75rem 0',
+          overflow: 'hidden'
+        }}>
+          <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2rem' }}>
+            {announcementBanners.map((banner, index) => (
+              <div key={banner._id || index} style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1 }}>
+                {localized(banner.title) && (
+                  <span style={{ fontSize: '0.9rem', fontWeight: '500' }}>
+                    {localized(banner.title)}
+                  </span>
+                )}
+                {(localized(banner.buttonText) || localized(banner.ctaText)) && (
+                  <button
+                    onClick={() => {
+                      const linkUrl = banner.link || banner.ctaLink;
+                      if (linkUrl && linkUrl.startsWith('http')) {
+                        window.open(linkUrl, '_blank');
+                      } else {
+                        setCurrentView('shop');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }
+                    }}
+                    className="btn btn-secondary"
+                    style={{
+                      padding: '0.4rem 1rem',
+                      fontSize: '0.8rem',
+                      borderRadius: 'var(--radius-full)',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    {localized(banner.buttonText) || localized(banner.ctaText)}
+                  </button>
+                )}
+              ))}
+            </div>
+          </section>
+        )}
+
+      {/* 3. BEST SELLERS / NEW ARRIVALS */}
 
       {/* 3. BEST SELLERS / NEW ARRIVALS */}
       <section style={{

@@ -204,13 +204,24 @@ async function startServer() {
   try {
     console.log('[MERYA DZ Server] Connecting to MongoDB before starting server...');
     await connectDB();
-    const listenArgs = [PORT];
-    if (HOST) listenArgs.push(HOST);
-    listenArgs.push(() => {
-      console.log(`[MERYA DZ Server] Running on http://${HOST || 'localhost'}:${PORT}`);
-      console.log(`[MERYA DZ Server] WebSocket endpoint active at ws://${HOST || 'localhost'}:${PORT}/ws`);
+    
+    // Explicitly bind to 0.0.0.0 for all interfaces (IPv4)
+    console.log('[MERYA DZ Server] Attempting to bind to port', PORT, 'on 0.0.0.0');
+    server.listen(PORT, '0.0.0.0', () => {
+      console.log('[MERYA DZ Server] Listen callback fired');
+      console.log(`[MERYA DZ Server] Running on http://localhost:${PORT}`);
+      console.log(`[MERYA DZ Server] WebSocket endpoint active at ws://localhost:${PORT}/ws`);
     });
-    server.listen(...listenArgs);
+    
+    server.on('error', (err) => {
+      console.error('[MERYA DZ Server] Server error:', err);
+    });
+    
+    server.on('listening', () => {
+      console.log('[MERYA DZ Server] Server is now listening');
+      const addr = server.address();
+      console.log('[MERYA DZ Server] Server address:', addr);
+    });
   } catch (error) {
     console.error('[MERYA DZ Server] Fatal startup failure:', error.message);
     process.exit(1);

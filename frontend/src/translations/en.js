@@ -37,7 +37,12 @@ export default {
     previous: 'Previous',
     next: 'Next',
     page: 'Page',
-    pageOf: 'of'
+    pageOf: 'of',
+    carousel: {
+      next: 'Next',
+      previous: 'Previous',
+      slide: 'Slide'
+    }
   },
   nav: {
     home: 'Home',
