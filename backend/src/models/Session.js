@@ -37,10 +37,6 @@ const sessionSchema = new mongoose.Schema({
     enum: ['LOGOUT', 'LOGOUT_ALL', 'TOKEN_ROTATION_REUSE', 'ADMIN_DEACTIVATED', 'ADMIN_DELETED', 'SUPERSEDED'],
     default: null
   },
-  failedRotationAttempts: {
-    type: Number,
-    default: 0
-  },
   lastUsedAt: {
     type: Date,
     default: Date.now

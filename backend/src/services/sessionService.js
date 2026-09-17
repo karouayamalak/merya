@@ -45,11 +45,13 @@ export async function createSession({ adminId, userAgent, ipAddress }) {
  * old refresh token could both succeed.
  *
  * Concurrent race safety: when two requests arrive with the same valid
- * old refresh token, only one wins. The losing request is rejected WITHOUT
- * revoking the session — the winning request's new credentials remain valid.
+ * old refresh token, only one wins. The losing request is rejected
+ * WITHOUT revoking the session — the winning request's new credentials
+ * remain valid.
  *
- * Genuine reuse detection: tracks failed rotation attempts on the session.
- * If failed attempts exceed a threshold, the session is revoked.
+ * Stale/replayed tokens are rejected without revoking the healthy session.
+ * The atomic compare-and-set guarantees that once a token is rotated,
+ * it can never be rotated again, regardless of how many times it is replayed.
  */
 export async function rotateSessionToken({ session, presentedRefreshToken }) {
   if (!session || !session.isActive()) {
@@ -80,8 +82,7 @@ export async function rotateSessionToken({ session, presentedRefreshToken }) {
       expiresAt: { $gt: new Date() }
     },
     {
-      $set: { refreshTokenHash: newHash, lastUsedAt: new Date() },
-      $inc: { failedRotationAttempts: 0 } // no-op: keeps Mongoose trackDirty happy
+      $set: { refreshTokenHash: newHash, lastUsedAt: new Date() }
     },
     { new: true }
   );
@@ -99,35 +100,14 @@ export async function rotateSessionToken({ session, presentedRefreshToken }) {
     // This means another legitimate request already rotated this token.
     // Do NOT revoke the session — the winning request's new credentials
     // are valid and the session must remain active.
-    //
-    // Track failed rotation attempts to detect genuine reuse attacks
-    // over time (repeated attempts with consumed tokens).
-    const failedAttempts = (current.failedRotationAttempts || 0) + 1;
-    current.failedRotationAttempts = failedAttempts;
-
-    if (failedAttempts >= 3) {
-      // Too many failed rotation attempts on this active session →
-      // likely a genuine token-reuse/security attack. Revoke.
-      current.revokedAt = new Date();
-      current.revokeReason = 'TOKEN_ROTATION_REUSE';
-      await current.save();
-
-      const err = new Error('Token reuse detected: session revoked');
-      err.code = 'REFRESH_TOKEN_REUSE';
-      throw err;
-    }
-
-    // Not enough failed attempts → concurrent race, not a security event.
-    // Just reject without revoking.
-    await current.save();
-
+    // Simply reject the stale/replayed token without any session-side
+    // side effects. The atomic compare-and-set guarantees that once a
+    // token is rotated, it can never be rotated again — regardless of
+    // how many times it is replayed afterward.
     const err = new Error('Token already rotated — concurrent refresh rejected');
     err.code = 'REFRESH_TOKEN_REUSE';
     throw err;
   }
-
-  // Successful rotation: reset failed attempt counter
-  await Session.findByIdAndUpdate(session._id, { $set: { failedRotationAttempts: 0 } });
 
   return {
     accessToken: newAccessToken,

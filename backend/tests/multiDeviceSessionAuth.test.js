@@ -118,6 +118,21 @@ function makeRequest(server, { method = 'GET', path, headers = {}, body = null, 
   });
 }
 
+/**
+ * Helper: get CSRF token, then make a refresh request with CSRF protection.
+ * Ensures all refresh requests include valid X-CSRF-Token header and csrf_token cookie.
+ */
+async function refreshRequest(server, refreshToken, currentCookies = {}) {
+  const csrfRes = await makeRequest(server, { method: 'GET', path: '/api/v1/auth/csrf-token' });
+  const csrfToken = csrfRes.body.csrfToken;
+  return makeRequest(server, {
+    method: 'POST',
+    path: '/api/v1/auth/refresh',
+    headers: { 'X-CSRF-Token': csrfToken },
+    cookies: { refreshToken, csrf_token: csrfToken, ...currentCookies }
+  });
+}
+
 async function runTests() {
   console.log('=== MULTI-DEVICE SESSION AUTHENTICATION & VERIFICATION SUITE ===\n');
 
@@ -249,11 +264,7 @@ async function runTests() {
       const docB_Before = await Session.findById(sessionB_Id);
       const oldHashA = docA_Before.refreshTokenHash;
 
-      const res = await makeRequest(server, {
-        method: 'POST',
-        path: '/api/v1/auth/refresh',
-        cookies: { refreshToken: sessionA_Cookies.refreshToken }
-      });
+      const res = await refreshRequest(server, sessionA_Cookies.refreshToken);
 
       assert.strictEqual(res.status, 200, 'Refresh A status must be 200');
       assert.ok(res.parsedCookies.accessToken, 'New access token issued for A');
@@ -274,19 +285,11 @@ async function runTests() {
       assert.strictEqual(docB_After.revokedAt, null, 'Session B remains active');
 
       // Old Session A refresh token must NO LONGER work
-      const oldRefreshRes = await makeRequest(server, {
-        method: 'POST',
-        path: '/api/v1/auth/refresh',
-        cookies: { refreshToken: sessionA_Cookies.refreshToken }
-      });
+      const oldRefreshRes = await refreshRequest(server, sessionA_Cookies.refreshToken);
       assert.strictEqual(oldRefreshRes.status, 401, 'Old Session A refresh token must be rejected after rotation');
 
       // Session B must STILL work after A's rotation
-      const resB = await makeRequest(server, {
-        method: 'POST',
-        path: '/api/v1/auth/refresh',
-        cookies: { refreshToken: sessionB_Cookies.refreshToken }
-      });
+      const resB = await refreshRequest(server, sessionB_Cookies.refreshToken);
       assert.strictEqual(resB.status, 200, 'Session B still works after A rotation');
       sessionB_Cookies = resB.parsedCookies;
 
@@ -298,11 +301,7 @@ async function runTests() {
     // ───────────────────────────────────────────────────────────────────────────
     let sessionB_RotatedCookies = {};
     try {
-      const res = await makeRequest(server, {
-        method: 'POST',
-        path: '/api/v1/auth/refresh',
-        cookies: { refreshToken: sessionB_Cookies.refreshToken }
-      });
+      const res = await refreshRequest(server, sessionB_Cookies.refreshToken);
 
       assert.strictEqual(res.status, 200, 'Refresh B status must be 200');
       assert.ok(res.parsedCookies.accessToken);
@@ -356,11 +355,7 @@ async function runTests() {
       assert.strictEqual(protectedRes.status, 401, 'A access token must be rejected after logout');
 
       // Verify A's refresh token is rejected on refresh
-      const refreshRes = await makeRequest(server, {
-        method: 'POST',
-        path: '/api/v1/auth/refresh',
-        cookies: { refreshToken: sessionA_RotatedCookies.refreshToken }
-      });
+      const refreshRes = await refreshRequest(server, sessionA_RotatedCookies.refreshToken);
       assert.strictEqual(refreshRes.status, 401, 'A refresh token must be rejected after logout');
 
       pass('6. Revoke/logout A → Session A fails on both access and refresh endpoints');
@@ -380,11 +375,7 @@ async function runTests() {
       assert.strictEqual(String(resB.body.sessionId), String(sessionB_Id));
 
       // Device B refresh call
-      const refB = await makeRequest(server, {
-        method: 'POST',
-        path: '/api/v1/auth/refresh',
-        cookies: { refreshToken: sessionB_RotatedCookies.refreshToken }
-      });
+      const refB = await refreshRequest(server, sessionB_RotatedCookies.refreshToken);
       assert.strictEqual(refB.status, 200, 'Device B refresh remains valid after A logout');
       sessionB_RotatedCookies = refB.parsedCookies;
 
@@ -420,11 +411,7 @@ async function runTests() {
       });
       assert.strictEqual(protectedRes.status, 401, 'B access token must be rejected after logout');
 
-      const refreshRes = await makeRequest(server, {
-        method: 'POST',
-        path: '/api/v1/auth/refresh',
-        cookies: { refreshToken: sessionB_RotatedCookies.refreshToken }
-      });
+      const refreshRes = await refreshRequest(server, sessionB_RotatedCookies.refreshToken);
       assert.strictEqual(refreshRes.status, 401, 'B refresh token must be rejected after logout');
 
       pass('8. Revoke/logout B → Session B fails on access and refresh afterward');
@@ -449,11 +436,7 @@ async function runTests() {
       expiredSession.refreshTokenHash = hashToken(expiredRefreshJwt);
       await expiredSession.save();
 
-      const res = await makeRequest(server, {
-        method: 'POST',
-        path: '/api/v1/auth/refresh',
-        cookies: { refreshToken: expiredRefreshJwt }
-      });
+      const res = await refreshRequest(server, expiredRefreshJwt);
 
       assert.strictEqual(res.status, 401, 'Expired session must return 401 on refresh');
       assert.ok(res.body.message.includes('expired') || res.body.message.includes('revoked'));
@@ -481,11 +464,7 @@ async function runTests() {
       revokedSession.refreshTokenHash = hashToken(revokedRefreshJwt);
       await revokedSession.save();
 
-      const res = await makeRequest(server, {
-        method: 'POST',
-        path: '/api/v1/auth/refresh',
-        cookies: { refreshToken: revokedRefreshJwt }
-      });
+      const res = await refreshRequest(server, revokedRefreshJwt);
 
       assert.strictEqual(res.status, 401, 'Revoked session must return 401 on refresh');
       pass('10. Revoked session → refresh rejected with 401');
@@ -501,11 +480,7 @@ async function runTests() {
         adminId: testAdmin._id,
         sessionId: nonExistentSid
       });
-      const resA = await makeRequest(server, {
-        method: 'POST',
-        path: '/api/v1/auth/refresh',
-        cookies: { refreshToken: forgedJwtA }
-      });
+      const resA = await refreshRequest(server, forgedJwtA);
       assert.strictEqual(resA.status, 401, 'Non-existent sessionId must return 401');
 
       // 11b. Mismatched sessionId (session belongs to Admin 2, token signed for Admin 1)
@@ -526,11 +501,7 @@ async function runTests() {
         adminId: testAdmin._id,
         sessionId: otherSession._id
       });
-      const resB = await makeRequest(server, {
-        method: 'POST',
-        path: '/api/v1/auth/refresh',
-        cookies: { refreshToken: mismatchedJwt }
-      });
+      const resB = await refreshRequest(server, mismatchedJwt);
       assert.strictEqual(resB.status, 401, 'Mismatched sessionId ownership must return 401');
 
       // 11c. Malformed non-ObjectId sessionId in token
@@ -539,11 +510,7 @@ async function runTests() {
         AUTH_CONFIG.refreshTokenSecret,
         { expiresIn: '7d' }
       );
-      const resC = await makeRequest(server, {
-        method: 'POST',
-        path: '/api/v1/auth/refresh',
-        cookies: { refreshToken: malformedSidJwt }
-      });
+      const resC = await refreshRequest(server, malformedSidJwt);
       assert.strictEqual(resC.status, 401, 'Malformed sessionId must be safely rejected with 401 without crashing');
 
       pass('11. Wrong/mismatched sessionId → safely rejected with 401');
@@ -554,11 +521,7 @@ async function runTests() {
     // ───────────────────────────────────────────────────────────────────────────
     try {
       const sess = await createSession({ adminId: testAdmin._id });
-      const res = await makeRequest(server, {
-        method: 'POST',
-        path: '/api/v1/auth/refresh',
-        cookies: { refreshToken: sess.accessToken } // Access token sent to refresh endpoint
-      });
+      const res = await refreshRequest(server, sess.accessToken);
       assert.strictEqual(res.status, 401, 'Access token presented as refresh token must return 401');
       pass('12. Access token cannot be used as a refresh token');
     } catch (e) { fail('12. Access token cannot be used as refresh token', e); }
@@ -609,11 +572,7 @@ async function runTests() {
       });
       assert.strictEqual(resDeactivatedProtected.status, 401, 'Deactivated admin must be rejected on protected routes');
 
-      const resDeactivatedRefresh = await makeRequest(server, {
-        method: 'POST',
-        path: '/api/v1/auth/refresh',
-        cookies: { refreshToken: sess.refreshToken }
-      });
+      const resDeactivatedRefresh = await refreshRequest(server, sess.refreshToken);
       assert.strictEqual(resDeactivatedRefresh.status, 401, 'Deactivated admin must be rejected on refresh');
 
       // 14b. Delete Admin
@@ -785,16 +744,8 @@ async function runTests() {
 
       // Send two concurrent refresh requests using the SAME old refresh token
       const [res1, res2] = await Promise.all([
-        makeRequest(server, {
-          method: 'POST',
-          path: '/api/v1/auth/refresh',
-          cookies: { refreshToken: concurrencyRefreshToken }
-        }),
-        makeRequest(server, {
-          method: 'POST',
-          path: '/api/v1/auth/refresh',
-          cookies: { refreshToken: concurrencyRefreshToken }
-        })
+        refreshRequest(server, concurrencyRefreshToken),
+        refreshRequest(server, concurrencyRefreshToken)
       ]);
 
       const successes = [res1, res2].filter(r => r.status === 200);
@@ -834,20 +785,12 @@ async function runTests() {
       assert.strictEqual(String(protectedRes.body.sessionId), String(concurrencySessionId), 'New access token must belong to the same session');
 
       // 6. The successful new refresh token can be used for its next legitimate rotation
-      const resSecondRefresh = await makeRequest(server, {
-        method: 'POST',
-        path: '/api/v1/auth/refresh',
-        cookies: { refreshToken: newRefreshToken }
-      });
+      const resSecondRefresh = await refreshRequest(server, newRefreshToken);
       assert.strictEqual(resSecondRefresh.status, 200, 'New refresh token must work for next rotation');
       assert.notStrictEqual(resSecondRefresh.parsedCookies.refreshToken, newRefreshToken, 'Second rotation produced a different refresh token');
 
       // 7. The old refresh token cannot be used again
-      const oldTokenRes = await makeRequest(server, {
-        method: 'POST',
-        path: '/api/v1/auth/refresh',
-        cookies: { refreshToken: concurrencyRefreshToken }
-      });
+      const oldTokenRes = await refreshRequest(server, concurrencyRefreshToken);
       assert.strictEqual(oldTokenRes.status, 401, 'Old refresh token must be rejected after any rotation');
 
       // 8. Session B / other device sessions remain unaffected
@@ -867,11 +810,7 @@ async function runTests() {
       assert.strictEqual(resBProtected.status, 200, 'Fresh Session B access token must work');
       assert.strictEqual(String(resBProtected.body.sessionId), String(freshSessionB_Id), 'Fresh Session B token belongs to correct session');
       // Verify fresh Session B can be refreshed
-      const resB = await makeRequest(server, {
-        method: 'POST',
-        path: '/api/v1/auth/refresh',
-        cookies: { refreshToken: freshSessionB_RefreshToken }
-      });
+      const resB = await refreshRequest(server, freshSessionBObj.refreshToken);
       assert.strictEqual(resB.status, 200, 'Fresh Session B must work after concurrent race on Session A');
       // Verify the refreshed token can still authenticate
       assert.strictEqual(verifyTokenHash(resB.parsedCookies.refreshToken, (await Session.findById(freshSessionB_Id)).refreshTokenHash), true, 'Fresh Session B refresh token matches new hash');

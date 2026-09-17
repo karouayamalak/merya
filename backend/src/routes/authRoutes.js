@@ -15,7 +15,7 @@ import { validate, adminLoginSchema } from '../middleware/validation.js';
 const router = express.Router();
 
 router.post('/login', loginLimiter, validate(adminLoginSchema), login);
-router.post('/refresh', refreshLimiter, refresh);
+router.post('/refresh', refreshLimiter, verifyCsrf, refresh);
 router.post('/logout', verifyCsrf, logout);
 router.post('/logout-all', verifyCsrf, authenticateAdmin, logoutAll);
 router.get('/sessions', authenticateAdmin, getSessions);

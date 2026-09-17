@@ -106,7 +106,7 @@ export const refresh = async (req, res, next) => {
       return res.status(401).json({ success: false, message: 'Account is inactive' });
     }
 
-    // Rotate refresh token atomically and detect reuse
+    // Rotate refresh token atomically
     let tokens;
     try {
       tokens = await rotateSessionToken({
@@ -117,9 +117,7 @@ export const refresh = async (req, res, next) => {
       clearAuthCookies(res);
       return res.status(401).json({
         success: false,
-        message: rotationErr.code === 'REFRESH_TOKEN_REUSE'
-          ? 'Security warning: Refresh token reuse detected. Session terminated.'
-          : 'Failed to refresh token'
+        message: 'Failed to refresh token'
       });
     }
 

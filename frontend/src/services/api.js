@@ -64,11 +64,33 @@ async function refreshAccessToken() {
 
   _refreshPromise = (async () => {
     try {
+      const csrfToken = await getCsrfToken();
       const res = await fetch(`${API_BASE}/auth/refresh`, {
         method: 'POST',
-        credentials: 'include'
+        credentials: 'include',
+        headers: csrfToken ? { 'X-CSRF-Token': csrfToken } : {}
       });
       const data = await res.json().catch(() => ({}));
+
+      // If CSRF token expired, get a fresh one and retry once
+      if (res.status === 403 && data.code === 'CSRF_INVALID') {
+        _csrfToken = null;
+        const freshToken = await getCsrfToken();
+        if (freshToken) {
+          const retryRes = await fetch(`${API_BASE}/auth/refresh`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'X-CSRF-Token': freshToken }
+          });
+          const retryData = await retryRes.json().catch(() => ({}));
+          if (!retryRes.ok) {
+            throw new Error(retryData.message || 'Token refresh failed');
+          }
+          return true;
+        }
+        throw new Error('CSRF token refresh failed');
+      }
+
       if (!res.ok) {
         throw new Error(data.message || 'Token refresh failed');
       }
@@ -98,7 +120,7 @@ async function request(endpoint, options = {}) {
 
   const method = (options.method || 'GET').toUpperCase();
   const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
-  const PUBLIC_ENDPOINTS = ['/orders/checkout', '/orders/quote', '/tracking', '/auth/login', '/auth/refresh'];
+  const PUBLIC_ENDPOINTS = ['/orders/checkout', '/orders/quote', '/tracking', '/auth/login'];
   const isPublic = PUBLIC_ENDPOINTS.some(p => endpoint.startsWith(p));
 
   // Attach CSRF token on mutating requests to protected endpoints
