@@ -524,7 +524,7 @@ async function runAdversarialAudit() {
     await wsService.handleMessage(wsUnauth, { action: 'SUBSCRIBE_ADMIN' });
     assert.strictEqual(wsUnauth.messages[0].type, 'ERROR');
 
-    const customerToken = jwt.sign({ id: new mongoose.Types.ObjectId(), role: 'customer' }, process.env.JWT_SECRET || 'test_secret');
+    const customerToken = jwt.sign({ id: new mongoose.Types.ObjectId(), role: 'customer' }, process.env.ACCESS_TOKEN_SECRET || 'test_access_token_secret_for_suite_2026');
     const wsCust = createMockWs();
     await wsService.handleMessage(wsCust, { action: 'SUBSCRIBE_ADMIN', token: customerToken });
     assert.strictEqual(wsCust.messages[0].type, 'ERROR');

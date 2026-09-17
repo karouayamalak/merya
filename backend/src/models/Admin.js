@@ -31,10 +31,6 @@ const adminSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
-  sessionVersion: {
-    type: Number,
-    default: 1
-  },
   lastLoginAt: {
     type: Date
   }

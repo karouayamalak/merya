@@ -28,7 +28,6 @@ import { wsService } from '../src/services/websocketService.js';
 dotenv.config();
 
 const DB_URI = process.env.MONGODB_LOCAL_URI || 'mongodb://127.0.0.1:27018/merya_dz?replicaSet=rs0&directConnection=true';
-const JWT_SECRET = process.env.JWT_SECRET || 'test_jwt_secret_for_suite_2026';
 
 let passCount = 0;
 let failCount = 0;

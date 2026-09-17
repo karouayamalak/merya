@@ -192,7 +192,7 @@ class WebSocketService {
         ws.ping();
       });
 
-      // Periodically verify that all active admin sockets still have a valid, unrevoked sessionVersion
+      // Periodically verify that all active admin sockets still have a valid, unrevoked session
       for (const ws of Array.from(this.adminClients)) {
         const isValid = await this.validateAdminSocket(ws);
         if (!isValid) {

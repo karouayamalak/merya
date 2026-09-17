@@ -40,7 +40,10 @@ export async function createSession({ adminId, userAgent, ipAddress }) {
 
 /**
  * Validate and safely rotate a session's refresh token.
- * Prevents race conditions and detects token reuse attempts.
+ * Uses an atomic MongoDB compare-and-set (findOneAndUpdate) to prevent
+ * race conditions where two simultaneous refresh requests using the same
+ * old refresh token could both succeed.
+ * Preserves token-reuse detection.
  */
 export async function rotateSessionToken({ session, presentedRefreshToken }) {
   if (!session || !session.isActive()) {
@@ -49,20 +52,9 @@ export async function rotateSessionToken({ session, presentedRefreshToken }) {
     throw err;
   }
 
-  // Verify presented refresh token against stored verifier
-  const isValidVerifier = verifyTokenHash(presentedRefreshToken, session.refreshTokenHash);
-  if (!isValidVerifier) {
-    // Potential token theft or reuse: immediately revoke session
-    session.revokedAt = new Date();
-    session.revokeReason = 'TOKEN_ROTATION_REUSE';
-    await session.save();
+  const oldHash = hashToken(presentedRefreshToken);
 
-    const err = new Error('Token verification failed: potential token reuse detected');
-    err.code = 'REFRESH_TOKEN_REUSE';
-    throw err;
-  }
-
-  // Issue rotated credentials
+  // Issue rotated credentials (needed regardless of whether update succeeds)
   const newRefreshToken = generateRefreshToken({
     adminId: session.adminId,
     sessionId: session._id
@@ -71,10 +63,45 @@ export async function rotateSessionToken({ session, presentedRefreshToken }) {
     adminId: session.adminId,
     sessionId: session._id
   });
+  const newHash = hashToken(newRefreshToken);
 
-  session.refreshTokenHash = hashToken(newRefreshToken);
-  session.lastUsedAt = new Date();
-  await session.save();
+  // Atomic compare-and-set: update the stored hash ONLY if it still matches
+  // the old hash AND the session is active. This prevents two concurrent
+  // refresh requests using the same old token from both succeeding.
+  const result = await Session.findOneAndUpdate(
+    {
+      _id: session._id,
+      refreshTokenHash: oldHash,
+      revokedAt: null,
+      expiresAt: { $gt: new Date() }
+    },
+    {
+      $set: { refreshTokenHash: newHash, lastUsedAt: new Date() }
+    },
+    { new: true }
+  );
+
+  if (!result) {
+    // The atomic update matched nothing — determine why
+    const current = await Session.findById(session._id);
+
+    if (!current || current.revokedAt || (current.expiresAt && current.expiresAt <= new Date())) {
+      // Session was revoked or expired between the pre-check and this update
+      const err = new Error('Session is inactive or expired');
+      err.code = 'SESSION_INACTIVE';
+      throw err;
+    }
+
+    // Session is still active but the stored hash changed → another request
+    // already rotated this refresh token → token-reuse detected
+    current.revokedAt = new Date();
+    current.revokeReason = 'TOKEN_ROTATION_REUSE';
+    await current.save();
+
+    const err = new Error('Token verification failed: potential token reuse detected');
+    err.code = 'REFRESH_TOKEN_REUSE';
+    throw err;
+  }
 
   return {
     accessToken: newAccessToken,

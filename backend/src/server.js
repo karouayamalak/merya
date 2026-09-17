@@ -30,8 +30,8 @@ if (process.env.NODE_ENV !== 'production') {
 // Strict Production Preflight Checks — Fails fast if security keys or configurations are missing
 if (process.env.NODE_ENV === 'production') {
   const missingCriticalEnv = [];
-  if (!process.env.ACCESS_TOKEN_SECRET && !process.env.JWT_SECRET) missingCriticalEnv.push('ACCESS_TOKEN_SECRET');
-  if (!process.env.REFRESH_TOKEN_SECRET && !process.env.JWT_SECRET) missingCriticalEnv.push('REFRESH_TOKEN_SECRET');
+  if (!process.env.ACCESS_TOKEN_SECRET) missingCriticalEnv.push('ACCESS_TOKEN_SECRET');
+  if (!process.env.REFRESH_TOKEN_SECRET) missingCriticalEnv.push('REFRESH_TOKEN_SECRET');
   if (!process.env.COOKIE_SECRET) missingCriticalEnv.push('COOKIE_SECRET');
   if (!process.env.CSRF_SECRET && !process.env.COOKIE_SECRET) missingCriticalEnv.push('CSRF_SECRET');
   if (!process.env.MONGODB_URI) missingCriticalEnv.push('MONGODB_URI');

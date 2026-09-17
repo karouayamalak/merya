@@ -7,15 +7,11 @@
 
 export const AUTH_CONFIG = {
   get accessTokenSecret() {
-    return process.env.ACCESS_TOKEN_SECRET || process.env.JWT_SECRET;
+    return process.env.ACCESS_TOKEN_SECRET;
   },
 
   get refreshTokenSecret() {
-    return (
-      process.env.REFRESH_TOKEN_SECRET ||
-      (process.env.ACCESS_TOKEN_SECRET ? `${process.env.ACCESS_TOKEN_SECRET}_refresh_secret` : null) ||
-      (process.env.JWT_SECRET ? `${process.env.JWT_SECRET}_refresh_secret` : null)
-    );
+    return process.env.REFRESH_TOKEN_SECRET;
   },
 
   accessTokenExpiresIn: process.env.ACCESS_TOKEN_EXPIRES_IN || '15m',

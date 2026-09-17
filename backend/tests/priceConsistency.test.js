@@ -1141,10 +1141,9 @@ describe('MERYA DZ Price Consistency & Free Delivery Hardening', () => {
           username: 'wsrevadmin',
           email: 'ws_revocation_test@merya.dz',
           passwordHash: 'dummyhash',
-          role: 'admin',
-          isActive: true,
-          sessionVersion: 1
-        },
+role: 'admin',
+        isActive: true,
+      },
         { upsert: true, new: true }
       );
 

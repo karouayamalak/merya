@@ -245,7 +245,9 @@ async function runTests() {
     // ───────────────────────────────────────────────────────────────────────────
     let sessionA_RotatedCookies = {};
     try {
+      const docA_Before = await Session.findById(sessionA_Id);
       const docB_Before = await Session.findById(sessionB_Id);
+      const oldHashA = docA_Before.refreshTokenHash;
 
       const res = await makeRequest(server, {
         method: 'POST',
@@ -263,11 +265,32 @@ async function runTests() {
       const docA_After = await Session.findById(sessionA_Id);
       const docB_After = await Session.findById(sessionB_Id);
 
-      assert.notStrictEqual(docA_After.refreshTokenHash, sessionA_Cookies.refreshToken, 'Session A verifier updated');
+      // Session A's stored hash MUST have changed
+      assert.notStrictEqual(docA_After.refreshTokenHash, oldHashA, 'Session A hash changed after rotation');
+      // The new refresh token MUST match the new stored hash
+      assert.strictEqual(verifyTokenHash(res.parsedCookies.refreshToken, docA_After.refreshTokenHash), true, 'New refresh token matches new stored hash');
+      // Session B's stored hash MUST remain unchanged
       assert.strictEqual(docB_After.refreshTokenHash, docB_Before.refreshTokenHash, 'Session B verifier remained UNTOUCHED');
       assert.strictEqual(docB_After.revokedAt, null, 'Session B remains active');
 
-      pass('4. Refresh using A → only Session A is updated/rotated; Session B is untouched');
+      // Old Session A refresh token must NO LONGER work
+      const oldRefreshRes = await makeRequest(server, {
+        method: 'POST',
+        path: '/api/v1/auth/refresh',
+        cookies: { refreshToken: sessionA_Cookies.refreshToken }
+      });
+      assert.strictEqual(oldRefreshRes.status, 401, 'Old Session A refresh token must be rejected after rotation');
+
+      // Session B must STILL work after A's rotation
+      const resB = await makeRequest(server, {
+        method: 'POST',
+        path: '/api/v1/auth/refresh',
+        cookies: { refreshToken: sessionB_Cookies.refreshToken }
+      });
+      assert.strictEqual(resB.status, 200, 'Session B still works after A rotation');
+      sessionB_Cookies = resB.parsedCookies;
+
+      pass('4. Refresh using A → Session A hash rotated; Session B untouched; old A token rejected; B still works');
     } catch (e) { fail('4. Refresh using A', e); }
 
     // ───────────────────────────────────────────────────────────────────────────
@@ -749,6 +772,72 @@ async function runTests() {
 
       pass('17. Customer public order tracking works independently without admin authentication');
     } catch (e) { fail('17. Customer public order tracking', e); }
+
+    // ───────────────────────────────────────────────────────────────────────────
+    // TEST 18: Refresh Token Rotation Race Condition — Concurrent requests
+    // ───────────────────────────────────────────────────────────────────────────
+    try {
+      // Create a fresh session for concurrency testing
+      const concurrencySessionObj = await createSession({ adminId: testAdmin._id });
+      const concurrencyRefreshToken = concurrencySessionObj.refreshToken;
+      const concurrencySessionId = concurrencySessionObj.session._id;
+
+      // Send two concurrent refresh requests using the SAME old refresh token
+      const [res1, res2] = await Promise.all([
+        makeRequest(server, {
+          method: 'POST',
+          path: '/api/v1/auth/refresh',
+          cookies: { refreshToken: concurrencyRefreshToken }
+        }),
+        makeRequest(server, {
+          method: 'POST',
+          path: '/api/v1/auth/refresh',
+          cookies: { refreshToken: concurrencyRefreshToken }
+        })
+      ]);
+
+      const successes = [res1, res2].filter(r => r.status === 200);
+      const failures = [res1, res2].filter(r => r.status === 401);
+
+      // Exactly one refresh must succeed
+      assert.strictEqual(successes.length, 1, 'Exactly one concurrent refresh must succeed');
+      assert.strictEqual(failures.length, 1, 'Exactly one concurrent refresh must be rejected');
+      assert.strictEqual(failures[0].body.success, false, 'Rejected request must fail');
+      assert.ok(failures[0].body.message.includes('reuse'), 'Rejected request must indicate token reuse');
+
+      // Verify the session's stored hash was updated exactly once
+      const docAfter = await Session.findById(concurrencySessionId);
+      assert.ok(docAfter, 'Session must still exist');
+
+      // Verify the successful refresh token matches the stored hash
+      const successfulResponse = successes[0];
+      assert.strictEqual(
+        verifyTokenHash(successfulResponse.parsedCookies.refreshToken, docAfter.refreshTokenHash),
+        true,
+        'Successful new refresh token must match stored hash'
+      );
+
+      // The other refresh token (from the rejected request) must NOT match the stored hash
+      // And must not work on a subsequent attempt
+      const rejectedToken = failures[0].parsedCookies?.refreshToken;
+      if (rejectedToken) {
+        assert.strictEqual(
+          verifyTokenHash(rejectedToken, docAfter.refreshTokenHash),
+          false,
+          'Rejected new refresh token must NOT match stored hash'
+        );
+      }
+
+      // The old refresh token must no longer work
+      const oldTokenRes = await makeRequest(server, {
+        method: 'POST',
+        path: '/api/v1/auth/refresh',
+        cookies: { refreshToken: concurrencyRefreshToken }
+      });
+      assert.strictEqual(oldTokenRes.status, 401, 'Old refresh token must be rejected after any rotation');
+
+      pass('18. Refresh Token Rotation Race Condition: Concurrent identical refresh requests handled safely');
+    } catch (e) { fail('18. Refresh token rotation race condition', e); }
 
   } finally {
     server.close();

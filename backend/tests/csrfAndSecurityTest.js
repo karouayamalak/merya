@@ -43,7 +43,7 @@ import authRoutes from '../src/routes/authRoutes.js';
 dotenv.config();
 
 const DB_URI = process.env.MONGODB_LOCAL_URI || 'mongodb://127.0.0.1:27018/merya_dz?replicaSet=rs0&directConnection=true';
-const JWT_SECRET = process.env.JWT_SECRET || 'test_jwt_secret_for_suite_2026';
+const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || 'test_access_token_secret_for_suite_2026';
 
 let passCount = 0;
 let failCount = 0;
@@ -306,7 +306,7 @@ async function runTests() {
   console.log('\n[Suite 3: Cookie-Only Authentication (No Bearer Header)]');
   try {
     let nextCalled = false;
-    const token = jwt.sign({ id: new mongoose.Types.ObjectId(), role: 'admin' }, JWT_SECRET);
+    const token = jwt.sign({ id: new mongoose.Types.ObjectId(), role: 'admin' }, ACCESS_TOKEN_SECRET);
     const req = {
       headers: { authorization: `Bearer ${token}` },
       cookies: {} // No cookie

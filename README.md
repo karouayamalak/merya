@@ -395,8 +395,8 @@ All environment variables live in `backend/.env`. Copy `backend/.env.example` as
 | `PORT` | No | `5000` | Backend HTTP server port |
 | `NODE_ENV` | No | `development` | `development` / `production` / `test` |
 | `MONGODB_URI` | **Yes** | — | MongoDB connection string |
-| `JWT_SECRET` | **Yes** | — | Secret for signing JWT tokens (min 32 chars) |
-| `JWT_EXPIRES_IN` | No | `7d` | JWT token expiry duration |
+| `ACCESS_TOKEN_SECRET` | **Yes** | — | Secret for signing access JWT tokens (min 32 chars) |
+| `REFRESH_TOKEN_SECRET` | **Yes** | — | Secret for signing refresh JWT tokens (min 32 chars) |
 | `COOKIE_SECRET` | **Yes** | — | Secret for signing HttpOnly cookies |
 | `CLIENT_ORIGIN` | **Yes** | — | Frontend URL for CORS allowlist (e.g. `https://meryadz.com`) |
 | `UPLOAD_DIR` | No | `uploads` | Directory for user-uploaded images (relative to backend/) |
@@ -613,7 +613,7 @@ INITIAL_ADMIN_PASSWORD=your_secure_password
 INITIAL_ADMIN_USERNAME="Store Owner"
 ```
 
-> 🔒 **Security Notice:** Production deployments must always supply these values via secure platform secret managers. In production, password complexity is strictly enforced, and passwords are encrypted with 12 bcrypt salt rounds. Sessions are tracked with server-side `sessionVersion` for instantaneous session revocation across all devices on logout.
+> 🔒 **Security Notice:** Production deployments must always supply these values via secure platform secret managers. In production, password complexity is strictly enforced, and passwords are encrypted with 12 bcrypt salt rounds. Sessions are tracked server-side with per-device refresh token hashes for instantaneous per-device revocation on logout or token reuse detection.
 
 ### Dashboard Modules
 
@@ -756,7 +756,8 @@ The repository includes a ready-to-deploy [`render.yaml`](render.yaml) blueprint
 | `PORT` | Yes (injected) | Injected automatically by Render (default `10000`). |
 | `HOST` | Yes | Set to `0.0.0.0` for container binding. |
 | `MONGODB_URI` | Yes | MongoDB Atlas replica set URI. **Must support multi-document transactions** (e.g. `mongodb+srv://...`). |
-| `JWT_SECRET` | Yes | Cryptographic secret for signing admin JWT tokens (min 64 hex characters). Never commit to git. |
+| `ACCESS_TOKEN_SECRET` | Yes | Cryptographic secret for signing admin access JWT tokens (min 64 hex characters). Never commit to git. |
+| `REFRESH_TOKEN_SECRET` | Yes | Cryptographic secret for signing admin refresh JWT tokens (min 64 hex characters). Never commit to git. |
 | `COOKIE_SECRET` | Yes | Secret for signing HTTP cookies. |
 | `CSRF_SECRET` | Yes | Secret for HMAC-SHA256 CSRF double-submit token verification. |
 | `CLIENT_ORIGIN` | Yes | Production URL of the frontend (e.g. `https://merya.vercel.app`). Enforces strict CORS and WebSocket Origin validation. |
