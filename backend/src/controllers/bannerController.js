@@ -30,7 +30,10 @@ export const getBanners = async (req, res, next) => {
     }
 
     const rawBanners = await Banner.find(query).sort({ displayOrder: 1, createdAt: -1 });
-    const banners = rawBanners.filter(b => isBannerFullyTranslated(b));
+    // Apply getters to ensure localized fields are properly formatted before translation check
+    const banners = rawBanners
+      .map(b => b.toObject({ getters: true }))
+      .filter(b => isBannerFullyTranslated(b));
     res.json({ success: true, count: banners.length, banners });
   } catch (error) {
     next(error);
