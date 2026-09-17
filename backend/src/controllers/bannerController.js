@@ -1,4 +1,4 @@
-import { Banner } from '../models/Banner.js';
+import { Banner, isBannerFullyTranslated } from '../models/Banner.js';
 
 export const getBannerTranslationStatus = (banner) => {
   const title = typeof banner.title === 'object' && banner.title !== null ? banner.title : { fr: banner.title || '' };
