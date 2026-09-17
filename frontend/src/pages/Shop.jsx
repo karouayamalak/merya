@@ -1,27 +1,39 @@
 import React, { useState, useEffect } from 'react';
 import { Search, ArrowUpDown } from 'lucide-react';
 import ProductCard from '../components/ProductCard';
-import { fetchProducts, fetchCategories } from '../services/api';
+import { fetchProducts, fetchCategories, fetchBanners } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 
 export default function Shop({ selectedCategory, setSelectedCategory, onSelectProduct }) {
   const { t, localized } = useLanguage();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [shopBanner, setShopBanner] = useState(null);
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState('newest');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function loadCategories() {
+    async function loadData() {
       try {
-        const res = await fetchCategories();
-        if (res.success) setCategories(res.categories || []);
+        const [catRes, bannerRes] = await Promise.allSettled([
+          fetchCategories(),
+          fetchBanners({ isActive: 'true', placement: 'shop-top' })
+        ]);
+        if (catRes.status === 'fulfilled' && catRes.value?.success) {
+          setCategories(catRes.value.categories || []);
+        }
+        if (bannerRes.status === 'fulfilled' && bannerRes.value?.success) {
+          const list = bannerRes.value.banners || [];
+          if (list.length > 0) {
+            setShopBanner(list[0]);
+          }
+        }
       } catch (err) {
-        console.error(err);
+        console.error('Failed to load shop initial data:', err);
       }
     }
-    loadCategories();
+    loadData();
   }, []);
 
   useEffect(() => {
@@ -58,7 +70,7 @@ export default function Shop({ selectedCategory, setSelectedCategory, onSelectPr
     <div style={{ paddingTop: '2.5rem', paddingBottom: '5rem' }}>
       <div className="container">
         {/* Title Header */}
-        <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
+        <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
           <h1 className="heading-display" style={{ fontSize: 'clamp(2rem, 4vw, 3rem)', color: 'var(--color-espresso)' }}>
             {t('shop.title')}
           </h1>
@@ -66,6 +78,67 @@ export default function Shop({ selectedCategory, setSelectedCategory, onSelectPr
             {t('shop.subtitle')}
           </p>
         </div>
+
+        {/* SHOP-TOP BANNER (placement: 'shop-top') */}
+        {shopBanner && (
+          <div style={{
+            position: 'relative',
+            borderRadius: 'var(--radius-lg, 12px)',
+            overflow: 'hidden',
+            marginBottom: '2.5rem',
+            minHeight: '200px',
+            display: 'flex',
+            alignItems: 'center',
+            background: shopBanner.image
+              ? `linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.6)), url(${shopBanner.image}) center/cover no-repeat`
+              : 'var(--color-primary-dark)',
+            color: '#FFFFFF',
+            padding: '2.5rem 2rem'
+          }}>
+            <div style={{ maxWidth: '650px', zIndex: 2 }}>
+              {shopBanner.title && (
+                <h2 style={{
+                  fontFamily: 'var(--font-display)',
+                  fontSize: 'clamp(1.4rem, 2.8vw, 2.1rem)',
+                  fontWeight: '700',
+                  color: '#FFFFFF',
+                  marginBottom: '0.5rem',
+                  lineHeight: 1.2
+                }}>
+                  {localized(shopBanner.title)}
+                </h2>
+              )}
+              {shopBanner.subtitle && (
+                <p style={{
+                  fontSize: '0.95rem',
+                  color: 'rgba(255,255,255,0.9)',
+                  marginBottom: (shopBanner.ctaLink && shopBanner.ctaText) ? '1.25rem' : '0',
+                  maxWidth: '520px'
+                }}>
+                  {localized(shopBanner.subtitle)}
+                </p>
+              )}
+              {shopBanner.ctaLink && shopBanner.ctaText && (
+                <a
+                  href={shopBanner.ctaLink}
+                  style={{
+                    display: 'inline-block',
+                    padding: '0.6rem 1.4rem',
+                    backgroundColor: '#FFFFFF',
+                    color: 'var(--color-espresso)',
+                    borderRadius: 'var(--radius-full)',
+                    fontWeight: '600',
+                    fontSize: '0.82rem',
+                    textDecoration: 'none',
+                    boxShadow: 'var(--shadow-sm)'
+                  }}
+                >
+                  {localized(shopBanner.ctaText)}
+                </a>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Filter Bar */}
         <div style={{
