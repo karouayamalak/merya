@@ -28,6 +28,7 @@ export function getImageUrl(imagePath) {
 }
 
 let _csrfToken = null;
+let _refreshPromise = null;
 
 export function clearCsrfToken() {
   _csrfToken = null;
@@ -51,6 +52,35 @@ export async function getCsrfToken() {
   return null;
 }
 
+/**
+ * Single-flight token refresh mechanism:
+ * Concurrent 401 responses coalesce onto a single active refresh promise
+ * to prevent refresh stampedes and race conditions.
+ */
+async function refreshAccessToken() {
+  if (_refreshPromise) {
+    return _refreshPromise;
+  }
+
+  _refreshPromise = (async () => {
+    try {
+      const res = await fetch(`${API_BASE}/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || 'Token refresh failed');
+      }
+      return true;
+    } finally {
+      _refreshPromise = null;
+    }
+  })();
+
+  return _refreshPromise;
+}
+
 async function request(endpoint, options = {}) {
   const config = {
     credentials: 'include', // HttpOnly cookie is sent automatically by the browser
@@ -68,7 +98,7 @@ async function request(endpoint, options = {}) {
 
   const method = (options.method || 'GET').toUpperCase();
   const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
-  const PUBLIC_ENDPOINTS = ['/orders/checkout', '/orders/quote', '/tracking', '/auth/login'];
+  const PUBLIC_ENDPOINTS = ['/orders/checkout', '/orders/quote', '/tracking', '/auth/login', '/auth/refresh'];
   const isPublic = PUBLIC_ENDPOINTS.some(p => endpoint.startsWith(p));
 
   // Attach CSRF token on mutating requests to protected endpoints
@@ -90,6 +120,18 @@ async function request(endpoint, options = {}) {
       config.headers['X-CSRF-Token'] = freshToken;
       res = await fetch(`${API_BASE}${endpoint}`, { ...config, _isRetry: true });
       data = await res.json().catch(() => ({}));
+    }
+  }
+
+  // Automatic retry once if Access Token expired on protected routes
+  if (res.status === 401 && !options._isAuthRetry && !isPublic && endpoint !== '/auth/me') {
+    try {
+      await refreshAccessToken();
+      // Retry original request with fresh credentials
+      return await request(endpoint, { ...options, _isAuthRetry: true });
+    } catch {
+      // Refresh failed — clear cached CSRF token and let caller handle 401 / unauthenticated
+      _csrfToken = null;
     }
   }
 
@@ -141,6 +183,9 @@ export const adminLogin = (email, password) => request('/auth/login', {
   body: JSON.stringify({ email, password })
 });
 export const adminLogout = () => request('/auth/logout', { method: 'POST' });
+export const adminLogoutAll = () => request('/auth/logout-all', { method: 'POST' });
+export const adminRefreshToken = () => refreshAccessToken();
+export const adminGetSessions = () => request('/auth/sessions');
 export const adminGetMe = () => request('/auth/me');
 
 // Admin Management APIs

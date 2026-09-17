@@ -1,9 +1,10 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { parse as parseCookie } from 'cookie';
-import jwt from 'jsonwebtoken';
 import { Admin } from '../models/Admin.js';
+import { Session } from '../models/Session.js';
 import { Order } from '../models/Order.js';
 import { normalizeAlgerianPhone } from '../utils/phone.js';
+import { verifyAccessToken } from '../utils/tokenUtils.js';
 
 class WebSocketService {
   constructor() {
@@ -85,22 +86,33 @@ class WebSocketService {
       // Pre-authenticate admin identity from the upgrade request cookie.
       // This avoids transmitting the JWT in plaintext WebSocket messages.
       ws._adminIdentity = null;
+      ws._sessionId = null;
+      ws._adminId = null;
       ws._authPromise = (async () => {
         try {
           const cookieHeader = req.headers?.cookie || '';
           const cookies = parseCookie(cookieHeader);
-          const token = cookies.token;
-          if (token) {
-            const secret = process.env.JWT_SECRET;
-            if (secret) {
-              const decoded = jwt.verify(token, secret);
-              const admin = await Admin.findById(decoded.id).select('-passwordHash');
-              const tokenVersion = decoded.sessionVersion !== undefined ? decoded.sessionVersion : 1;
-              const currentVersion = admin?.sessionVersion !== undefined ? admin.sessionVersion : 1;
-              if (admin && admin.isActive && tokenVersion === currentVersion && (admin.role === 'admin' || admin.role === 'owner')) {
+          const accessToken = cookies.accessToken;
+          if (accessToken) {
+            const decoded = verifyAccessToken(accessToken);
+            if (decoded && decoded.type === 'access' && decoded.sid && decoded.sub) {
+              const [session, admin] = await Promise.all([
+                Session.findById(decoded.sid).lean(),
+                Admin.findById(decoded.sub).select('-passwordHash')
+              ]);
+
+              if (
+                session &&
+                !session.revokedAt &&
+                (!session.expiresAt || session.expiresAt > new Date()) &&
+                String(session.adminId) === decoded.sub &&
+                admin &&
+                admin.isActive &&
+                (admin.role === 'admin' || admin.role === 'owner')
+              ) {
                 ws._adminIdentity = admin;
                 ws._adminId = admin._id.toString();
-                ws._sessionVersion = tokenVersion;
+                ws._sessionId = session._id.toString();
               }
             }
           }
@@ -233,14 +245,17 @@ class WebSocketService {
   }
 
   async validateAdminSocket(ws) {
-    if (!ws || !ws._adminId) return false;
+    if (!ws || !ws._adminId || !ws._sessionId) return false;
     try {
-      const admin = await Admin.findById(ws._adminId).select('isActive sessionVersion role');
-      if (!admin || !admin.isActive || (admin.role !== 'admin' && admin.role !== 'owner')) {
+      const [session, admin] = await Promise.all([
+        Session.findById(ws._sessionId).lean(),
+        Admin.findById(ws._adminId).select('isActive role')
+      ]);
+
+      if (!session || session.revokedAt || (session.expiresAt && session.expiresAt <= new Date())) {
         return false;
       }
-      const currentVersion = admin.sessionVersion !== undefined ? admin.sessionVersion : 1;
-      if (ws._sessionVersion !== currentVersion) {
+      if (!admin || !admin.isActive || (admin.role !== 'admin' && admin.role !== 'owner')) {
         return false;
       }
       return true;
@@ -249,13 +264,29 @@ class WebSocketService {
     }
   }
 
-  revokeAdminSession(adminId) {
+  revokeAdminSession(sessionId) {
+    if (!sessionId) return;
+    const sidStr = String(sessionId);
+    this.adminClients.forEach((ws) => {
+      if (ws._sessionId === sidStr) {
+        try {
+          ws.send(JSON.stringify({ type: 'SESSION_REVOKED', message: 'Admin session has been revoked or logged out.' }));
+          ws.close(4001, 'Session revoked');
+        } catch {
+          ws.terminate();
+        }
+        this.cleanupClient(ws);
+      }
+    });
+  }
+
+  revokeAdminAllSessions(adminId) {
     if (!adminId) return;
     const idStr = String(adminId);
     this.adminClients.forEach((ws) => {
       if (ws._adminId === idStr) {
         try {
-          ws.send(JSON.stringify({ type: 'SESSION_REVOKED', message: 'Admin session has been revoked or logged out.' }));
+          ws.send(JSON.stringify({ type: 'SESSION_REVOKED', message: 'All admin sessions have been revoked.' }));
           ws.close(4001, 'Session revoked');
         } catch {
           ws.terminate();

@@ -1148,12 +1148,9 @@ describe('MERYA DZ Price Consistency & Free Delivery Hardening', () => {
         { upsert: true, new: true }
       );
 
-      const secret = process.env.JWT_SECRET || 'test_jwt_secret_production_key_32bytes!!';
-      validToken = (await import('jsonwebtoken')).default.sign(
-        { id: adminUser._id, role: adminUser.role, username: adminUser.username, sessionVersion: 1 },
-        secret,
-        { expiresIn: '7d' }
-      );
+      const { createSession } = await import('../src/services/sessionService.js');
+      const sessionRes = await createSession({ adminId: adminUser._id });
+      validToken = sessionRes.accessToken;
 
       testServer = http.default.createServer();
       wsService.init(testServer, ['http://localhost:5173']);
@@ -1176,7 +1173,7 @@ describe('MERYA DZ Price Consistency & Free Delivery Hardening', () => {
       const ws = new WebSocket(`ws://127.0.0.1:${wsPort}/ws`, {
         headers: {
           Origin: 'http://localhost:5173',
-          Cookie: `token=${validToken}`
+          Cookie: `accessToken=${validToken}`
         }
       });
 
@@ -1230,7 +1227,7 @@ describe('MERYA DZ Price Consistency & Free Delivery Hardening', () => {
         clearCookie() {},
         json() {}
       };
-      await logout({ cookies: { token: validToken } }, mockLogoutRes, () => {});
+      await logout({ cookies: { accessToken: validToken } }, mockLogoutRes, () => {});
 
       const wasRevoked = await revokedPromise;
       assert.strictEqual(wasRevoked, true, 'Active admin WebSocket must receive SESSION_REVOKED when logged out');

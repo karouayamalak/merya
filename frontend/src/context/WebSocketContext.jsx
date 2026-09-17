@@ -130,6 +130,12 @@ export function WebSocketProvider({ children }) {
             }
           }
 
+          // Handle session revocation explicitly
+          if (type === 'SESSION_REVOKED') {
+            console.warn('[WebSocket] Admin session revoked');
+            adminSubscriptionsRef.current.clear();
+          }
+
           // Dispatch to admin subscribers
           if (adminSubscriptionsRef.current.size > 0) {
             adminSubscriptionsRef.current.forEach((cb) => {
@@ -145,10 +151,20 @@ export function WebSocketProvider({ children }) {
         }
       };
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         setIsConnected(false);
         if (socketRef.current === ws) {
           socketRef.current = null;
+        }
+        // If the socket was closed due to admin session revocation (code 4001),
+        // clear admin subscriptions to avoid unauthorized reconnect storm.
+        if (event && event.code === 4001) {
+          adminSubscriptionsRef.current.clear();
+          // Only reconnect if customer is tracking orders
+          if (orderSubscriptionsRef.current.size > 0) {
+            scheduleReconnect(3000);
+          }
+          return;
         }
         scheduleReconnect(3000);
       };

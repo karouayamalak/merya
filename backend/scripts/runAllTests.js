@@ -9,12 +9,15 @@
 import { spawn, spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const backendRoot = path.resolve(__dirname, '..');
 
-const testDbUri = process.env.MONGODB_TEST_URI || process.env.MONGODB_LOCAL_URI || process.env.MONGODB_URI;
+const testDbUri = process.env.MONGODB_TEST_URI || process.env.MONGODB_LOCAL_URI || 'mongodb://127.0.0.1:27018/merya_dz?replicaSet=rs0&directConnection=true';
 
 let spawnedServer = null;
 async function ensureServerRunning() {
@@ -24,7 +27,7 @@ async function ensureServerRunning() {
   } catch {}
 
   console.log('[Runner] Server not detected on http://localhost:5000. Spawning test server...');
-  spawnedServer = spawn(process.execPath, ['--env-file=.env', 'src/server.js'], {
+  spawnedServer = spawn(process.execPath, ['src/server.js'], {
     cwd: backendRoot,
     stdio: 'ignore',
     env: { ...process.env, NODE_ENV: 'test', MONGODB_URI: testDbUri }
@@ -77,7 +80,8 @@ const testSuite = [
   { name: 'authoritativeDeliverySourceOfTruth.test.js', isNodeTest: true, desc: 'Authoritative delivery pricing source of truth: wilayaRates vs legacy global fees' },
   { name: 'productionTenOutOfTenHardening.test.js', isNodeTest: true, desc: '10/10 Hardening: variant stock overwrite race guard, translation activation, price override audit' },
   { name: 'rateLimiterAdversarial.test.js', isNodeTest: true, desc: 'Rate limiter adversarial suite: namespaces, expired record reset, bounded memory' },
-  { name: 'inventoryConcurrencyAdversarial.test.js', isNodeTest: true, desc: 'Inventory concurrency adversarial suite: 16 race scenarios, CAS, and 409 conflict' }
+  { name: 'inventoryConcurrencyAdversarial.test.js', isNodeTest: true, desc: 'Inventory concurrency adversarial suite: 16 race scenarios, CAS, and 409 conflict' },
+  { name: 'multiDeviceSessionAuth.test.js', isNodeTest: false, desc: 'Multi-device session auth, access/refresh tokens, rotation & revocation' }
 ];
 
 console.log('================================================================');
@@ -96,7 +100,7 @@ const totalStart = Date.now();
 for (let i = 0; i < testSuite.length; i++) {
   const item = testSuite[i];
   const testPath = path.join('tests', item.name);
-  const args = ['--env-file=.env', ...(item.isNodeTest ? ['--test', testPath] : [testPath])];
+  const args = item.isNodeTest ? ['--test', testPath] : [testPath];
 
   process.stdout.write(`[${i + 1}/${testSuite.length}] Running ${item.name} ... `);
   const start = Date.now();

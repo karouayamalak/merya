@@ -23,6 +23,8 @@ import { Product } from '../src/models/Product.js';
 import { Category } from '../src/models/Category.js';
 import { Order } from '../src/models/Order.js';
 import { Admin } from '../src/models/Admin.js';
+import { Session } from '../src/models/Session.js';
+import { createSession, revokeSession } from '../src/services/sessionService.js';
 import { DeliverySetting } from '../src/models/DeliverySetting.js';
 import { placeOrder as basePlaceOrder, updateOrderStatus, updateOrderItemsService } from '../src/services/orderService.js';
 const placeOrder = (params) => basePlaceOrder({
@@ -37,7 +39,7 @@ import { ORDER_STATUS, DELIVERY_METHODS } from '../src/config/constants.js';
 
 dotenv.config();
 
-const DB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27018/merya_dz?replicaSet=rs0&directConnection=true';
+const DB_URI = process.env.MONGODB_LOCAL_URI || 'mongodb://127.0.0.1:27018/merya_dz?replicaSet=rs0&directConnection=true';
 const JWT_SECRET = process.env.JWT_SECRET || 'test_jwt_secret_production_key_32bytes!!';
 
 let passCount = 0;
@@ -681,45 +683,36 @@ async function runAllTests() {
   console.log('\n── Test 11: JWT / Session Revocation on Logout ──');
   try {
     const admin = await Admin.findOne({ email: 'line_item_admin@merya.dz' });
-    const initialSessionVersion = admin.sessionVersion || 1;
 
-    // 1. Issue JWT with current sessionVersion
-    const token = jwt.sign(
-      {
-        id: admin._id,
-        role: admin.role,
-        username: admin.username,
-        sessionVersion: initialSessionVersion
-      },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    // 1. Issue Session with Access and Refresh tokens
+    const { session, accessToken, refreshToken } = await createSession({ adminId: admin._id });
 
     // 2. Verify request succeeds with valid active session
     let nextCalled = false;
     const reqActive = {
-      cookies: { token },
+      cookies: { accessToken },
       headers: {}
     };
     const resActive = mockRes();
     await authenticateAdmin(reqActive, resActive, () => { nextCalled = true; });
     assert.strictEqual(nextCalled, true, 'Active session accepted by authenticateAdmin');
 
-    // 3. Admin logs out -> sessionVersion is incremented in DB
+    // 3. Admin logs out -> Session is marked revoked in DB
     const reqLogout = {
-      cookies: { token }
+      cookies: { accessToken, refreshToken },
+      authSession: session
     };
     const resLogout = mockRes();
     await logout(reqLogout, resLogout, () => {});
     assert.strictEqual(resLogout.cleared, true, 'Cookie cleared');
 
-    const updatedAdmin = await Admin.findById(admin._id);
-    assert.strictEqual(updatedAdmin.sessionVersion, initialSessionVersion + 1, 'Admin sessionVersion incremented in DB');
+    const updatedSession = await Session.findById(session._id);
+    assert.ok(updatedSession.revokedAt, 'Session marked revoked in DB');
 
-    // 4. Attempt authenticated request using previously issued JWT
+    // 4. Attempt authenticated request using previously issued access token
     let nextCalledAfterRevoke = false;
     const reqRevoked = {
-      cookies: { token },
+      cookies: { accessToken },
       headers: {}
     };
     const resRevoked = mockRes();
@@ -727,9 +720,9 @@ async function runAllTests() {
 
     assert.strictEqual(nextCalledAfterRevoke, false, 'Revoked token MUST NOT call next()');
     assert.strictEqual(resRevoked.statusCode, 401, 'Revoked token rejected with HTTP 401');
-    assert.strictEqual(resRevoked.body.message, 'Session revoked. Please log in again.');
+    assert.ok(resRevoked.body.message.includes('revoked'), 'Error message indicates revoked session');
 
-    pass('Logout increments sessionVersion in DB; previously issued JWT immediately rejected with 401');
+    pass('Logout revokes Session in DB; previously issued accessToken immediately rejected with 401');
   } catch (err) {
     fail('JWT session revocation test', err);
   }
@@ -738,17 +731,8 @@ async function runAllTests() {
   console.log('\n── Test 12: WebSocket Rejection of Revoked Admin Session ──');
   try {
     const admin = await Admin.findOne({ email: 'line_item_admin@merya.dz' });
-    // Token with outdated sessionVersion (revoked)
-    const revokedToken = jwt.sign(
-      {
-        id: admin._id,
-        role: admin.role,
-        username: admin.username,
-        sessionVersion: (admin.sessionVersion || 1) - 1 // Old revoked version!
-      },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    const { session, accessToken } = await createSession({ adminId: admin._id });
+    await revokeSession(session._id, 'TEST_REVOKE');
 
     // Start a temporary test server with wsService
     const port = 5098;
@@ -759,7 +743,7 @@ async function runAllTests() {
     const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`, {
       headers: {
         Origin: 'http://localhost:5173',
-        Cookie: `token=${revokedToken}`
+        Cookie: `accessToken=${accessToken}`
       }
     });
 

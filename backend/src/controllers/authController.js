@@ -1,10 +1,30 @@
-import jwt from 'jsonwebtoken';
+import mongoose from 'mongoose';
 import { Admin } from '../models/Admin.js';
+import { Session } from '../models/Session.js';
 import { wsService } from '../services/websocketService.js';
+import {
+  createSession,
+  rotateSessionToken,
+  revokeSession,
+  revokeAllAdminSessions,
+  getAdminSessions
+} from '../services/sessionService.js';
+import {
+  verifyAccessToken,
+  verifyRefreshToken
+} from '../utils/tokenUtils.js';
+import {
+  setAuthCookies,
+  clearAuthCookies
+} from '../utils/cookieUtils.js';
 
 export const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ success: false, message: 'Email and password are required' });
+    }
 
     const admin = await Admin.findOne({ email: email.toLowerCase() });
     if (!admin || !admin.isActive) {
@@ -16,39 +36,23 @@ export const login = async (req, res, next) => {
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
 
+    // Update lastLoginAt
     admin.lastLoginAt = new Date();
     await admin.save();
 
-    const secret = process.env.JWT_SECRET;
-    if (!secret) {
-      throw new Error('JWT_SECRET environment variable is missing on server');
-    }
+    const userAgent = req.headers['user-agent'] || null;
+    const ipAddress = req.ip || req.connection?.remoteAddress || null;
 
-    const token = jwt.sign(
-      {
-        id: admin._id,
-        role: admin.role,
-        username: admin.username,
-        sessionVersion: admin.sessionVersion !== undefined ? admin.sessionVersion : 1
-      },
-      secret,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
-    );
-
-    const isProduction = process.env.NODE_ENV === 'production';
-    // Cross-domain SPA (e.g. Vercel frontend + Render/Railway backend) requires sameSite: 'none' and secure: true.
-    // If running on identical domain/subdomain, can be overridden with COOKIE_SAME_SITE=lax or strict.
-    const sameSite = isProduction ? (process.env.COOKIE_SAME_SITE || 'none') : 'lax';
-
-    res.cookie('token', token, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite,
-      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    // Create unique independent session for this device/browser
+    const { accessToken, refreshToken } = await createSession({
+      adminId: admin._id,
+      userAgent,
+      ipAddress
     });
 
-    // NOTE: The JWT is intentionally NOT included in the response body.
-    // It is set exclusively via an HttpOnly cookie above, preventing XSS token theft.
+    // Set secure HttpOnly cookies (never return raw tokens in JSON)
+    setAuthCookies(res, { accessToken, refreshToken });
+
     res.json({
       success: true,
       admin: {
@@ -63,30 +67,133 @@ export const login = async (req, res, next) => {
   }
 };
 
+export const refresh = async (req, res, next) => {
+  try {
+    const refreshToken = req.cookies?.refreshToken;
+    if (!refreshToken) {
+      return res.status(401).json({ success: false, message: 'Authentication required: no refresh token' });
+    }
+
+    let decoded;
+    try {
+      decoded = verifyRefreshToken(refreshToken);
+    } catch {
+      clearAuthCookies(res);
+      return res.status(401).json({ success: false, message: 'Invalid or expired refresh token' });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(decoded.sid) || !mongoose.Types.ObjectId.isValid(decoded.sub)) {
+      clearAuthCookies(res);
+      return res.status(401).json({ success: false, message: 'Session not found' });
+    }
+
+    const session = await Session.findById(decoded.sid);
+    if (!session || String(session.adminId) !== decoded.sub) {
+      clearAuthCookies(res);
+      return res.status(401).json({ success: false, message: 'Session not found' });
+    }
+
+    if (session.revokedAt || session.expiresAt <= new Date()) {
+      clearAuthCookies(res);
+      return res.status(401).json({ success: false, message: 'Session has been revoked or expired. Please log in again.' });
+    }
+
+    // Authoritative check on Admin state
+    const admin = await Admin.findById(session.adminId);
+    if (!admin || !admin.isActive) {
+      await revokeSession(session._id, 'ADMIN_DEACTIVATED');
+      clearAuthCookies(res);
+      return res.status(401).json({ success: false, message: 'Account is inactive' });
+    }
+
+    // Rotate refresh token atomically and detect reuse
+    let tokens;
+    try {
+      tokens = await rotateSessionToken({
+        session,
+        presentedRefreshToken: refreshToken
+      });
+    } catch (rotationErr) {
+      clearAuthCookies(res);
+      return res.status(401).json({
+        success: false,
+        message: rotationErr.code === 'REFRESH_TOKEN_REUSE'
+          ? 'Security warning: Refresh token reuse detected. Session terminated.'
+          : 'Failed to refresh token'
+      });
+    }
+
+    setAuthCookies(res, {
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken
+    });
+
+    res.json({
+      success: true,
+      message: 'Token refreshed successfully'
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
 export const logout = async (req, res, next) => {
   try {
-    // Increment admin sessionVersion in DB so any previously issued JWT is immediately revoked server-side
-    const token = req.cookies?.token;
-    if (token && process.env.JWT_SECRET) {
-      try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        if (decoded?.id) {
-          await Admin.findByIdAndUpdate(decoded.id, { $inc: { sessionVersion: 1 } });
-          wsService.revokeAdminSession(decoded.id);
+    // Identify current session ID from authSession, accessToken, or refreshToken
+    let sessionId = req.authSession?._id;
+
+    if (!sessionId) {
+      const accessToken = req.cookies?.accessToken;
+      if (accessToken) {
+        try {
+          const decoded = verifyAccessToken(accessToken);
+          sessionId = decoded.sid;
+        } catch {
+          // Access token might be expired; try refresh token
         }
-      } catch {
-        // Token already invalid or expired; proceed with cookie clearing
       }
     }
 
-    const isProduction = process.env.NODE_ENV === 'production';
-    const sameSite = isProduction ? (process.env.COOKIE_SAME_SITE || 'none') : 'lax';
-    res.clearCookie('token', {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite
-    });
+    if (!sessionId) {
+      const refreshToken = req.cookies?.refreshToken;
+      if (refreshToken) {
+        try {
+          const decoded = verifyRefreshToken(refreshToken);
+          sessionId = decoded.sid;
+        } catch {
+          // Token invalid or already expired
+        }
+      }
+    }
+
+    if (sessionId) {
+      await revokeSession(sessionId, 'LOGOUT');
+      // Revoke only WebSockets tied to this specific session
+      wsService.revokeAdminSession(sessionId);
+    }
+
+    // Always clear all auth cookies
+    clearAuthCookies(res);
+
     res.json({ success: true, message: 'Logged out successfully' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const logoutAll = async (req, res, next) => {
+  try {
+    const adminId = req.admin?._id;
+    if (!adminId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    await revokeAllAdminSessions(adminId, 'LOGOUT_ALL');
+    wsService.revokeAdminAllSessions(adminId);
+
+    clearAuthCookies(res);
+
+    res.json({ success: true, message: 'All active sessions revoked successfully' });
   } catch (err) {
     next(err);
   }
@@ -102,4 +209,19 @@ export const getMe = (req, res) => {
       role: req.admin.role
     }
   });
+};
+
+export const getSessions = async (req, res, next) => {
+  try {
+    const adminId = req.admin?._id;
+    const currentSessionId = req.authSession?._id;
+
+    const sessions = await getAdminSessions(adminId, currentSessionId);
+    res.json({
+      success: true,
+      sessions
+    });
+  } catch (err) {
+    next(err);
+  }
 };

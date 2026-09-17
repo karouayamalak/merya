@@ -230,3 +230,11 @@ export const apiLimiter = createLimiter({
   message: 'Too many requests. Please slow down.',
   prefix: 'api'
 });
+
+// Refresh limiter to prevent abuse on refresh endpoint
+export const refreshLimiter = createLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: process.env.NODE_ENV === 'production' ? 30 : 10000,
+  message: 'Too many token refresh attempts. Please try again later.',
+  prefix: 'refresh'
+});

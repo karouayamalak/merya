@@ -21,11 +21,13 @@ import dotenv from 'dotenv';
 import jwt from 'jsonwebtoken';
 import { Order } from '../src/models/Order.js';
 import { Admin } from '../src/models/Admin.js';
+import { Session } from '../src/models/Session.js';
+import { createSession } from '../src/services/sessionService.js';
 import { wsService } from '../src/services/websocketService.js';
 
 dotenv.config();
 
-const DB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27018/merya_dz?replicaSet=rs0&directConnection=true';
+const DB_URI = process.env.MONGODB_LOCAL_URI || 'mongodb://127.0.0.1:27018/merya_dz?replicaSet=rs0&directConnection=true';
 const JWT_SECRET = process.env.JWT_SECRET || 'test_jwt_secret_for_suite_2026';
 
 let passCount = 0;
@@ -103,10 +105,7 @@ async function runTests() {
       isActive: true
     });
   }
-  const adminToken = jwt.sign(
-    { id: testAdmin._id, role: testAdmin.role, sessionVersion: testAdmin.sessionVersion || 1 },
-    JWT_SECRET
-  );
+  const { accessToken } = await createSession({ adminId: testAdmin._id });
 
   // ─── Implementation of the Client-Side Resubscription State Machine ─────────
   class MockWebSocketClient {
@@ -270,7 +269,7 @@ async function runTests() {
   try {
     // ── TEST 1: Initial Connection & Active Order Subscription ──────────────────
     console.log('[Test 1] Initial Connection and Subscription');
-    const client = new MockWebSocketClient(WS_URL, `token=${adminToken}`);
+    const client = new MockWebSocketClient(WS_URL, `accessToken=${accessToken}`);
     client.connect();
 
     await new Promise((res) => setTimeout(res, 300));

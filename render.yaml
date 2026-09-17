@@ -13,7 +13,9 @@ services:
         value: 0.0.0.0
       - key: MONGODB_URI
         sync: false
-      - key: JWT_SECRET
+      - key: ACCESS_TOKEN_SECRET
+        generateValue: true
+      - key: REFRESH_TOKEN_SECRET
         generateValue: true
       - key: COOKIE_SECRET
         generateValue: true

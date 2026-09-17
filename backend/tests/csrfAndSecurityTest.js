@@ -35,13 +35,14 @@ import { generateCsrfToken, verifyCsrfToken, verifyCsrf, issueCsrfToken } from '
 import { authenticateAdmin } from '../src/middleware/auth.js';
 import { wsService } from '../src/services/websocketService.js';
 import { Admin } from '../src/models/Admin.js';
+import { createSession } from '../src/services/sessionService.js';
 import { adjustVariantStock } from '../src/controllers/orderController.js';
 import { logout } from '../src/controllers/authController.js';
 import authRoutes from '../src/routes/authRoutes.js';
 
 dotenv.config();
 
-const DB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27018/merya_dz?replicaSet=rs0&directConnection=true';
+const DB_URI = process.env.MONGODB_LOCAL_URI || 'mongodb://127.0.0.1:27018/merya_dz?replicaSet=rs0&directConnection=true';
 const JWT_SECRET = process.env.JWT_SECRET || 'test_jwt_secret_for_suite_2026';
 
 let passCount = 0;
@@ -228,20 +229,20 @@ async function runTests() {
         isActive: true
       });
     }
-    const adminToken = jwt.sign({ id: logoutAdmin._id, role: logoutAdmin.role, sessionVersion: logoutAdmin.sessionVersion || 1 }, JWT_SECRET);
+    const { accessToken, refreshToken } = await createSession({ adminId: logoutAdmin._id });
     const validCsrf = generateCsrfToken();
 
     let csrfPassed = false;
     const req = {
       method: 'POST',
       headers: { 'x-csrf-token': validCsrf },
-      cookies: { csrf_token: validCsrf, token: adminToken }
+      cookies: { csrf_token: validCsrf, accessToken, refreshToken }
     };
     const res = {
       ...createMockRes(),
       cleared: false,
       clearCookie(name) {
-        if (name === 'token') this.cleared = true;
+        if (name === 'token' || name === 'accessToken' || name === 'refreshToken') this.cleared = true;
         return this;
       }
     };
@@ -333,10 +334,10 @@ async function runTests() {
     }
 
     let nextCalled = false;
-    const token = jwt.sign({ id: testAdmin._id, role: testAdmin.role, sessionVersion: testAdmin.sessionVersion || 1 }, JWT_SECRET);
+    const { accessToken } = await createSession({ adminId: testAdmin._id });
     const req = {
       headers: {},
-      cookies: { token }
+      cookies: { accessToken }
     };
     const res = createMockRes();
     await authenticateAdmin(req, res, () => { nextCalled = true; });
@@ -462,13 +463,13 @@ async function runTests() {
   try {
     // 5d. SUBSCRIBE_ADMIN with valid admin cookie in upgrade request receives SUBSCRIBED
     const testAdmin = await Admin.findOne({ email: 'csrf_test_admin@merya.dz' });
-    const adminToken = jwt.sign({ id: testAdmin._id, role: testAdmin.role, sessionVersion: testAdmin.sessionVersion || 1 }, JWT_SECRET);
+    const { accessToken } = await createSession({ adminId: testAdmin._id });
 
     const subscribed = await new Promise((resolve, reject) => {
       const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`, {
         headers: {
           Origin: allowedOrigin,
-          Cookie: `token=${adminToken}`
+          Cookie: `accessToken=${accessToken}`
         }
       });
       ws.on('open', () => {
