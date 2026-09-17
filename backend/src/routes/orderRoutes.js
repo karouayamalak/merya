@@ -9,7 +9,7 @@ import {
   updateOrderItems,
   adjustVariantStock
 } from '../controllers/orderController.js';
-import { authenticateAdmin, requireRoles } from '../middleware/auth.js';
+import { authenticateAdmin, authenticateAdminJwtOnly, requireRoles } from '../middleware/auth.js';
 import { verifyCsrf } from '../middleware/csrf.js';
 import { checkoutLimiter } from '../middleware/rateLimiter.js';
 import { validate, checkoutOrderSchema, statusChangeSchema, cartQuoteSchema } from '../middleware/validation.js';
@@ -22,8 +22,8 @@ router.post('/checkout', checkoutLimiter, validate(checkoutOrderSchema), checkou
 router.post('/quote', checkoutLimiter, validate(cartQuoteSchema), getCartQuote);
 
 // Admin order management — read-only accessible to all authenticated admin roles
-router.get('/admin', authenticateAdmin, getAllOrdersAdmin);
-router.get('/admin/:id', authenticateAdmin, getOrderByIdAdmin);
+router.get('/admin', authenticateAdminJwtOnly, getAllOrdersAdmin);
+router.get('/admin/:id', authenticateAdminJwtOnly, getOrderByIdAdmin);
 
 // Sensitive mutations — restricted to owner and admin roles only (staff cannot mutate orders)
 router.patch('/admin/:id/status', authenticateAdmin, requireRoles(ROLES.OWNER, ROLES.ADMIN), verifyCsrf, validate(statusChangeSchema), changeOrderStatus);

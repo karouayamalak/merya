@@ -94,6 +94,80 @@ export const authenticateAdmin = async (req, res, next) => {
   }
 };
 
+/**
+ * Lightweight authentication middleware - JWT verification only, no DB queries.
+ * Use for read-only routes that only need identity from the verified JWT.
+ * Attaches minimal admin/session info from JWT payload:
+ *   - req.admin = { _id: decoded.sub, sessionId: decoded.sid }
+ *   - req.authSession = { _id: decoded.sid }
+ * Does NOT verify: session revocation, admin active status, session existence in DB.
+ */
+export const authenticateAdminJwtOnly = async (req, res, next) => {
+  try {
+    const accessToken = req.cookies?.accessToken;
+
+    if (!accessToken) {
+      if (req.cookies?.token) {
+        res.clearCookie('token');
+      }
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required',
+        code: 'AUTH_REQUIRED'
+      });
+    }
+
+    let decoded;
+    try {
+      decoded = verifyAccessToken(accessToken);
+    } catch (err) {
+      if (err.name === 'TokenExpiredError') {
+        return res.status(401).json({
+          success: false,
+          message: 'Access token expired',
+          code: 'TOKEN_EXPIRED'
+        });
+      }
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid session token',
+        code: 'TOKEN_INVALID'
+      });
+    }
+
+    if (
+      decoded.type !== 'access' ||
+      !decoded.sid ||
+      !decoded.sub ||
+      !mongoose.Types.ObjectId.isValid(decoded.sid) ||
+      !mongoose.Types.ObjectId.isValid(decoded.sub)
+    ) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid token claims',
+        code: 'TOKEN_INVALID'
+      });
+    }
+
+    // Attach minimal identity from verified JWT payload - NO database queries
+    req.admin = {
+      _id: decoded.sub,
+      sessionId: decoded.sid
+    };
+    req.authSession = {
+      _id: decoded.sid
+    };
+
+    next();
+  } catch (error) {
+    return res.status(401).json({
+      success: false,
+      message: 'Authentication failure',
+      code: 'AUTH_FAILED'
+    });
+  }
+};
+
 export const requireRoles = (...allowedRoles) => {
   return (req, res, next) => {
     if (!req.admin) {
