@@ -775,6 +775,7 @@ async function runTests() {
 
     // ───────────────────────────────────────────────────────────────────────────
     // TEST 18: Refresh Token Rotation Race Condition — Concurrent requests
+    // Verifies the session survives the race and new credentials work.
     // ───────────────────────────────────────────────────────────────────────────
     try {
       // Create a fresh session for concurrency testing
@@ -799,36 +800,49 @@ async function runTests() {
       const successes = [res1, res2].filter(r => r.status === 200);
       const failures = [res1, res2].filter(r => r.status === 401);
 
-      // Exactly one refresh must succeed
+      // 1. Exactly one refresh must succeed
       assert.strictEqual(successes.length, 1, 'Exactly one concurrent refresh must succeed');
+      // 2. Exactly one concurrent request is rejected
       assert.strictEqual(failures.length, 1, 'Exactly one concurrent refresh must be rejected');
-      assert.strictEqual(failures[0].body.success, false, 'Rejected request must fail');
-      assert.ok(failures[0].body.message.includes('reuse'), 'Rejected request must indicate token reuse');
 
-      // Verify the session's stored hash was updated exactly once
+      // Verify the session remains ACTIVE after the race (not revoked!)
       const docAfter = await Session.findById(concurrencySessionId);
       assert.ok(docAfter, 'Session must still exist');
+      // 3. Session must remain active: revokedAt must be null
+      assert.strictEqual(docAfter.revokedAt, null, 'Session must remain active after race');
+      // 9. A rejected concurrent request must not revoke the winning session
+      assert.strictEqual(docAfter.revokedAt, null, 'Winning session must NOT be revoked by losing request');
 
-      // Verify the successful refresh token matches the stored hash
-      const successfulResponse = successes[0];
+      // The successful new refresh token must match the stored hash
+      // 4. Successful new refresh token matches stored hash
+      const newRefreshToken = successes[0].parsedCookies.refreshToken;
+      assert.ok(newRefreshToken, 'Winning request must return new refresh token');
       assert.strictEqual(
-        verifyTokenHash(successfulResponse.parsedCookies.refreshToken, docAfter.refreshTokenHash),
+        verifyTokenHash(newRefreshToken, docAfter.refreshTokenHash),
         true,
         'Successful new refresh token must match stored hash'
       );
 
-      // The other refresh token (from the rejected request) must NOT match the stored hash
-      // And must not work on a subsequent attempt
-      const rejectedToken = failures[0].parsedCookies?.refreshToken;
-      if (rejectedToken) {
-        assert.strictEqual(
-          verifyTokenHash(rejectedToken, docAfter.refreshTokenHash),
-          false,
-          'Rejected new refresh token must NOT match stored hash'
-        );
-      }
+      // The successful new access token must still authenticate
+      // 5. Successful new access token can authenticate against a protected endpoint
+      const protectedRes = await makeRequest(server, {
+        method: 'GET',
+        path: '/api/v1/protected',
+        cookies: { accessToken: successes[0].parsedCookies.accessToken }
+      });
+      assert.strictEqual(protectedRes.status, 200, 'New access token must authenticate after race');
+      assert.strictEqual(String(protectedRes.body.sessionId), String(concurrencySessionId), 'New access token must belong to the same session');
 
-      // The old refresh token must no longer work
+      // 6. The successful new refresh token can be used for its next legitimate rotation
+      const resSecondRefresh = await makeRequest(server, {
+        method: 'POST',
+        path: '/api/v1/auth/refresh',
+        cookies: { refreshToken: newRefreshToken }
+      });
+      assert.strictEqual(resSecondRefresh.status, 200, 'New refresh token must work for next rotation');
+      assert.notStrictEqual(resSecondRefresh.parsedCookies.refreshToken, newRefreshToken, 'Second rotation produced a different refresh token');
+
+      // 7. The old refresh token cannot be used again
       const oldTokenRes = await makeRequest(server, {
         method: 'POST',
         path: '/api/v1/auth/refresh',
@@ -836,7 +850,33 @@ async function runTests() {
       });
       assert.strictEqual(oldTokenRes.status, 401, 'Old refresh token must be rejected after any rotation');
 
-      pass('18. Refresh Token Rotation Race Condition: Concurrent identical refresh requests handled safely');
+      // 8. Session B / other device sessions remain unaffected
+      // Create a fresh session for B since Test 8 revoked the previous one
+      const freshSessionBObj = await createSession({ adminId: testAdmin._id });
+      const freshSessionB_Id = freshSessionBObj.session._id;
+      const freshSessionB_RefreshToken = freshSessionBObj.refreshToken;
+      // Verify fresh Session B is active
+      const freshDocB = await Session.findById(freshSessionB_Id);
+      assert.strictEqual(freshDocB.revokedAt, null, 'Fresh Session B must be active');
+      // Verify fresh Session B access token works
+      const resBProtected = await makeRequest(server, {
+        method: 'GET',
+        path: '/api/v1/protected',
+        cookies: { accessToken: freshSessionBObj.accessToken }
+      });
+      assert.strictEqual(resBProtected.status, 200, 'Fresh Session B access token must work');
+      assert.strictEqual(String(resBProtected.body.sessionId), String(freshSessionB_Id), 'Fresh Session B token belongs to correct session');
+      // Verify fresh Session B can be refreshed
+      const resB = await makeRequest(server, {
+        method: 'POST',
+        path: '/api/v1/auth/refresh',
+        cookies: { refreshToken: freshSessionB_RefreshToken }
+      });
+      assert.strictEqual(resB.status, 200, 'Fresh Session B must work after concurrent race on Session A');
+      // Verify the refreshed token can still authenticate
+      assert.strictEqual(verifyTokenHash(resB.parsedCookies.refreshToken, (await Session.findById(freshSessionB_Id)).refreshTokenHash), true, 'Fresh Session B refresh token matches new hash');
+
+      pass('18. Refresh Token Rotation Race Condition: concurrent requests handled safely, session remains active');
     } catch (e) { fail('18. Refresh token rotation race condition', e); }
 
   } finally {

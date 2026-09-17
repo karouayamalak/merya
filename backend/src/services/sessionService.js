@@ -43,7 +43,13 @@ export async function createSession({ adminId, userAgent, ipAddress }) {
  * Uses an atomic MongoDB compare-and-set (findOneAndUpdate) to prevent
  * race conditions where two simultaneous refresh requests using the same
  * old refresh token could both succeed.
- * Preserves token-reuse detection.
+ *
+ * Concurrent race safety: when two requests arrive with the same valid
+ * old refresh token, only one wins. The losing request is rejected WITHOUT
+ * revoking the session — the winning request's new credentials remain valid.
+ *
+ * Genuine reuse detection: tracks failed rotation attempts on the session.
+ * If failed attempts exceed a threshold, the session is revoked.
  */
 export async function rotateSessionToken({ session, presentedRefreshToken }) {
   if (!session || !session.isActive()) {
@@ -54,7 +60,6 @@ export async function rotateSessionToken({ session, presentedRefreshToken }) {
 
   const oldHash = hashToken(presentedRefreshToken);
 
-  // Issue rotated credentials (needed regardless of whether update succeeds)
   const newRefreshToken = generateRefreshToken({
     adminId: session.adminId,
     sessionId: session._id
@@ -66,8 +71,7 @@ export async function rotateSessionToken({ session, presentedRefreshToken }) {
   const newHash = hashToken(newRefreshToken);
 
   // Atomic compare-and-set: update the stored hash ONLY if it still matches
-  // the old hash AND the session is active. This prevents two concurrent
-  // refresh requests using the same old token from both succeeding.
+  // the old hash AND the session is active.
   const result = await Session.findOneAndUpdate(
     {
       _id: session._id,
@@ -76,32 +80,54 @@ export async function rotateSessionToken({ session, presentedRefreshToken }) {
       expiresAt: { $gt: new Date() }
     },
     {
-      $set: { refreshTokenHash: newHash, lastUsedAt: new Date() }
+      $set: { refreshTokenHash: newHash, lastUsedAt: new Date() },
+      $inc: { failedRotationAttempts: 0 } // no-op: keeps Mongoose trackDirty happy
     },
     { new: true }
   );
 
   if (!result) {
-    // The atomic update matched nothing — determine why
     const current = await Session.findById(session._id);
 
     if (!current || current.revokedAt || (current.expiresAt && current.expiresAt <= new Date())) {
-      // Session was revoked or expired between the pre-check and this update
       const err = new Error('Session is inactive or expired');
       err.code = 'SESSION_INACTIVE';
       throw err;
     }
 
-    // Session is still active but the stored hash changed → another request
-    // already rotated this refresh token → token-reuse detected
-    current.revokedAt = new Date();
-    current.revokeReason = 'TOKEN_ROTATION_REUSE';
+    // Session is still active but the stored hash has already changed.
+    // This means another legitimate request already rotated this token.
+    // Do NOT revoke the session — the winning request's new credentials
+    // are valid and the session must remain active.
+    //
+    // Track failed rotation attempts to detect genuine reuse attacks
+    // over time (repeated attempts with consumed tokens).
+    const failedAttempts = (current.failedRotationAttempts || 0) + 1;
+    current.failedRotationAttempts = failedAttempts;
+
+    if (failedAttempts >= 3) {
+      // Too many failed rotation attempts on this active session →
+      // likely a genuine token-reuse/security attack. Revoke.
+      current.revokedAt = new Date();
+      current.revokeReason = 'TOKEN_ROTATION_REUSE';
+      await current.save();
+
+      const err = new Error('Token reuse detected: session revoked');
+      err.code = 'REFRESH_TOKEN_REUSE';
+      throw err;
+    }
+
+    // Not enough failed attempts → concurrent race, not a security event.
+    // Just reject without revoking.
     await current.save();
 
-    const err = new Error('Token verification failed: potential token reuse detected');
+    const err = new Error('Token already rotated — concurrent refresh rejected');
     err.code = 'REFRESH_TOKEN_REUSE';
     throw err;
   }
+
+  // Successful rotation: reset failed attempt counter
+  await Session.findByIdAndUpdate(session._id, { $set: { failedRotationAttempts: 0 } });
 
   return {
     accessToken: newAccessToken,
