@@ -10,15 +10,25 @@ try {
   console.warn('Could not set custom DNS servers:', e.message);
 }
 
-const localUri = 'mongodb://127.0.0.1:27018/merya_dz?replicaSet=rs0&directConnection=true';
-const atlasUri = process.env.MONGODB_ATLAS_URI || 'mongodb+srv://akarou_db_user:0lClKLycwR1XPkQB@merya.reqvikq.mongodb.net/merya_dz?retryWrites=true&w=majority&appName=merya';
+function maskUri(uri) {
+  return uri ? uri.replace(/:([^:@]+)@/, ':****@') : '';
+}
+
+const localUri = process.env.MONGODB_LOCAL_URI || 'mongodb://127.0.0.1:27018/merya_dz?replicaSet=rs0&directConnection=true';
+const atlasUri = process.env.MONGODB_ATLAS_URI;
+
+if (!atlasUri) {
+  console.error('[Migration Error] FATAL: MONGODB_ATLAS_URI environment variable is required.');
+  console.error('Please configure MONGODB_ATLAS_URI before running this migration script.');
+  process.exit(1);
+}
 
 async function migrate() {
-  console.log('[Migration] Connecting to local DB...');
+  console.log(`[Migration] Connecting to local DB: ${maskUri(localUri)}`);
   const localConn = await mongoose.createConnection(localUri).asPromise();
   console.log('[Migration] Connected to local DB.');
 
-  console.log('[Migration] Connecting to Atlas DB...');
+  console.log(`[Migration] Connecting to Atlas DB: ${maskUri(atlasUri)}`);
   const atlasConn = await mongoose.createConnection(atlasUri, {
     serverSelectionTimeoutMS: 10000
   }).asPromise();
@@ -65,11 +75,11 @@ async function migrate() {
         if (idx.sparse) options.sparse = true;
         try {
           await atlasCol.createIndex(keys, options);
-        } catch (idxErr) {
+        } catch {
           // ignore index creation if already exists
         }
       }
-    } catch (e) {
+    } catch {
       // ignore
     }
   }

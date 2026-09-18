@@ -12,10 +12,30 @@ import { ALGERIA_WILAYAS, ROLES } from '../src/config/constants.js';
 
 dotenv.config();
 
+const isConfirmed = process.argv.includes('--confirm-reset');
+if (!isConfirmed) {
+  console.error('[Reset Error] SAFETY ABORT: resetToBlankStore is a DESTRUCTIVE operation that permanently deletes all orders, products, categories, banners, and inventory audit records.');
+  console.error('To proceed, you must pass the --confirm-reset flag explicitly:');
+  console.error('  node scripts/resetToBlankStore.js --confirm-reset');
+  process.exit(1);
+}
+
+const adminPassword = process.env.INITIAL_ADMIN_PASSWORD;
+if (!adminPassword || typeof adminPassword !== 'string' || adminPassword.trim().length < 8) {
+  console.error('[Reset Error] FATAL: INITIAL_ADMIN_PASSWORD environment variable is required (minimum 8 characters).');
+  console.error('The reset script will NOT create or reset an admin account with a default or insecure password.');
+  process.exit(1);
+}
+
 const isAtlas = process.argv.includes('--atlas');
 const mongoUri = isAtlas
   ? (process.env.MONGODB_ATLAS_URI || process.env.MONGODB_URI)
   : (process.env.MONGODB_URI || 'mongodb://127.0.0.1:27018/merya_dz?replicaSet=rs0&directConnection=true');
+
+if (isAtlas && !mongoUri) {
+  console.error('[Reset Error] FATAL: MONGODB_ATLAS_URI or MONGODB_URI is required when --atlas is specified.');
+  process.exit(1);
+}
 
 function getDefaultWilayaRates(code) {
   if (code === 16) return { homeFee: 500, agencyFee: 350 };
@@ -57,7 +77,7 @@ async function resetToBlankStore() {
   try {
     const rlDeleted = await db.collection('ratelimitrecords').deleteMany({});
     console.log(`[Reset] Cleared ${rlDeleted.deletedCount} rate limit records.`);
-  } catch (e) {
+  } catch {
     // collection may not exist
   }
 
@@ -68,7 +88,6 @@ async function resetToBlankStore() {
   console.log(`[Reset] Removed ${testAdminsDeleted.deletedCount} test admin accounts.`);
 
   const adminEmail = (process.env.INITIAL_ADMIN_EMAIL || 'admin@meryadz.com').toLowerCase();
-  const adminPassword = process.env.INITIAL_ADMIN_PASSWORD || 'MeryaAdmin2026!';
   const adminUsername = process.env.INITIAL_ADMIN_USERNAME || 'Store Owner';
 
   let primaryAdmin = await Admin.findOne({ email: adminEmail });
@@ -84,7 +103,7 @@ async function resetToBlankStore() {
     });
     console.log(`[Reset] Created primary admin account: ${adminEmail}`);
   } else {
-    // Reset password hash to current INITIAL_ADMIN_PASSWORD
+    // Reset password hash to validated INITIAL_ADMIN_PASSWORD
     const salt = await bcrypt.genSalt(12);
     primaryAdmin.passwordHash = await bcrypt.hash(adminPassword, salt);
     primaryAdmin.isActive = true;
@@ -106,7 +125,7 @@ async function resetToBlankStore() {
     };
   });
 
-  let delSetting = await DeliverySetting.findOne({ singletonKey: 'default' });
+  const delSetting = await DeliverySetting.findOne({ singletonKey: 'default' });
   if (!delSetting) {
     await DeliverySetting.create({
       singletonKey: 'default',
@@ -127,7 +146,7 @@ async function resetToBlankStore() {
   console.log(' Orders: 0');
   console.log(' Banners: 0');
   console.log(' Inventory Adjustments: 0');
-  console.log(` Admin Portal: ${adminEmail} (password: ${adminPassword})`);
+  console.log(` Admin Portal: ${adminEmail} (password: [CONFIGURED IN INITIAL_ADMIN_PASSWORD])`);
   console.log(' Delivery Settings: 58 Wilayas authoritative rates ready');
   console.log('===================================\n');
 
