@@ -185,11 +185,9 @@ export async function setStockAtomic(productId, colorName, size, newStock, admin
   }
 
   const sizeObj = colorObj.sizes?.find(s => s.size === size);
-  if (!sizeObj) {
-    throw new Error(`Size "${size}" not found in color "${colorName}"`);
-  }
-
-  const previousStock = sizeObj.stock;
+  // sizeObj may be undefined if this is a brand-new size being added (upsert path).
+  const previousStock = sizeObj ? sizeObj.stock : 0;
+  const isSizeNew = !sizeObj;
   const expectedVersion = existingProduct.__v;
 
   // Fail-closed requirement: Authoritative inventory mutation MUST be transactional.
@@ -210,28 +208,52 @@ export async function setStockAtomic(productId, colorName, size, newStock, admin
     // The update only executes if __v still matches what we read.
     // $inc: { __v: 1 } ensures the next concurrent caller will see a different
     // version and must retry / receive a 409 instead of silently overwriting.
-    const updated = await Product.findOneAndUpdate(
-      {
-        _id: productId,
-        __v: expectedVersion,          // optimistic concurrency condition
-        'colors.colorName': colorName,
-        'colors.sizes.size': size
-      },
-      {
-        $set: {
-          'colors.$[c].sizes.$[s].stock': newStock
+    let updated;
+
+    if (isSizeNew) {
+      // ── Upsert path: push a brand-new size entry into the color's sizes array ──
+      // Gate on __v AND color presence; the size must NOT already exist (avoid dup).
+      updated = await Product.findOneAndUpdate(
+        {
+          _id: productId,
+          __v: expectedVersion,
+          'colors.colorName': colorName,
+          // Guard: ensure the size hasn't been added by another request between read and write
+          'colors': { $not: { $elemMatch: { colorName, 'sizes.size': size } } }
         },
-        $inc: { __v: 1 }
-      },
-      {
-        arrayFilters: [
-          { 'c.colorName': colorName },
-          { 's.size': size }
-        ],
-        new: true,
-        ...sessionOpt
-      }
-    );
+        {
+          $push: { 'colors.$[c].sizes': { size, stock: newStock } },
+          $inc: { __v: 1 }
+        },
+        {
+          arrayFilters: [{ 'c.colorName': colorName }],
+          new: true,
+          ...sessionOpt
+        }
+      );
+    } else {
+      // ── Update path: mutate existing size entry's stock ────────────────────────
+      updated = await Product.findOneAndUpdate(
+        {
+          _id: productId,
+          __v: expectedVersion,
+          'colors.colorName': colorName,
+          'colors.sizes.size': size
+        },
+        {
+          $set: { 'colors.$[c].sizes.$[s].stock': newStock },
+          $inc: { __v: 1 }
+        },
+        {
+          arrayFilters: [
+            { 'c.colorName': colorName },
+            { 's.size': size }
+          ],
+          new: true,
+          ...sessionOpt
+        }
+      );
+    }
 
     if (!updated) {
       // __v mismatch — another admin modified this product concurrently.

@@ -87,11 +87,16 @@ export default function InventoryManager() {
     handleStockUpdate(productId, colorName, size, num);
   };
 
-  // Flatten all variants for the table
+  // All supported sizes — always show every size row for each color,
+  // even if the product was created before a size was introduced.
+  const AVAILABLE_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Standard', 'One Size'];
+
+  // Flatten all variants for the table (one row per product × color × size)
   const flattenedVariants = [];
   products.forEach(p => {
     p.colors?.forEach(c => {
-      c.sizes?.forEach(s => {
+      AVAILABLE_SIZES.forEach(sz => {
+        const existing = c.sizes?.find(s => s.size === sz);
         flattenedVariants.push({
           productId: p._id,
           productName: p.name,
@@ -101,8 +106,9 @@ export default function InventoryManager() {
           colorDisplayName: c.colorDisplayName,
           colorCode: c.colorCode,
           image: c.images?.[0] || '',
-          size: s.size,
-          stock: s.stock
+          size: sz,
+          stock: existing ? existing.stock : 0,
+          isNewSize: !existing  // brand-new size not yet in the DB
         });
       });
     });
@@ -179,11 +185,35 @@ export default function InventoryManager() {
                     </td>
 
                     <td style={{ padding: '1rem', fontWeight: '700' }}>
-                      {v.size}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        {v.size}
+                        {v.isNewSize && (
+                          <span style={{
+                            fontSize: '0.62rem',
+                            fontWeight: '800',
+                            backgroundColor: '#EDE9FE',
+                            color: '#6D28D9',
+                            padding: '0.1rem 0.4rem',
+                            borderRadius: '4px',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.04em'
+                          }}>NEW</span>
+                        )}
+                      </div>
                     </td>
 
                     <td style={{ padding: '1rem' }}>
-                      {v.stock <= 0 ? (
+                      {v.isNewSize ? (
+                        <span style={{
+                          fontSize: '0.72rem',
+                          fontWeight: '700',
+                          backgroundColor: '#F3F4F6',
+                          color: '#9CA3AF',
+                          padding: '0.2rem 0.55rem',
+                          borderRadius: '4px',
+                          display: 'inline-block'
+                        }}>Not Added</span>
+                      ) : v.stock <= 0 ? (
                         <span className="badge badge-cancelled">{t('product.soldOut')}</span>
                       ) : v.stock <= 3 ? (
                         <span className="badge badge-pending">{t('admin.inventory.lowStockAlert')} ({v.stock})</span>
@@ -217,18 +247,20 @@ export default function InventoryManager() {
 
                         <button
                           onClick={() => handleDirectSave(v.productId, v.colorName, v.size)}
-                          disabled={isSaving || (!hasChanged && !isSuccess)}
+                          disabled={isSaving || (!hasChanged && !isSuccess && !v.isNewSize)}
                           className="btn btn-primary btn-sm"
                           style={{
                             padding: '0.4rem 0.75rem',
                             fontSize: '0.75rem',
-                            backgroundColor: hasChanged ? 'var(--color-espresso)' : '#888',
-                            opacity: (hasChanged || isSaving) ? 1 : 0.6
+                            backgroundColor: (hasChanged || v.isNewSize) ? 'var(--color-espresso)' : '#888',
+                            opacity: (hasChanged || isSaving || v.isNewSize) ? 1 : 0.6
                           }}
-                          title={t('common.save')}
+                          title={v.isNewSize ? 'Add this size to the product' : t('common.save')}
                         >
                           {isSaving ? <Loader2 size={13} className="animate-spin" /> : isSuccess ? <Check size={13} /> : <Save size={13} />}
-                          <span style={{ marginInlineStart: '0.25rem' }}>{isSaving ? t('common.saving') : isSuccess ? t('common.save') : t('common.save')}</span>
+                          <span style={{ marginInlineStart: '0.25rem' }}>
+                            {isSaving ? t('common.saving') : isSuccess ? t('common.save') : v.isNewSize ? 'Add' : t('common.save')}
+                          </span>
                         </button>
                       </div>
                     </td>
@@ -241,7 +273,7 @@ export default function InventoryManager() {
                             handleInputChange(key, next);
                             handleStockUpdate(v.productId, v.colorName, v.size, next);
                           }}
-                          disabled={v.stock <= 0 || isSaving}
+                          disabled={v.stock <= 0 || isSaving || v.isNewSize}
                           className="btn btn-secondary btn-sm"
                           style={{ padding: '0.3rem 0.6rem' }}
                           title="-1"
@@ -255,7 +287,7 @@ export default function InventoryManager() {
                             handleInputChange(key, next);
                             handleStockUpdate(v.productId, v.colorName, v.size, next);
                           }}
-                          disabled={isSaving}
+                          disabled={isSaving || v.isNewSize}
                           className="btn btn-secondary btn-sm"
                           style={{ padding: '0.3rem 0.6rem' }}
                           title="+1"

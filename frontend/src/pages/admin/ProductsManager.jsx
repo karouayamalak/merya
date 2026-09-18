@@ -35,7 +35,7 @@ function TranslationBadge({ status }) {
   );
 }
 
-const AVAILABLE_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Standard'];
+const AVAILABLE_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Standard', 'One Size'];
 
 export default function ProductsManager() {
   const { t, isRtl, formatCurrency } = useLanguage();
@@ -69,12 +69,7 @@ export default function ProductsManager() {
       colorDisplayName: { fr: '', ar: '', en: '' },
       colorCode: '#B89C82',
       images: ['https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?q=80&w=800&auto=format&fit=crop'],
-      sizes: [
-        { size: 'S', stock: 5 },
-        { size: 'M', stock: 10 },
-        { size: 'L', stock: 5 },
-        { size: 'XL', stock: 2 }
-      ]
+      sizes: AVAILABLE_SIZES.map(sz => ({ size: sz, stock: 0 }))
     }
   ]);
 
@@ -117,11 +112,7 @@ export default function ProductsManager() {
         colorDisplayName: { fr: '', ar: '', en: '' },
         colorCode: '#B89C82',
         images: ['https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?q=80&w=800&auto=format&fit=crop'],
-        sizes: [
-          { size: 'S', stock: 5 },
-          { size: 'M', stock: 8 },
-          { size: 'L', stock: 4 }
-        ]
+        sizes: AVAILABLE_SIZES.map(sz => ({ size: sz, stock: 0 }))
       }
     ]);
     setModalError('');
@@ -158,11 +149,7 @@ export default function ProductsManager() {
         colorDisplayName: { fr: '', ar: '', en: '' },
         colorCode: '#222222',
         images: ['https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?q=80&w=800&auto=format&fit=crop'],
-        sizes: [
-          { size: 'S', stock: 5 },
-          { size: 'M', stock: 5 },
-          { size: 'L', stock: 5 }
-        ]
+        sizes: AVAILABLE_SIZES.map(sz => ({ size: sz, stock: 0 }))
       }
     ]);
   };
