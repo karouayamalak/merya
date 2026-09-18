@@ -17,11 +17,18 @@ export default function ProductDetail({ product, onBack, _onSelectRelated }) {
   // Active color variant
   const activeColor = product.colors?.[selectedColorIndex] || product.colors?.[0] || { sizes: [], images: [] };
 
+  const SIZE_ORDER = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Standard', 'One Size'];
+  const sortedSizes = [...(activeColor.sizes || [])].sort((a, b) => {
+    const idxA = SIZE_ORDER.indexOf(a.size);
+    const idxB = SIZE_ORDER.indexOf(b.size);
+    return (idxA !== -1 ? idxA : 99) - (idxB !== -1 ? idxB : 99);
+  });
+
   // When color changes, reset image index and default to first size with stock
   useEffect(() => {
     setSelectedImageIndex(0);
-    const firstAvailableSize = activeColor.sizes?.find(s => s.stock > 0);
-    setSelectedSize(firstAvailableSize ? firstAvailableSize.size : (activeColor.sizes?.[0]?.size || ''));
+    const firstAvailableSize = sortedSizes.find(s => s.stock > 0);
+    setSelectedSize(firstAvailableSize ? firstAvailableSize.size : (sortedSizes[0]?.size || ''));
     setQuantity(1);
   }, [selectedColorIndex, product, activeColor.sizes]);
 
@@ -297,7 +304,7 @@ export default function ProductDetail({ product, onBack, _onSelectRelated }) {
               </div>
 
               <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-                {activeColor.sizes?.map((s) => {
+                {sortedSizes.map((s) => {
                   const out = s.stock <= 0;
                   const isSelected = selectedSize === s.size;
                   return (
