@@ -397,15 +397,17 @@ export default function ProductDetail({ product, onBack, _onSelectRelated }) {
               </div>
             </div>
 
-            {/* Description */}
-            <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '1.5rem' }}>
-              <h3 style={{ fontSize: '0.95rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.6rem' }}>
-                {t('product.descriptionFit')}
-              </h3>
-              <p style={{ fontSize: '0.92rem', color: '#555', lineHeight: 1.7 }}>
-                {localized(product.description)}
-              </p>
-            </div>
+            {/* Description (Optional) */}
+            {localized(product.description) && (
+              <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '1.5rem' }}>
+                <h3 style={{ fontSize: '0.95rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.6rem' }}>
+                  {t('product.descriptionFit')}
+                </h3>
+                <p style={{ fontSize: '0.92rem', color: '#555', lineHeight: 1.7, whiteSpace: 'pre-line' }}>
+                  {localized(product.description)}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>

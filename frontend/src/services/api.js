@@ -277,6 +277,7 @@ export const adminUpdateCategory = (id, data) => request(`/categories/${id}`, {
   body: JSON.stringify(data)
 });
 export const adminArchiveCategory = (id) => request(`/categories/${id}`, { method: 'DELETE' });
+export const adminUnarchiveCategory = (id) => request(`/categories/${id}/unarchive`, { method: 'PATCH' });
 
 export const adminUpdateDeliverySettings = (data) => request('/settings/delivery', {
   method: 'PUT',

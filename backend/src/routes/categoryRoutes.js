@@ -4,7 +4,8 @@ import {
   getAllCategoriesAdmin,
   createCategory,
   updateCategory,
-  archiveCategory
+  archiveCategory,
+  unarchiveCategory
 } from '../controllers/categoryController.js';
 import { authenticateAdmin, authenticateAdminJwtOnly, requireRoles } from '../middleware/auth.js';
 import { verifyCsrf } from '../middleware/csrf.js';
@@ -20,6 +21,8 @@ router.get('/', getCategories);
 router.get('/admin/all', authenticateAdminJwtOnly, getAllCategoriesAdmin);
 router.post('/', authenticateAdmin, verifyCsrf, requireRoles(ROLES.OWNER, ROLES.ADMIN), validate(categorySchema), createCategory);
 router.put('/:id', authenticateAdmin, verifyCsrf, requireRoles(ROLES.OWNER, ROLES.ADMIN), validate(updateCategorySchema), updateCategory);
+router.patch('/:id/unarchive', authenticateAdmin, verifyCsrf, requireRoles(ROLES.OWNER, ROLES.ADMIN), unarchiveCategory);
+router.put('/:id/unarchive', authenticateAdmin, verifyCsrf, requireRoles(ROLES.OWNER, ROLES.ADMIN), unarchiveCategory);
 router.delete('/:id', authenticateAdmin, verifyCsrf, requireRoles(ROLES.OWNER, ROLES.ADMIN), archiveCategory);
 
 export default router;

@@ -54,10 +54,7 @@ export const getProducts = async (req, res, next) => {
       isArchived: false,
       'name.fr': { $regex: /\S/ },
       'name.ar': { $regex: /\S/ },
-      'name.en': { $regex: /\S/ },
-      'description.fr': { $regex: /\S/ },
-      'description.ar': { $regex: /\S/ },
-      'description.en': { $regex: /\S/ }
+      'name.en': { $regex: /\S/ }
     };
 
     if (category) {

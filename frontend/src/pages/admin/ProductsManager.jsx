@@ -531,7 +531,7 @@ export default function ProductsManager() {
 
                 <div>
                   <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>
-                    {t('admin.categories.description')} ({activeLang.toUpperCase()})
+                    {t('admin.categories.description')} ({activeLang.toUpperCase()}) <span style={{ color: '#888', fontWeight: '400' }}>({t('common.optional')})</span>
                   </label>
                   <textarea
                     rows={3}

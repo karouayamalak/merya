@@ -4,7 +4,7 @@ import { localizedFieldSchema, validateVariantUniqueness } from './common.js';
 // Product validation schema
 export const productSchema = z.object({
   name: localizedFieldSchema(150),
-  description: localizedFieldSchema(3000),
+  description: localizedFieldSchema(3000).optional(),
   category: z.string().min(1, 'Category is required'),
   sellingPrice: z.coerce.number().int({ message: 'Selling price must be an integer in DZD' }).positive({ message: 'Selling price must be positive' }).optional(),
   basePrice: z.coerce.number().int({ message: 'Base price must be an integer in DZD' }).positive({ message: 'Base price must be positive' }).optional(),
@@ -66,13 +66,6 @@ export const productSchema = z.object({
         code: z.ZodIssueCode.custom,
         path: ['name'],
         message: 'Published products require name translations in French, Arabic, and English'
-      });
-    }
-    if (!d.fr?.trim() || !d.ar?.trim() || !d.en?.trim()) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['description'],
-        message: 'Published products require description translations in French, Arabic, and English'
       });
     }
   } else {

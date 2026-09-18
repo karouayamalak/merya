@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Archive, Upload, X, Loader2, Check, AlertTriangle } from 'lucide-react';
-import { adminGetCategories, adminCreateCategory, adminUpdateCategory, adminArchiveCategory, adminUploadImage } from '../../services/api';
+import { Plus, Edit2, Archive, RotateCcw, Upload, X, Loader2, Check, AlertTriangle } from 'lucide-react';
+import { adminGetCategories, adminCreateCategory, adminUpdateCategory, adminArchiveCategory, adminUnarchiveCategory, adminUploadImage } from '../../services/api';
 import { useLanguage } from '../../context/LanguageContext';
 
 const LANGS = [
@@ -130,9 +130,8 @@ export default function CategoriesManager() {
     }
 
     const isNameComplete = Boolean(name.fr?.trim() && name.ar?.trim() && name.en?.trim());
-    const isDescComplete = Boolean(description.fr?.trim() && description.ar?.trim() && description.en?.trim());
-    if (isActive && (!isNameComplete || !isDescComplete)) {
-      return setError('Cannot publish category: Complete French, Arabic, and English translations are required for BOTH name and description before publishing. Please complete all translations or uncheck "Active" to save as a draft.');
+    if (isActive && !isNameComplete) {
+      return setError('Cannot publish category: Complete French, Arabic, and English translations are required for the category name before publishing. Please complete all name translations or uncheck "Active" to save as a draft.');
     }
 
     if (!image.trim()) return setError('Please upload an image for the category');
@@ -166,6 +165,15 @@ export default function CategoriesManager() {
     if (!window.confirm(t('admin.categories.archiveConfirm'))) return;
     try {
       await adminArchiveCategory(id);
+      loadCategories();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleUnarchive = async (id) => {
+    try {
+      await adminUnarchiveCategory(id);
       loadCategories();
     } catch (err) {
       alert(err.message);
@@ -251,7 +259,17 @@ export default function CategoriesManager() {
                         <Edit2 size={13} />
                         <span>{t('common.edit')}</span>
                       </button>
-                      {!c.isArchived && (
+                      {c.isArchived ? (
+                        <button
+                          onClick={() => handleUnarchive(c._id)}
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: '0.35rem 0.7rem', color: 'var(--color-success)', borderColor: 'var(--color-success)' }}
+                          title="Restaurer la catégorie"
+                        >
+                          <RotateCcw size={13} />
+                          <span>{t('common.restore') || 'Restaurer'}</span>
+                        </button>
+                      ) : (
                         <button onClick={() => handleArchive(c._id)} className="btn btn-secondary btn-sm" style={{ padding: '0.35rem 0.7rem', color: 'var(--color-danger)' }} title={t('admin.products.archiveProduct')}>
                           <Archive size={13} />
                         </button>

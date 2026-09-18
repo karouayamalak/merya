@@ -94,20 +94,10 @@ const productSchema = new mongoose.Schema({
   },
   description: {
     type: mongoose.Schema.Types.Mixed,
-    required: [true, 'Product description is required'],
+    required: false,
+    default: () => ({ fr: '', ar: '', en: '' }),
     get: getLocalizedString,
-    set: normalizeLocalizedString,
-    validate: {
-      validator: function(v) {
-        if (!v) return false;
-        if (typeof v === 'string') return v.trim().length > 0;
-        if (typeof v === 'object') {
-          return Boolean((v.fr && v.fr.trim().length > 0) || (v.en && v.en.trim().length > 0) || (v.ar && v.ar.trim().length > 0));
-        }
-        return false;
-      },
-      message: 'Product description must have at least one language translation provided.'
-    }
+    set: normalizeLocalizedString
   },
   category: {
     type: mongoose.Schema.Types.ObjectId,
@@ -203,25 +193,20 @@ productSchema.index({ "name.en": 1 });
 // Virtual: translation completeness status for admin UI badges
 productSchema.virtual('translationStatus').get(function() {
   const n = typeof this.name === 'object' && this.name !== null ? this.name : { fr: this.name || '' };
-  const d = typeof this.description === 'object' && this.description !== null ? this.description : { fr: this.description || '' };
   return {
-    fr: Boolean(n.fr && n.fr.trim().length > 0 && d.fr && d.fr.trim().length > 0),
-    ar: Boolean(n.ar && n.ar.trim().length > 0 && d.ar && d.ar.trim().length > 0),
-    en: Boolean(n.en && n.en.trim().length > 0 && d.en && d.en.trim().length > 0)
+    fr: Boolean(n.fr && n.fr.trim().length > 0),
+    ar: Boolean(n.ar && n.ar.trim().length > 0),
+    en: Boolean(n.en && n.en.trim().length > 0)
   };
 });
 
-// Helper: check if product has complete FR, AR, EN translations (both name and description)
+// Helper: check if product has complete FR, AR, EN name translations (description is optional)
 export function isProductFullyTranslated(product) {
   const n = typeof product.name === 'object' && product.name !== null ? product.name : { fr: product.name || '' };
-  const d = typeof product.description === 'object' && product.description !== null ? product.description : { fr: product.description || '' };
   return Boolean(
     n.fr && n.fr.trim().length > 0 &&
     n.ar && n.ar.trim().length > 0 &&
-    n.en && n.en.trim().length > 0 &&
-    d.fr && d.fr.trim().length > 0 &&
-    d.ar && d.ar.trim().length > 0 &&
-    d.en && d.en.trim().length > 0
+    n.en && n.en.trim().length > 0
   );
 }
 

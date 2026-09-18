@@ -101,17 +101,13 @@ categorySchema.virtual('translationStatus').get(function() {
   };
 });
 
-// Helper: check if category has complete FR, AR, EN translations (both name and description)
+// Helper: check if category has complete FR, AR, EN name translations (description is optional)
 export function isCategoryFullyTranslated(category) {
   const n = typeof category.name === 'object' && category.name !== null ? category.name : { fr: category.name || '' };
-  const d = typeof category.description === 'object' && category.description !== null ? category.description : { fr: category.description || '' };
   return Boolean(
     n.fr && n.fr.trim().length > 0 &&
     n.ar && n.ar.trim().length > 0 &&
-    n.en && n.en.trim().length > 0 &&
-    d.fr && d.fr.trim().length > 0 &&
-    d.ar && d.ar.trim().length > 0 &&
-    d.en && d.en.trim().length > 0
+    n.en && n.en.trim().length > 0
   );
 }
 

@@ -12,9 +12,9 @@ export const getCategoryTranslationStatus = (category) => {
   const hasDescAr = Boolean(desc.ar && desc.ar.trim());
   const hasDescEn = Boolean(desc.en && desc.en.trim());
 
-  const hasFr = hasNameFr && hasDescFr;
-  const hasAr = hasNameAr && hasDescAr;
-  const hasEn = hasNameEn && hasDescEn;
+  const hasFr = hasNameFr;
+  const hasAr = hasNameAr;
+  const hasEn = hasNameEn;
 
   return {
     fr: hasFr,
@@ -196,15 +196,16 @@ export const updateCategory = async (req, res, next) => {
     if (image !== undefined) category.image = image;
     if (displayOrder !== undefined) category.displayOrder = displayOrder;
     if (isActive !== undefined) category.isActive = isActive;
+    if (req.body.isArchived !== undefined) category.isArchived = req.body.isArchived;
 
-    // Require complete translations if attempting to publish or remain active
+    // Require complete name translations if attempting to publish or remain active
     if (category.isActive === true) {
       const isComplete = isCategoryFullyTranslated(category);
       if (!isComplete) {
         return res.status(400).json({
           success: false,
           code: 'TRANSLATIONS_INCOMPLETE',
-          message: 'Cannot publish category: complete name and description translations in French, Arabic, and English are required before publishing. Please provide all translations or save as an unpublished draft.'
+          message: 'Cannot publish category: complete name translations in French, Arabic, and English are required before publishing. Please provide all translations or save as an unpublished draft.'
         });
       }
     }
@@ -239,6 +240,25 @@ export const archiveCategory = async (req, res, next) => {
     await category.save();
 
     res.json({ success: true, message: 'Category archived successfully (preserved for historical orders)' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Admin: Restore / unarchive category
+export const unarchiveCategory = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const category = await Category.findById(id);
+    if (!category) {
+      return res.status(404).json({ success: false, message: 'Category not found' });
+    }
+
+    category.isArchived = false;
+    category.isActive = true;
+    await category.save();
+
+    res.json({ success: true, message: 'Category restored from archive successfully', category });
   } catch (error) {
     next(error);
   }
