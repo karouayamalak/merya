@@ -409,15 +409,6 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
             marginBottom: '2.5rem'
           }}>
             <div>
-              <span style={{
-                fontSize: '0.75rem',
-                fontWeight: '700',
-                textTransform: isRtl ? 'none' : 'uppercase',
-                letterSpacing: isRtl ? '0' : '0.1em',
-                color: 'var(--color-primary-dark)'
-              }}>
-                {t('home.featuredCategoriesSubtitle')}
-              </span>
               <h2 className="heading-display" style={{ fontSize: 'clamp(1.6rem, 3vw, 2.4rem)', color: 'var(--color-espresso)', marginTop: '0.25rem' }}>
                 {t('home.featuredCategories')}
               </h2>

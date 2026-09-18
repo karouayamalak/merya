@@ -59,7 +59,7 @@ export default {
     heroCta: 'Découvrir la Collection',
     heroTrack: 'Suivre ma commande',
     featuredCategories: 'Catégories Populaires',
-    featuredCategoriesSubtitle: 'Des pièces pensées pour sublimer votre quotidien avec grâce et pudeur.',
+    featuredCategoriesSubtitle: '',
     newArrivals: 'Nouveautés & Coups de Cœur',
     newArrivalsSubtitle: 'Les dernières créations MERYA DZ les plus prisées de la saison.',
     viewCollection: 'Voir toute la collection',
