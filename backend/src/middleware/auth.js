@@ -97,10 +97,11 @@ export const authenticateAdmin = async (req, res, next) => {
 /**
  * Lightweight authentication middleware - JWT verification only, no DB queries.
  * Use for read-only routes that only need identity from the verified JWT.
- * Attaches minimal admin/session info from JWT payload:
- *   - req.admin = { _id: decoded.sub, sessionId: decoded.sid }
+ * Attaches admin/session info from JWT payload:
+ *   - req.admin = { _id: decoded.sub, sessionId: decoded.sid, email?: decoded.email, role?: decoded.role }
  *   - req.authSession = { _id: decoded.sid }
  * Does NOT verify: session revocation, admin active status, session existence in DB.
+ * DO NOT use on mutation routes or routes requiring authoritative role checks.
  */
 export const authenticateAdminJwtOnly = async (req, res, next) => {
   try {
@@ -149,10 +150,12 @@ export const authenticateAdminJwtOnly = async (req, res, next) => {
       });
     }
 
-    // Attach minimal identity from verified JWT payload - NO database queries
+    // Attach identity + cached context from verified JWT payload - NO database queries
     req.admin = {
       _id: decoded.sub,
-      sessionId: decoded.sid
+      sessionId: decoded.sid,
+      ...(decoded.email && { email: decoded.email }),
+      ...(decoded.role && { role: decoded.role })
     };
     req.authSession = {
       _id: decoded.sid

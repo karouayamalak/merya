@@ -4,9 +4,9 @@ import { AUTH_CONFIG } from '../config/authConfig.js';
 
 /**
  * Generate a short-lived Access JWT.
- * Payload is strictly minimal (sub, sid, type, jti) — mutable DB state is never trusted in payload.
+ * Payload includes identity (sub, sid), token metadata (type, jti), and cached context (email, role).
  */
-export function generateAccessToken({ adminId, sessionId }) {
+export function generateAccessToken({ adminId, sessionId, email, role }) {
   const secret = AUTH_CONFIG.accessTokenSecret;
   if (!secret) {
     throw new Error('Server authentication configuration error: ACCESS_TOKEN_SECRET is missing');
@@ -18,6 +18,13 @@ export function generateAccessToken({ adminId, sessionId }) {
     type: 'access',
     jti: crypto.randomUUID()
   };
+
+  if (email) {
+    payload.email = String(email).toLowerCase();
+  }
+  if (role) {
+    payload.role = String(role);
+  }
 
   return jwt.sign(payload, secret, {
     expiresIn: AUTH_CONFIG.accessTokenExpiresIn

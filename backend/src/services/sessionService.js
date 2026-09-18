@@ -11,7 +11,7 @@ import {
 /**
  * Create a new device session and issue initial access & refresh tokens.
  */
-export async function createSession({ adminId, userAgent, ipAddress }) {
+export async function createSession({ adminId, email, role, userAgent, ipAddress }) {
   const expiresAt = new Date(Date.now() + AUTH_CONFIG.refreshTokenMaxAgeMs);
 
   const session = new Session({
@@ -26,7 +26,7 @@ export async function createSession({ adminId, userAgent, ipAddress }) {
 
   // Issue paired tokens tied to this exact session ID
   const refreshToken = generateRefreshToken({ adminId, sessionId: session._id });
-  const accessToken = generateAccessToken({ adminId, sessionId: session._id });
+  const accessToken = generateAccessToken({ adminId, sessionId: session._id, email, role });
 
   session.refreshTokenHash = hashToken(refreshToken);
   await session.save();
@@ -53,7 +53,7 @@ export async function createSession({ adminId, userAgent, ipAddress }) {
  * The atomic compare-and-set guarantees that once a token is rotated,
  * it can never be rotated again, regardless of how many times it is replayed.
  */
-export async function rotateSessionToken({ session, presentedRefreshToken }) {
+export async function rotateSessionToken({ session, presentedRefreshToken, email, role }) {
   if (!session || !session.isActive()) {
     const err = new Error('Session is inactive or expired');
     err.code = 'SESSION_INACTIVE';
@@ -68,7 +68,9 @@ export async function rotateSessionToken({ session, presentedRefreshToken }) {
   });
   const newAccessToken = generateAccessToken({
     adminId: session.adminId,
-    sessionId: session._id
+    sessionId: session._id,
+    email,
+    role
   });
   const newHash = hashToken(newRefreshToken);
 

@@ -46,6 +46,8 @@ export const login = async (req, res, next) => {
     // Create unique independent session for this device/browser
     const { accessToken, refreshToken } = await createSession({
       adminId: admin._id,
+      email: admin.email,
+      role: admin.role,
       userAgent,
       ipAddress
     });
@@ -111,7 +113,9 @@ export const refresh = async (req, res, next) => {
     try {
       tokens = await rotateSessionToken({
         session,
-        presentedRefreshToken: refreshToken
+        presentedRefreshToken: refreshToken,
+        email: admin.email,
+        role: admin.role
       });
     } catch (rotationErr) {
       clearAuthCookies(res);
