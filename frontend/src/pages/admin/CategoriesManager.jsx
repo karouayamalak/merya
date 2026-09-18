@@ -60,14 +60,21 @@ export default function CategoriesManager() {
   const [modalLoading, setModalLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState('');
 
   const loadCategories = async () => {
     setLoading(true);
+    setLoadError('');
     try {
       const res = await adminGetCategories();
-      if (res.success) setCategories(res.categories || []);
+      if (res.success) {
+        setCategories(res.categories || []);
+      } else {
+        setLoadError(res.message || 'Failed to load categories');
+      }
     } catch (err) {
-      console.error(err);
+      console.error('[CategoriesManager] Load error:', err);
+      setLoadError(err.message || 'Network error - could not load categories');
     } finally {
       setLoading(false);
     }
@@ -219,6 +226,16 @@ export default function CategoriesManager() {
           <div style={{ padding: '3rem', textAlign: 'center' }}>
             <Loader2 size={32} className="animate-spin" style={{ margin: '0 auto' }} />
           </div>
+        ) : loadError ? (
+          <div style={{ padding: '3rem', textAlign: 'center' }}>
+            <div style={{ backgroundColor: '#FFEBEE', color: 'var(--color-danger)', padding: '1rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.88rem', maxWidth: '400px', margin: '0 auto 1rem' }}>
+              <strong>Erreur de chargement :</strong> {loadError}
+            </div>
+            <button onClick={loadCategories} className="btn btn-secondary btn-sm">
+              <RotateCcw size={14} />
+              <span>Réessayer</span>
+            </button>
+          </div>
         ) : (
           <table style={{ width: '100%', minWidth: '680px', borderCollapse: 'collapse', textAlign: isRtl ? 'right' : 'left', fontSize: '0.88rem' }}>
             <thead>
@@ -233,55 +250,64 @@ export default function CategoriesManager() {
               </tr>
             </thead>
             <tbody>
-              {categories.map((c) => (
-                <tr key={c._id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                  <td style={{ padding: '1rem' }}>
-                    <img src={c.image} alt="" style={{ width: '50px', height: '65px', objectFit: 'cover', borderRadius: '4px' }} />
-                  </td>
-                  <td style={{ padding: '1rem', fontWeight: '700' }}>{getDisplayName(c)}</td>
-                  <td style={{ padding: '1rem' }}>
-                    <TranslationBadge status={c.translationStatus} />
-                  </td>
-                  <td style={{ padding: '1rem', color: '#666', fontFamily: 'monospace' }}>{c.slug}</td>
-                  <td style={{ padding: '1rem' }}>{c.displayOrder}</td>
-                  <td style={{ padding: '1rem' }}>
-                    {c.isArchived ? (
-                      <span className="badge badge-cancelled">{t('admin.products.archived')}</span>
-                    ) : c.isActive ? (
-                      <span className="badge badge-delivered">{t('admin.products.active')}</span>
-                    ) : (
-                      <span className="badge badge-pending">{t('admin.products.inactive')}</span>
-                    )}
-                  </td>
-                  <td style={{ padding: '1rem', textAlign: isRtl ? 'left' : 'right' }}>
-                    <div style={{ display: 'inline-flex', gap: '0.5rem' }}>
-                      <button onClick={() => openEditModal(c)} className="btn btn-secondary btn-sm" style={{ padding: '0.35rem 0.7rem' }}>
-                        <Edit2 size={13} />
-                        <span>{t('common.edit')}</span>
-                      </button>
-                      {c.isArchived ? (
-                        <button
-                          onClick={() => handleUnarchive(c._id)}
-                          className="btn btn-secondary btn-sm"
-                          style={{ padding: '0.35rem 0.7rem', color: 'var(--color-success)', borderColor: 'var(--color-success)' }}
-                          title="Restaurer la catégorie"
-                        >
-                          <RotateCcw size={13} />
-                          <span>{t('common.restore') || 'Restaurer'}</span>
-                        </button>
-                      ) : (
-                        <button onClick={() => handleArchive(c._id)} className="btn btn-secondary btn-sm" style={{ padding: '0.35rem 0.7rem', color: 'var(--color-danger)' }} title={t('admin.products.archiveProduct')}>
-                          <Archive size={13} />
-                        </button>
-                      )}
-                    </div>
+              {categories.length === 0 ? (
+                <tr>
+                  <td colSpan={7} style={{ padding: '3rem', textAlign: 'center', color: '#888', fontSize: '0.88rem' }}>
+                    Aucune catégorie trouvée. Cliquez sur "Ajouter une catégorie" pour commencer.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                categories.map((c) => (
+                  <tr key={c._id} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                    <td style={{ padding: '1rem' }}>
+                      <img src={c.image} alt="" style={{ width: '50px', height: '65px', objectFit: 'cover', borderRadius: '4px' }} />
+                    </td>
+                    <td style={{ padding: '1rem', fontWeight: '700' }}>{getDisplayName(c)}</td>
+                    <td style={{ padding: '1rem' }}>
+                      <TranslationBadge status={c.translationStatus} />
+                    </td>
+                    <td style={{ padding: '1rem', color: '#666', fontFamily: 'monospace' }}>{c.slug}</td>
+                    <td style={{ padding: '1rem' }}>{c.displayOrder}</td>
+                    <td style={{ padding: '1rem' }}>
+                      {c.isArchived ? (
+                        <span className="badge badge-cancelled">{t('admin.products.archived')}</span>
+                      ) : c.isActive ? (
+                        <span className="badge badge-delivered">{t('admin.products.active')}</span>
+                      ) : (
+                        <span className="badge badge-pending">{t('admin.products.inactive')}</span>
+                      )}
+                    </td>
+                    <td style={{ padding: '1rem', textAlign: isRtl ? 'left' : 'right' }}>
+                      <div style={{ display: 'inline-flex', gap: '0.5rem' }}>
+                        <button onClick={() => openEditModal(c)} className="btn btn-secondary btn-sm" style={{ padding: '0.35rem 0.7rem' }}>
+                          <Edit2 size={13} />
+                          <span>{t('common.edit')}</span>
+                        </button>
+                        {c.isArchived ? (
+                          <button
+                            onClick={() => handleUnarchive(c._id)}
+                            className="btn btn-secondary btn-sm"
+                            style={{ padding: '0.35rem 0.7rem', color: 'var(--color-success)', borderColor: 'var(--color-success)' }}
+                            title="Restaurer la catégorie"
+                          >
+                            <RotateCcw size={13} />
+                            <span>{t('common.restore') || 'Restaurer'}</span>
+                          </button>
+                        ) : (
+                          <button onClick={() => handleArchive(c._id)} className="btn btn-secondary btn-sm" style={{ padding: '0.35rem 0.7rem', color: 'var(--color-danger)' }} title={t('admin.products.archiveProduct')}>
+                            <Archive size={13} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         )}
       </div>
+
 
       {modalOpen && (
         <div style={{

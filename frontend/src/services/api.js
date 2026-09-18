@@ -80,6 +80,10 @@ async function refreshAccessToken() {
           if (!retryRes.ok) {
             throw new Error(retryData.message || 'Token refresh failed');
           }
+          // Save the new access token to localStorage so Bearer auth works
+          if (retryData.accessToken && typeof localStorage !== 'undefined') {
+            localStorage.setItem('merya_admin_token', retryData.accessToken);
+          }
           return true;
         }
         throw new Error('CSRF token refresh failed');
@@ -88,6 +92,12 @@ async function refreshAccessToken() {
       if (!res.ok) {
         throw new Error(data.message || 'Token refresh failed');
       }
+
+      // Save the new access token to localStorage so Bearer auth works
+      if (data.accessToken && typeof localStorage !== 'undefined') {
+        localStorage.setItem('merya_admin_token', data.accessToken);
+      }
+
       return true;
     } finally {
       _refreshPromise = null;
