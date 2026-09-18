@@ -179,7 +179,7 @@ export default function DeliverySettingsManager() {
               <span>{t('admin.delivery.saveSettings')}</span>
             </div>
             <div style={{ fontSize: '0.78rem', color: '#666', marginTop: '0.2rem' }}>
-              {t('admin.delivery.freeDeliveryThresholdHelp')}
+              {t('admin.delivery.title')}
             </div>
           </div>
 
@@ -358,7 +358,7 @@ export default function DeliverySettingsManager() {
               {t('admin.delivery.saveSettings')}
             </div>
             <div style={{ fontSize: '0.78rem', color: '#666' }}>
-              {t('admin.delivery.freeDeliveryThresholdHelp')}
+              {t('admin.delivery.title')}
             </div>
           </div>
 

@@ -70,17 +70,11 @@ export async function placeOrder({ customer, items, idempotencyKey }) {
 
   const deliveryMethodNorm = String(customer.deliveryMethod).toLowerCase().trim();
   if (deliveryMethodNorm === DELIVERY_METHODS.AGENCY) {
-    if (!customer.agencyName || typeof customer.agencyName !== 'string' || customer.agencyName.trim().length === 0) {
-      throw new Error('Agency name is required for agency delivery');
+    if (customer.agencyName && typeof customer.agencyName === 'string') {
+      customer.agencyName = customer.agencyName.trim().slice(0, 100);
+    } else {
+      customer.agencyName = undefined;
     }
-    const trimmedAgency = customer.agencyName.trim();
-    if (trimmedAgency.length < 2) {
-      throw new Error('Agency name must be at least 2 characters');
-    }
-    if (trimmedAgency.length > 100) {
-      throw new Error('Agency name cannot exceed 100 characters');
-    }
-    customer.agencyName = trimmedAgency;
     customer.deliveryMethod = DELIVERY_METHODS.AGENCY;
   } else if (deliveryMethodNorm === DELIVERY_METHODS.HOME) {
     if (!customer.address || typeof customer.address !== 'string' || customer.address.trim().length === 0) {

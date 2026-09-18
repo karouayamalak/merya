@@ -215,39 +215,19 @@ async function runConcurrencyTests() {
   // ── TEST 3: Strict Agency / Home delivery validation ──
   console.log('\n── Test 3: Strict checkout validation for Agency & Home delivery ──');
   try {
-    // 1. Agency checkout with missing agencyName -> Rejects
-    await assert.rejects(
-      async () => {
-        await placeOrder({
-          customer: {
-            fullName: 'Agency User',
-            phone: '0555998877',
-            wilaya: { code: 16, name: 'Algiers' },
-            deliveryMethod: DELIVERY_METHODS.AGENCY
-            // agencyName omitted!
-          },
-          items: [{ productId: prod._id.toString(), colorName: 'Noir', size: 'M', quantity: 1 }]
-        });
+    // 1. Agency checkout with omitted agencyName -> Allowed (store works with fixed agency)
+    const agencyOrderNoName = await placeOrder({
+      customer: {
+        fullName: 'Agency User',
+        phone: '0555998877',
+        wilaya: { code: 16, name: 'Algiers' },
+        deliveryMethod: DELIVERY_METHODS.AGENCY
+        // agencyName omitted!
       },
-      /Agency name is required/
-    );
-
-    // 2. Agency checkout with empty/whitespace agencyName -> Rejects
-    await assert.rejects(
-      async () => {
-        await placeOrder({
-          customer: {
-            fullName: 'Agency User',
-            phone: '0555998877',
-            wilaya: { code: 16, name: 'Algiers' },
-            deliveryMethod: DELIVERY_METHODS.AGENCY,
-            agencyName: '   '
-          },
-          items: [{ productId: prod._id.toString(), colorName: 'Noir', size: 'M', quantity: 1 }]
-        });
-      },
-      /Agency name is required/
-    );
+      items: [{ productId: prod._id.toString(), colorName: 'Noir', size: 'M', quantity: 1 }]
+    });
+    assert.strictEqual(agencyOrderNoName.order.customer.deliveryMethod, DELIVERY_METHODS.AGENCY);
+    pass('Agency checkout succeeded without agencyName requirement');
 
     // 3. Home checkout with missing address -> Rejects
     await assert.rejects(

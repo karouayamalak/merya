@@ -151,21 +151,14 @@ export const updateOrderCustomerDetails = async (req, res, next) => {
         });
       }
 
-      let newFee = authoritativeFee;
-      if (deliverySetting.freeDeliveryThreshold && deliverySetting.freeDeliveryThreshold > 0 && order.subtotal >= deliverySetting.freeDeliveryThreshold) {
-        newFee = 0;
-      }
-
+      const newFee = authoritativeFee;
       order.deliveryFee = newFee;
       order.totalPrice = order.subtotal + newFee;
     }
 
     if (order.customer.deliveryMethod === DELIVERY_METHODS.AGENCY) {
-      if (!order.customer.agencyName || typeof order.customer.agencyName !== 'string' || order.customer.agencyName.trim().length < 2) {
-        return res.status(400).json({
-          success: false,
-          message: 'Agency name is required for agency delivery (min 2 characters).'
-        });
+      if (order.customer.agencyName && typeof order.customer.agencyName === 'string') {
+        order.customer.agencyName = order.customer.agencyName.trim().slice(0, 100);
       }
     }
 

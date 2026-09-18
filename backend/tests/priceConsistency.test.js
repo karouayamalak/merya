@@ -86,7 +86,7 @@ describe('MERYA DZ Price Consistency & Free Delivery Hardening', () => {
     await mongoose.disconnect();
   });
 
-  describe('1. Free Delivery Threshold Business Rule', () => {
+  describe('1. Free Delivery Logic Removed - Authoritative Wilaya Fee strictly applies', () => {
     test('Threshold disabled (0) returns normal delivery fee', () => {
       const fee = calculateDeliveryFee({ subtotal: 8000, rawDeliveryFee: 800, freeDeliveryThreshold: 0 });
       assert.strictEqual(fee, 800);
@@ -102,24 +102,21 @@ describe('MERYA DZ Price Consistency & Free Delivery Hardening', () => {
       assert.strictEqual(fee, 800);
     });
 
-    test('Subtotal exactly at threshold returns 0 DA', () => {
+    test('Subtotal at or above threshold returns normal delivery fee (free shipping removed)', () => {
       const fee = calculateDeliveryFee({ subtotal: 10000, rawDeliveryFee: 800, freeDeliveryThreshold: 10000 });
-      assert.strictEqual(fee, 0);
+      assert.strictEqual(fee, 800);
+      const fee2 = calculateDeliveryFee({ subtotal: 15000, rawDeliveryFee: 800, freeDeliveryThreshold: 10000 });
+      assert.strictEqual(fee2, 800);
     });
 
-    test('Subtotal above threshold returns 0 DA', () => {
-      const fee = calculateDeliveryFee({ subtotal: 15000, rawDeliveryFee: 800, freeDeliveryThreshold: 10000 });
-      assert.strictEqual(fee, 0);
-    });
-
-    test('Home delivery fee correctly zeroed when threshold reached', () => {
+    test('Home delivery fee correctly retained when subtotal is high', () => {
       const fee = calculateDeliveryFee({ subtotal: 12000, rawDeliveryFee: 900, freeDeliveryThreshold: 10000 });
-      assert.strictEqual(fee, 0);
+      assert.strictEqual(fee, 900);
     });
 
-    test('Agency delivery fee correctly zeroed when threshold reached', () => {
+    test('Agency delivery fee correctly retained when subtotal is high', () => {
       const fee = calculateDeliveryFee({ subtotal: 12000, rawDeliveryFee: 500, freeDeliveryThreshold: 10000 });
-      assert.strictEqual(fee, 0);
+      assert.strictEqual(fee, 500);
     });
   });
 
@@ -790,9 +787,9 @@ describe('MERYA DZ Price Consistency & Free Delivery Hardening', () => {
       assert.strictEqual(res.body.success, true);
       assert.strictEqual(res.body.isValid, true);
       assert.strictEqual(res.body.subtotal, 13000);
-      assert.strictEqual(res.body.deliveryFee, 0, 'Delivery fee must be 0 when subtotal >= threshold');
-      assert.strictEqual(res.body.isFreeDelivery, true);
-      assert.strictEqual(res.body.totalPrice, 13000);
+      assert.strictEqual(res.body.deliveryFee, 800, 'Delivery fee is standard rate (free shipping removed)');
+      assert.strictEqual(res.body.isFreeDelivery, false);
+      assert.strictEqual(res.body.totalPrice, 13800);
     });
 
     test('Quote endpoint detects unavailable variant or insufficient stock', async () => {

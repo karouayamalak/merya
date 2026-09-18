@@ -20,19 +20,7 @@ export const checkoutOrderSchema = z.object({
     notes: z.string().max(500).optional()
   }).superRefine((data, ctx) => {
     if (data.deliveryMethod === DELIVERY_METHODS.AGENCY) {
-      if (!data.agencyName || typeof data.agencyName !== 'string' || data.agencyName.trim().length === 0) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'Agency name is required for agency delivery',
-          path: ['agencyName']
-        });
-      } else if (data.agencyName.trim().length < 2) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'Agency name must be at least 2 characters',
-          path: ['agencyName']
-        });
-      } else if (data.agencyName.trim().length > 100) {
+      if (data.agencyName && typeof data.agencyName === 'string' && data.agencyName.trim().length > 100) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: 'Agency name cannot exceed 100 characters',

@@ -348,13 +348,8 @@ export async function resolveAuthoritativeDelivery({
     );
   }
 
-  // 6. Free Delivery Threshold calculation
-  const threshold = (typeof setting.freeDeliveryThreshold === 'number' && Number.isFinite(setting.freeDeliveryThreshold) && setting.freeDeliveryThreshold > 0)
-    ? setting.freeDeliveryThreshold
-    : 0;
-
-  const isFreeDelivery = threshold > 0 && typeof subtotal === 'number' && subtotal >= threshold;
-  const deliveryFee = isFreeDelivery ? 0 : rawFee;
+  // 6. Delivery Fee calculation (free delivery threshold removed)
+  const deliveryFee = rawFee;
   const totalPrice = typeof subtotal === 'number' ? subtotal + deliveryFee : null;
 
   return {
@@ -364,8 +359,8 @@ export async function resolveAuthoritativeDelivery({
     deliveryMethod: normMethod,
     rawFee,
     deliveryFee,
-    isFreeDelivery,
-    freeDeliveryThreshold: threshold,
+    isFreeDelivery: false,
+    freeDeliveryThreshold: 0,
     totalPrice
   };
 }

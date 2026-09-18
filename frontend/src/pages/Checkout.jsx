@@ -18,7 +18,6 @@ import { useCart } from '../context/CartContext';
 import { fetchDeliverySettings, submitCheckout } from '../services/api';
 import {
   validateDeliverySettingsResponse,
-  calculateDeliveryFee,
   revalidateCartWithServer
 } from '../services/checkoutValidation';
 import { useLanguage } from '../context/LanguageContext';
@@ -39,7 +38,6 @@ export default function Checkout({ onBack, onOrderSuccess }) {
   const [phone, setPhone] = useState('');
   const [selectedWilayaCode, setSelectedWilayaCode] = useState(null); // Selected strictly after load
   const [deliveryMethod, setDeliveryMethod] = useState('home'); // 'home' or 'agency'
-  const [agencyName, setAgencyName] = useState('');
   const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
 
@@ -181,28 +179,10 @@ export default function Checkout({ onBack, onOrderSuccess }) {
   const isSettingsReady = !loadingSettings && !settingsError && wilayas.length === 58 && selectedWilayaObj !== null;
   const isWilayaAvailable = selectedWilayaObj ? selectedWilayaObj.isAvailable : false;
 
-  const freeDeliveryThreshold = (deliverySettings && typeof deliverySettings.freeDeliveryThreshold === 'number')
-    ? deliverySettings.freeDeliveryThreshold
-    : 0;
-
   // Raw fee from server configuration
   const rawDeliveryFee = (isSettingsReady && isWilayaAvailable)
     ? (deliveryMethod === 'agency' ? selectedWilayaObj.agencyFee : selectedWilayaObj.homeFee)
     : null;
-
-  // Authoritative delivery fee calculation applying freeDeliveryThreshold
-  const activeDeliveryFee = calculateDeliveryFee({
-    subtotal,
-    rawDeliveryFee,
-    freeDeliveryThreshold
-  });
-
-  const isFreeDelivery = (
-    rawDeliveryFee !== null &&
-    activeDeliveryFee === 0 &&
-    freeDeliveryThreshold > 0 &&
-    subtotal >= freeDeliveryThreshold
-  );
 
   const hasValidLiveQuote = Boolean(
     liveQuote &&
@@ -216,16 +196,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
   const displayDeliveryFee = hasValidLiveQuote && typeof liveQuote.deliveryFee === 'number'
     ? liveQuote.deliveryFee
     : null;
-  const displayIsFreeDelivery = hasValidLiveQuote
-    ? Boolean(liveQuote.isFreeDelivery)
-    : false;
-  const displayFreeThreshold = hasValidLiveQuote && typeof liveQuote.freeDeliveryThreshold === 'number'
-    ? liveQuote.freeDeliveryThreshold
-    : freeDeliveryThreshold;
   const displayTotal = hasValidLiveQuote ? liveQuote.totalPrice : null;
-  const displayRawFee = hasValidLiveQuote && displayIsFreeDelivery
-    ? (rawDeliveryFee !== null ? rawDeliveryFee : (displayDeliveryFee === 0 ? null : displayDeliveryFee))
-    : rawDeliveryFee;
 
   const isSubmitDisabled =
     loadingSettings === true ||
@@ -270,10 +241,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
       setErrorMessage(t('checkout.fillAddressError'));
       return;
     }
-    if (deliveryMethod === 'agency' && (!agencyName.trim() || agencyName.trim().length < 2)) {
-      setErrorMessage(t('checkout.fillAgencyError'));
-      return;
-    }
+
 
     setIsSubmitting(true);
 
@@ -306,7 +274,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
             name: selectedWilayaObj.name
           },
           deliveryMethod,
-          agencyName: deliveryMethod === 'agency' ? agencyName.trim() : undefined,
+
           address: deliveryMethod === 'home' ? address.trim() : undefined,
           notes: notes.trim() || undefined
         },
@@ -941,7 +909,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                           }}
                         >
                           <span>
-                            {t('checkout.homeDelivery')} {selectedWilayaObj ? (isFreeDelivery ? `(${t('checkout.freeDeliveryBadge')})` : `(+${formatCurrency(selectedWilayaObj.homeFee)})`) : (loadingSettings ? `(${t('checkout.calculating')})` : '')}
+                            {t('checkout.homeDelivery')} {selectedWilayaObj ? `(+${formatCurrency(selectedWilayaObj.homeFee)})` : (loadingSettings ? `(${t('checkout.calculating')})` : '')}
                           </span>
                         </button>
 
@@ -968,7 +936,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                           }}
                         >
                           <span>
-                            {t('checkout.agencyDelivery')} {selectedWilayaObj ? (isFreeDelivery ? `(${t('checkout.freeDeliveryBadge')})` : `(+${formatCurrency(selectedWilayaObj.agencyFee)})`) : (loadingSettings ? `(${t('checkout.calculating')})` : '')}
+                            {t('checkout.agencyDelivery')} {selectedWilayaObj ? `(+${formatCurrency(selectedWilayaObj.agencyFee)})` : (loadingSettings ? `(${t('checkout.calculating')})` : '')}
                           </span>
                         </button>
                       </div>
@@ -997,27 +965,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                     </div>
                   )}
 
-                  {/* Agency / Bureau name input — only shown for agency delivery */}
-                  {deliveryMethod === 'agency' && (
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.85rem' }}>
-                      <div className="checkout-icon-badge" style={{ marginTop: '0.2rem' }}>
-                        <Building2 size={16} />
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', color: '#2A241F', marginBottom: '0.25rem' }}>
-                          {t('checkout.agencyNameLabel')} : <span style={{ color: '#A86450' }}>*</span>
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          placeholder={t('checkout.agencyNamePlaceholder')}
-                          value={agencyName}
-                          onChange={(e) => setAgencyName(e.target.value)}
-                          className="checkout-input"
-                        />
-                      </div>
-                    </div>
-                  )}
+
 
                   {/* Row 6: Autres informations (si besoin) */}
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.85rem' }}>
@@ -1342,24 +1290,13 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                   <Truck size={15} color="#9F8268" />
                   {t('checkout.deliveryLabel')} ({deliveryMethod === 'agency' ? t('checkout.agency') : t('checkout.home')} {selectedWilayaObj ? `- ${selectedWilayaObj.code}` : ''})
                 </span>
-                <span style={{ fontWeight: '600', color: displayIsFreeDelivery ? '#16A34A' : '#2A241F' }}>
+                <span style={{ fontWeight: '600', color: '#2A241F' }}>
                   {loadingSettings || liveQuoteLoading ? (
                     <span style={{ fontSize: '0.8rem', color: '#9F8268' }}>{t('checkout.calculating')}</span>
                   ) : settingsError ? (
                     <span style={{ fontSize: '0.8rem', color: '#DC2626' }}>{t('checkout.unavailable')}</span>
                   ) : displayDeliveryFee !== null ? (
-                    displayIsFreeDelivery ? (
-                      <span style={{ color: '#16A34A', fontWeight: '700', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                        <span>{t('checkout.freeDeliveryBadge')}</span>
-                        {displayRawFee !== null && (
-                          <span style={{ fontSize: '0.75rem', textDecoration: 'line-through', color: '#999', fontWeight: '400' }}>
-                            +{formatCurrency(displayRawFee)}
-                          </span>
-                        )}
-                      </span>
-                    ) : (
-                      `+${formatCurrency(displayDeliveryFee)}`
-                    )
+                    `+${formatCurrency(displayDeliveryFee)}`
                   ) : (
                     <span style={{ fontSize: '0.8rem', color: '#DC2626' }}>{t('checkout.unavailable')}</span>
                   )}

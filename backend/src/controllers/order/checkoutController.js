@@ -89,11 +89,8 @@ export const getCartQuote = async (req, res, next) => {
     let subtotal = 0;
     const quotedItems = [];
 
-    // Load delivery settings for threshold comparison and delivery validation
+    // Load delivery settings for delivery validation
     const setting = await DeliverySetting.getSingleton();
-    const freeDeliveryThreshold = (setting && typeof setting.freeDeliveryThreshold === 'number' && setting.freeDeliveryThreshold > 0)
-      ? setting.freeDeliveryThreshold
-      : 0;
 
     for (let idx = 0; idx < items.length; idx++) {
       const item = items[idx];
@@ -201,7 +198,6 @@ export const getCartQuote = async (req, res, next) => {
 
     // Delivery fee validation and calculation
     let deliveryFee = null;
-    let isFreeDelivery = false;
     let totalPrice = subtotal;
 
     const deliveryAttempted = wilayaCode !== undefined || deliveryMethod !== undefined;
@@ -226,10 +222,8 @@ export const getCartQuote = async (req, res, next) => {
         if (!deliveryRes.success) {
           issues.push(deliveryRes.error);
           deliveryFee = null;
-          isFreeDelivery = false;
         } else {
           deliveryFee = deliveryRes.deliveryFee;
-          isFreeDelivery = deliveryRes.isFreeDelivery;
           totalPrice = subtotal + deliveryFee;
         }
       }
@@ -242,8 +236,8 @@ export const getCartQuote = async (req, res, next) => {
       isValid: isCartValid,
       subtotal,
       deliveryFee,
-      freeDeliveryThreshold,
-      isFreeDelivery,
+      freeDeliveryThreshold: 0,
+      isFreeDelivery: false,
       totalPrice,
       items: quotedItems,
       issues

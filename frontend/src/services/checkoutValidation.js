@@ -98,21 +98,12 @@ export function validateDeliverySettingsResponse(data) {
 }
 
 /**
- * Authoritative business rule for delivery fee (mirrors backend orderService.js exactly):
- * - if threshold is disabled (0, null, undefined, <= 0), use normal delivery fee
- * - if subtotal is below threshold, use selected Wilaya's delivery fee
- * - if subtotal reaches/exceeds threshold, delivery fee is 0
+ * Authoritative delivery fee:
+ * Always returns rawDeliveryFee without free delivery discount.
  */
-export function calculateDeliveryFee({ subtotal, rawDeliveryFee, freeDeliveryThreshold }) {
+export function calculateDeliveryFee({ rawDeliveryFee }) {
   if (typeof rawDeliveryFee !== 'number' || !Number.isFinite(rawDeliveryFee) || rawDeliveryFee < 0) {
     return null;
-  }
-  const threshold = (typeof freeDeliveryThreshold === 'number' && Number.isFinite(freeDeliveryThreshold) && freeDeliveryThreshold > 0)
-    ? freeDeliveryThreshold
-    : 0;
-
-  if (threshold > 0 && typeof subtotal === 'number' && subtotal >= threshold) {
-    return 0;
   }
   return rawDeliveryFee;
 }
