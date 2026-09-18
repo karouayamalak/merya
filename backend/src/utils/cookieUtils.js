@@ -2,12 +2,13 @@ import { AUTH_CONFIG } from '../config/authConfig.js';
 
 function getCookieBaseOptions() {
   const isProduction = process.env.NODE_ENV === 'production';
-  // In production across domains (e.g. Vercel frontend + Render backend), sameSite must be 'none' with secure: true
-  const sameSite = isProduction ? (process.env.COOKIE_SAME_SITE || 'none') : 'lax';
+  // In cross-origin deployments (frontend on merya-1.onrender.com, backend on merya.onrender.com),
+  // SameSite must be 'none' and secure must be true for browsers to permit the cookie.
+  const sameSite = process.env.COOKIE_SAME_SITE || 'none';
 
   return {
     httpOnly: true,
-    secure: isProduction,
+    secure: true,
     sameSite
   };
 }

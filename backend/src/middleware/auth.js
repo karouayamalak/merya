@@ -5,8 +5,11 @@ import { verifyAccessToken } from '../utils/tokenUtils.js';
 
 export const authenticateAdmin = async (req, res, next) => {
   try {
-    // COOKIE-ONLY authentication with accessToken.
-    const accessToken = req.cookies?.accessToken;
+    // Dual authentication: Check Authorization Bearer header first, then cookie as fallback.
+    // This ensures reliable cross-site API access even when browsers restrict cross-domain cookies.
+    const authHeader = req.headers.authorization;
+    const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    const accessToken = bearerToken || req.cookies?.accessToken;
 
     if (!accessToken) {
       // Clear legacy token cookie if present to clean up obsolete browser credentials
@@ -106,7 +109,9 @@ export const authenticateAdmin = async (req, res, next) => {
  */
 export const authenticateAdminJwtOnly = async (req, res, next) => {
   try {
-    const accessToken = req.cookies?.accessToken;
+    const authHeader = req.headers.authorization;
+    const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    const accessToken = bearerToken || req.cookies?.accessToken;
 
     if (!accessToken) {
       if (req.cookies?.token) {

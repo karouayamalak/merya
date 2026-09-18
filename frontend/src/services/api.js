@@ -98,10 +98,12 @@ async function refreshAccessToken() {
 }
 
 async function request(endpoint, options = {}) {
+  const token = typeof localStorage !== 'undefined' ? localStorage.getItem('merya_admin_token') : null;
   const config = {
     credentials: 'include', // HttpOnly cookie is sent automatically by the browser
     headers: {
       'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       ...options.headers
     },
     ...options
@@ -194,12 +196,34 @@ export const fetchBanners = (params = {}) => {
 };
 
 // Admin Auth APIs
-export const adminLogin = (email, password) => request('/auth/login', {
-  method: 'POST',
-  body: JSON.stringify({ email, password })
-});
-export const adminLogout = () => request('/auth/logout', { method: 'POST' });
-export const adminLogoutAll = () => request('/auth/logout-all', { method: 'POST' });
+export const adminLogin = async (email, password) => {
+  const data = await request('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password })
+  });
+  if (data && data.accessToken && typeof localStorage !== 'undefined') {
+    localStorage.setItem('merya_admin_token', data.accessToken);
+  }
+  return data;
+};
+export const adminLogout = async () => {
+  try {
+    return await request('/auth/logout', { method: 'POST' });
+  } finally {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('merya_admin_token');
+    }
+  }
+};
+export const adminLogoutAll = async () => {
+  try {
+    return await request('/auth/logout-all', { method: 'POST' });
+  } finally {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('merya_admin_token');
+    }
+  }
+};
 export const adminRefreshToken = () => refreshAccessToken();
 export const adminGetSessions = () => request('/auth/sessions');
 export const adminGetMe = () => request('/auth/me');

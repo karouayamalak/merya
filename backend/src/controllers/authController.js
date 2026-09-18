@@ -52,11 +52,12 @@ export const login = async (req, res, next) => {
       ipAddress
     });
 
-    // Set secure HttpOnly cookies (never return raw tokens in JSON)
+    // Set secure HttpOnly cookies (and return token in JSON for cross-site SPA support)
     setAuthCookies(res, { accessToken, refreshToken });
 
     res.json({
       success: true,
+      accessToken,
       admin: {
         id: admin._id,
         username: admin.username,
@@ -132,6 +133,7 @@ export const refresh = async (req, res, next) => {
 
     res.json({
       success: true,
+      accessToken: tokens.accessToken,
       message: 'Token refreshed successfully'
     });
   } catch (err) {

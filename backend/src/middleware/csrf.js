@@ -94,20 +94,29 @@ export function verifyCsrf(req, res, next) {
     return next();
   }
 
+  // Token-authenticated requests via Authorization Bearer header are immune to browser ambient CSRF attacks
+  if (req.headers.authorization?.startsWith('Bearer ')) {
+    return next();
+  }
+
   const headerToken = req.headers['x-csrf-token'];
   // Also accept the cookie value for the double-submit check
   const cookieToken = req.cookies?.csrf_token;
 
-  // Both must be present and they must match each other AND be valid
-  if (
-    !headerToken ||
-    !cookieToken ||
-    headerToken !== cookieToken ||
-    !verifyCsrfToken(headerToken)
-  ) {
+  // Header token must be present and valid
+  if (!headerToken || !verifyCsrfToken(headerToken)) {
     return res.status(403).json({
       success: false,
       message: 'CSRF token missing, invalid, or expired. Refresh and retry.',
+      code: 'CSRF_INVALID'
+    });
+  }
+
+  // If cookie is also present, ensure they match (double submit)
+  if (cookieToken && headerToken !== cookieToken) {
+    return res.status(403).json({
+      success: false,
+      message: 'CSRF token mismatch. Refresh and retry.',
       code: 'CSRF_INVALID'
     });
   }
