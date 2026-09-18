@@ -362,3 +362,187 @@ html[dir="rtl"] input[type="number"] {
     max-height: 95vh !important;
   }
 }
+
+/* ==========================================================================
+   Order Tracking Responsive Styles
+   ========================================================================== */
+.tracking-wrapper {
+  padding-top: clamp(1.5rem, 4vw, 3rem);
+  padding-bottom: clamp(3rem, 6vw, 6rem);
+}
+
+.tracking-header {
+  text-align: center;
+  margin-bottom: clamp(1.5rem, 4vw, 2.5rem);
+}
+
+.tracking-search-card {
+  background-color: var(--color-surface);
+  border-radius: var(--radius-xl);
+  padding: clamp(1.15rem, 3.5vw, 2rem);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--color-border);
+  margin-bottom: clamp(1.75rem, 4vw, 3rem);
+}
+
+.tracking-search-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 1rem;
+  align-items: flex-end;
+}
+
+@media (max-width: 680px) {
+  .tracking-search-form {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  .tracking-search-form .btn {
+    width: 100%;
+    margin-top: 0.25rem;
+  }
+}
+
+.tracking-input {
+  width: 100%;
+  padding: 0.8rem 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background-color: var(--color-bg-base);
+  font-size: 1rem; /* 16px prevents iOS zoom */
+  transition: var(--transition-fast);
+}
+
+.tracking-input:focus {
+  outline: none;
+  border-color: var(--color-primary-dark);
+  background-color: #FFFFFF;
+  box-shadow: 0 0 0 3px rgba(184, 156, 130, 0.2);
+}
+
+.tracking-result-card {
+  background-color: var(--color-surface);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--color-border);
+  transition: var(--transition-smooth);
+}
+
+.tracking-live-bar {
+  padding: 0.75rem 1.25rem;
+  background-color: var(--color-espresso);
+  color: #FFFFFF;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.tracking-card-body {
+  padding: clamp(1.15rem, 4vw, 2rem);
+}
+
+.tracking-status-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  margin-bottom: clamp(1.75rem, 4vw, 2.5rem);
+}
+
+.tracking-wilaya-box {
+  background-color: var(--color-bg-base);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1rem;
+  min-width: 220px;
+}
+
+@media (max-width: 640px) {
+  .tracking-wilaya-box {
+    width: 100%;
+  }
+}
+
+/* Steppers: Desktop horizontal vs Mobile vertical */
+@media (min-width: 641px) {
+  .tracking-stepper-mobile {
+    display: none !important;
+  }
+  .tracking-stepper-desktop {
+    display: block;
+    margin-bottom: 3rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .tracking-stepper-desktop {
+    display: none !important;
+  }
+  .tracking-stepper-mobile {
+    display: block;
+    margin-bottom: 2rem;
+  }
+}
+
+/* Mobile Vertical Stepper */
+.tracking-mobile-step {
+  display: flex;
+  gap: 0.9rem;
+  position: relative;
+}
+
+.tracking-mobile-indicator-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  flex-shrink: 0;
+  width: 40px;
+}
+
+.tracking-mobile-icon-circle {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  transition: var(--transition-smooth);
+}
+
+.tracking-mobile-vertical-line {
+  width: 3px;
+  flex: 1;
+  min-height: 24px;
+  margin: 4px 0;
+  background-color: var(--color-border);
+}
+
+.tracking-mobile-content {
+  flex: 1;
+  padding-bottom: 1.25rem;
+}
+
+.tracking-mobile-step:last-child .tracking-mobile-content {
+  padding-bottom: 0.25rem;
+}
+
+/* Order Item Row */
+.tracking-item-row {
+  display: flex;
+  gap: 0.9rem;
+  align-items: center;
+  padding: 0.75rem 0;
+}
+
+@media (max-width: 480px) {
+  .tracking-item-row {
+    align-items: flex-start;
+  }
+}

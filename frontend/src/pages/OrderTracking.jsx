@@ -1,6 +1,21 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Compass, Search, CheckCircle, Clock, Truck, Building2, PackageCheck, XCircle, Wifi, AlertCircle, Loader2 } from 'lucide-react';
-import { trackOrder } from '../services/api';
+import {
+  Compass,
+  Search,
+  CheckCircle,
+  Clock,
+  Truck,
+  Building2,
+  PackageCheck,
+  XCircle,
+  Wifi,
+  AlertCircle,
+  Loader2,
+  MapPin,
+  Check,
+  Calendar
+} from 'lucide-react';
+import { trackOrder, getImageUrl } from '../services/api';
 import { useWebSocket } from '../context/WebSocketContext';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -67,8 +82,6 @@ export default function OrderTracking({ initialPhone = '', initialOrderCode = ''
     if (!orderData?.orderCode) return;
 
     const unsubscribe = subscribeOrder(orderData.orderCode, phone, (event) => {
-      // WebSocket events are signals only — the database is the source of truth.
-      // Re-fetch authoritative order state from the API on every status notification.
       console.log('[WebSocket Tracking] Status signal received, refreshing from API:', event.type);
       trackOrder(phone, orderData.orderCode)
         .then((res) => {
@@ -105,14 +118,39 @@ export default function OrderTracking({ initialPhone = '', initialOrderCode = ''
     return key ? t(key) : status;
   };
 
+  const formatTimelineDate = (isoString) => {
+    if (!isoString) return null;
+    try {
+      const d = new Date(isoString);
+      if (isNaN(d.getTime())) return null;
+      return d.toLocaleDateString(isRtl ? 'ar-DZ' : 'fr-FR', {
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return null;
+    }
+  };
+
+  const getStepTimestamp = (stepKey) => {
+    if (stepKey === 'Pending' && orderData?.createdAt) {
+      return formatTimelineDate(orderData.createdAt);
+    }
+    if (!orderData?.timeline || !Array.isArray(orderData.timeline)) return null;
+    const entry = orderData.timeline.find(e => e.status?.toLowerCase() === stepKey.toLowerCase());
+    return entry ? formatTimelineDate(entry.timestamp) : null;
+  };
+
   const currentSteps = orderData?.deliveryMethod === 'agency' ? STATUS_STEPS_AGENCY : STATUS_STEPS_HOME;
   const currentStepIdx = orderData ? getStepIndex(orderData.status, currentSteps) : -1;
 
   return (
-    <div style={{ paddingTop: '3rem', paddingBottom: '6rem' }} dir={isRtl ? 'rtl' : 'ltr'}>
-      <div className="container" style={{ maxWidth: '800px' }}>
+    <div className="tracking-wrapper" dir={isRtl ? 'rtl' : 'ltr'}>
+      <div className="container" style={{ maxWidth: '820px' }}>
         {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
+        <div className="tracking-header">
           <div style={{
             display: 'inline-flex',
             alignItems: 'center',
@@ -125,33 +163,26 @@ export default function OrderTracking({ initialPhone = '', initialOrderCode = ''
             textTransform: 'uppercase',
             letterSpacing: '0.08em',
             color: 'var(--color-primary-dark)',
-            marginBottom: '1rem'
+            marginBottom: '0.85rem'
           }}>
             <Compass size={14} className="rtl-flip" />
             {t('tracking.liveTracking')}
           </div>
 
-          <h1 className="heading-display" style={{ fontSize: 'clamp(2rem, 4vw, 2.7rem)', color: 'var(--color-espresso)' }}>
+          <h1 className="heading-display" style={{ fontSize: 'clamp(1.75rem, 5vw, 2.7rem)', color: 'var(--color-espresso)' }}>
             {t('tracking.title').toUpperCase()}
           </h1>
 
-          <p style={{ fontSize: '0.95rem', color: '#666', marginTop: '0.5rem' }}>
+          <p style={{ fontSize: 'clamp(0.85rem, 2.5vw, 0.95rem)', color: '#666', marginTop: '0.4rem', maxWidth: '520px', marginInline: 'auto' }}>
             {t('tracking.subtitle')}
           </p>
         </div>
 
-        {/* Tracking Search Box */}
-        <div style={{
-          backgroundColor: 'var(--color-surface)',
-          borderRadius: 'var(--radius-xl)',
-          padding: '2rem',
-          boxShadow: 'var(--shadow-md)',
-          border: '1px solid var(--color-border)',
-          marginBottom: '3rem'
-        }}>
+        {/* Tracking Search Card */}
+        <div className="tracking-search-card">
           <form
             onSubmit={(e) => { e.preventDefault(); handleLookup(); }}
-            style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr)) 140px', gap: '1rem', alignItems: 'flex-end' }}
+            className="tracking-search-form"
           >
             <div>
               <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.4rem' }}>
@@ -163,13 +194,7 @@ export default function OrderTracking({ initialPhone = '', initialOrderCode = ''
                 placeholder={t('tracking.phonePlaceholder')}
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '0.8rem 1rem',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--color-border)',
-                  backgroundColor: 'var(--color-bg-base)'
-                }}
+                className="tracking-input"
               />
             </div>
 
@@ -183,16 +208,9 @@ export default function OrderTracking({ initialPhone = '', initialOrderCode = ''
                 placeholder={t('tracking.codePlaceholder')}
                 value={orderCode}
                 onChange={(e) => setOrderCode(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '0.8rem 1rem',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--color-border)',
-                  backgroundColor: 'var(--color-bg-base)',
-                  textTransform: 'uppercase',
-                  fontWeight: '700',
-                  letterSpacing: '0.05em'
-                }}
+                className="tracking-input"
+                autoCapitalize="characters"
+                style={{ textTransform: 'uppercase', fontWeight: '700', letterSpacing: '0.05em' }}
               />
             </div>
 
@@ -200,7 +218,7 @@ export default function OrderTracking({ initialPhone = '', initialOrderCode = ''
               type="submit"
               disabled={loading}
               className="btn btn-primary"
-              style={{ padding: '0.85rem 1rem', height: '48px', width: '100%' }}
+              style={{ padding: '0.85rem 1.4rem', height: '48px' }}
             >
               {loading ? <Loader2 size={18} className="animate-spin" /> : <Search size={18} />}
               <span>{t('tracking.trackBtn')}</span>
@@ -228,49 +246,34 @@ export default function OrderTracking({ initialPhone = '', initialOrderCode = ''
 
         {/* Real-time Result Card */}
         {orderData && (
-          <div style={{
-            backgroundColor: 'var(--color-surface)',
-            borderRadius: 'var(--radius-xl)',
-            overflow: 'hidden',
-            boxShadow: 'var(--shadow-lg)',
-            border: liveFlash ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
-            transition: 'var(--transition-smooth)'
-          }}>
-            {/* Real-time indicator bar */}
-            <div style={{
-              padding: '0.75rem 1.5rem',
-              backgroundColor: 'var(--color-espresso)',
-              color: '#FFF',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              fontSize: '0.8rem'
-            }}>
+          <div className="tracking-result-card" style={{ border: liveFlash ? '2px solid var(--color-primary)' : '1px solid var(--color-border)' }}>
+            {/* Real-time status bar */}
+            <div className="tracking-live-bar">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Wifi size={14} color={isConnected ? '#4CAF50' : '#FF9800'} />
                 <span>{isConnected ? t('tracking.realTimeActive') : t('tracking.connectingToUpdates')}</span>
               </div>
-              <span style={{ fontFamily: 'monospace', fontWeight: '700', letterSpacing: '0.05em' }}>
+              <span style={{
+                fontFamily: 'monospace',
+                fontWeight: '700',
+                letterSpacing: '0.06em',
+                backgroundColor: 'rgba(255, 255, 255, 0.12)',
+                padding: '0.2rem 0.6rem',
+                borderRadius: '4px'
+              }}>
                 {orderData.orderCode}
               </span>
             </div>
 
-            <div style={{ padding: '2rem' }}>
-              {/* Status Header */}
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                flexWrap: 'wrap',
-                gap: '1rem',
-                marginBottom: '2.5rem'
-              }}>
+            <div className="tracking-card-body">
+              {/* Status & Delivery Info Header */}
+              <div className="tracking-status-header">
                 <div>
-                  <span style={{ fontSize: '0.8rem', color: '#777', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  <span style={{ fontSize: '0.78rem', color: '#777', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: '600' }}>
                     {t('tracking.currentStatus')}
                   </span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.25rem' }}>
-                    <h2 style={{ fontSize: '1.6rem', fontWeight: '800', color: 'var(--color-espresso)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginTop: '0.35rem', flexWrap: 'wrap' }}>
+                    <h2 style={{ fontSize: 'clamp(1.3rem, 3.5vw, 1.6rem)', fontWeight: '800', color: 'var(--color-espresso)', margin: 0 }}>
                       {getStatusLabel(orderData.status)}
                     </h2>
                     {orderData.status === 'Cancelled' ? (
@@ -283,77 +286,204 @@ export default function OrderTracking({ initialPhone = '', initialOrderCode = ''
                   </div>
                 </div>
 
-                <div style={{ textAlign: isRtl ? 'left' : 'right' }}>
-                  <span style={{ fontSize: '0.8rem', color: '#777', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    {t('tracking.wilaya')}
-                  </span>
-                  <div style={{ fontSize: '1.05rem', fontWeight: '700', color: 'var(--color-espresso)', marginTop: '0.2rem' }}>
-                    {t('confirmation.wilaya')} {orderData.wilaya} ({orderData.deliveryMethod === 'agency' ? t('checkout.agency') : t('checkout.home')})
+                {/* Wilaya & Destination Badge */}
+                <div className="tracking-wilaya-box">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', color: '#777', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: '700' }}>
+                    <MapPin size={13} />
+                    <span>{t('tracking.wilaya')}</span>
+                  </div>
+                  <div style={{ fontSize: '0.95rem', fontWeight: '700', color: 'var(--color-espresso)', marginTop: '0.2rem' }}>
+                    {orderData.wilaya} • <span style={{ color: 'var(--color-primary-dark)', fontWeight: '600' }}>{orderData.deliveryMethod === 'agency' ? t('checkout.agency') : t('checkout.home')}</span>
                   </div>
                   {orderData.agencyName && (
-                    <div style={{ fontSize: '0.8rem', color: 'var(--color-primary-dark)', fontWeight: '600' }}>
+                    <div style={{ fontSize: '0.78rem', color: '#666', marginTop: '0.15rem' }}>
                       {orderData.agencyName}
+                    </div>
+                  )}
+                  {orderData.createdAt && (
+                    <div style={{ fontSize: '0.74rem', color: '#888', marginTop: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                      <Calendar size={12} />
+                      <span>{formatTimelineDate(orderData.createdAt)}</span>
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* Progress Stepper (Timeline) */}
+              {/* Progress Steppers */}
               {orderData.status !== 'Cancelled' ? (
-                <div style={{ marginBottom: '3rem', position: 'relative' }}>
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: `repeat(${currentSteps.length}, 1fr)`,
-                    position: 'relative',
-                    textAlign: 'center'
-                  }}>
+                <>
+                  {/* Desktop Stepper (>= 641px) */}
+                  <div className="tracking-stepper-desktop">
+                    <div style={{ position: 'relative', marginBottom: '1rem' }}>
+                      {/* Connecting Line behind circles */}
+                      <div style={{
+                        position: 'absolute',
+                        top: '22px',
+                        left: `${50 / currentSteps.length}%`,
+                        right: `${50 / currentSteps.length}%`,
+                        height: '3px',
+                        backgroundColor: 'var(--color-border)',
+                        zIndex: 1
+                      }}>
+                        <div style={{
+                          height: '100%',
+                          backgroundColor: 'var(--color-primary)',
+                          width: `${Math.min(100, Math.max(0, (currentStepIdx / (currentSteps.length - 1)) * 100))}%`,
+                          transition: 'width 0.4s ease'
+                        }} />
+                      </div>
+
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: `repeat(${currentSteps.length}, 1fr)`,
+                        position: 'relative',
+                        textAlign: 'center'
+                      }}>
+                        {currentSteps.map((step, idx) => {
+                          const Icon = step.icon;
+                          const isCompleted = idx <= currentStepIdx;
+                          const isCurrent = idx === currentStepIdx;
+                          const stepTime = getStepTimestamp(step.key);
+
+                          return (
+                            <div key={step.key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+                              {/* Circle Icon */}
+                              <div style={{
+                                width: '44px',
+                                height: '44px',
+                                borderRadius: '50%',
+                                backgroundColor: isCurrent ? 'var(--color-espresso)' : (isCompleted ? 'var(--color-primary)' : 'var(--color-bg-card)'),
+                                color: isCompleted ? '#FFFFFF' : '#888',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                marginBottom: '0.75rem',
+                                zIndex: 2,
+                                boxShadow: isCurrent ? '0 0 0 4px rgba(42, 36, 31, 0.15)' : 'none',
+                                transition: 'var(--transition-smooth)'
+                              }}>
+                                <Icon size={20} />
+                              </div>
+
+                              <div style={{ fontSize: '0.82rem', fontWeight: isCurrent ? '800' : '600', color: isCompleted ? 'var(--color-espresso)' : '#999' }}>
+                                {t('status.' + step.statusKey)}
+                              </div>
+                              {stepTime && (
+                                <div style={{ fontSize: '0.7rem', color: '#888', marginTop: '0.2rem' }}>
+                                  {stepTime}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Mobile Stepper (<= 640px) */}
+                  <div className="tracking-stepper-mobile">
                     {currentSteps.map((step, idx) => {
                       const Icon = step.icon;
                       const isCompleted = idx <= currentStepIdx;
                       const isCurrent = idx === currentStepIdx;
+                      const isLast = idx === currentSteps.length - 1;
+                      const stepTime = getStepTimestamp(step.key);
 
                       return (
-                        <div key={step.key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
-                          {/* Circle Icon */}
-                          <div style={{
-                            width: '44px',
-                            height: '44px',
-                            borderRadius: '50%',
-                            backgroundColor: isCurrent ? 'var(--color-espresso)' : (isCompleted ? 'var(--color-primary)' : 'var(--color-bg-card)'),
-                            color: isCompleted ? '#FFFFFF' : '#888',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            marginBottom: '0.75rem',
-                            zIndex: 2,
-                            boxShadow: isCurrent ? '0 0 0 4px rgba(42, 36, 31, 0.15)' : 'none',
-                            transition: 'var(--transition-smooth)'
-                          }}>
-                            <Icon size={20} />
+                        <div key={step.key} className="tracking-mobile-step">
+                          {/* Indicator Column: circle + connecting vertical line */}
+                          <div className="tracking-mobile-indicator-col">
+                            <div
+                              className="tracking-mobile-icon-circle"
+                              style={{
+                                backgroundColor: isCurrent ? 'var(--color-espresso)' : (isCompleted ? 'var(--color-primary)' : 'var(--color-bg-card)'),
+                                color: isCompleted ? '#FFFFFF' : '#888',
+                                boxShadow: isCurrent ? '0 0 0 4px rgba(42, 36, 31, 0.18)' : 'none'
+                              }}
+                            >
+                              <Icon size={18} />
+                            </div>
+                            {!isLast && (
+                              <div
+                                className="tracking-mobile-vertical-line"
+                                style={{
+                                  backgroundColor: idx < currentStepIdx ? 'var(--color-primary)' : 'var(--color-border)'
+                                }}
+                              />
+                            )}
                           </div>
 
-                          <div style={{ fontSize: '0.82rem', fontWeight: isCurrent ? '800' : '600', color: isCompleted ? 'var(--color-espresso)' : '#999' }}>
-                            {t('status.' + step.statusKey)}
+                          {/* Content Column */}
+                          <div className="tracking-mobile-content">
+                            <div style={{
+                              backgroundColor: isCurrent ? 'var(--color-bg-subtle)' : 'transparent',
+                              border: isCurrent ? '1px solid var(--color-border)' : '1px solid transparent',
+                              borderRadius: 'var(--radius-md)',
+                              padding: isCurrent ? '0.65rem 0.85rem' : '0.1rem 0'
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.4rem' }}>
+                                <div style={{
+                                  fontSize: '0.92rem',
+                                  fontWeight: isCurrent ? '800' : (isCompleted ? '700' : '500'),
+                                  color: isCompleted ? 'var(--color-espresso)' : '#888'
+                                }}>
+                                  {t('status.' + step.statusKey)}
+                                </div>
+                                {isCurrent ? (
+                                  <span style={{
+                                    fontSize: '0.68rem',
+                                    fontWeight: '700',
+                                    color: 'var(--color-espresso)',
+                                    backgroundColor: 'var(--color-primary-light)',
+                                    padding: '0.2rem 0.5rem',
+                                    borderRadius: 'var(--radius-full)',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.25rem'
+                                  }}>
+                                    <Clock size={11} />
+                                    {isRtl ? 'الحالة الحالية' : 'Étape actuelle'}
+                                  </span>
+                                ) : isCompleted ? (
+                                  <span style={{
+                                    fontSize: '0.68rem',
+                                    fontWeight: '700',
+                                    color: 'var(--color-success)',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '0.2rem'
+                                  }}>
+                                    <Check size={12} />
+                                    {isRtl ? 'تمت' : 'Validé'}
+                                  </span>
+                                ) : null}
+                              </div>
+                              {stepTime && (
+                                <div style={{ fontSize: '0.72rem', color: '#777', marginTop: '0.25rem' }}>
+                                  {stepTime}
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
                       );
                     })}
                   </div>
-                </div>
+                </>
               ) : (
                 <div style={{
-                  padding: '1.5rem',
+                  padding: '1.25rem',
                   backgroundColor: '#FFEBEE',
                   borderRadius: 'var(--radius-lg)',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '1rem',
-                  marginBottom: '2.5rem'
+                  gap: '0.85rem',
+                  marginBottom: '2rem'
                 }}>
-                  <XCircle size={28} color="var(--color-danger)" />
+                  <XCircle size={26} color="var(--color-danger)" style={{ flexShrink: 0 }} />
                   <div>
-                    <h4 style={{ fontWeight: '700', color: 'var(--color-danger)' }}>{t('status.cancelled')}</h4>
-                    <p style={{ fontSize: '0.85rem', color: '#666', marginTop: '0.2rem' }}>
+                    <h4 style={{ fontWeight: '700', color: 'var(--color-danger)', fontSize: '0.95rem' }}>{t('status.cancelled')}</h4>
+                    <p style={{ fontSize: '0.82rem', color: '#666', marginTop: '0.15rem' }}>
                       {t('tracking.cancelledNotice')}
                     </p>
                   </div>
@@ -361,44 +491,118 @@ export default function OrderTracking({ initialPhone = '', initialOrderCode = ''
               )}
 
               {/* Items List in Order */}
-              <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '1.75rem' }}>
-                <h3 style={{ fontSize: '0.95rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '1.25rem' }}>
+              <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '1.5rem' }}>
+                <h3 style={{ fontSize: '0.9rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '1rem', color: 'var(--color-espresso)' }}>
                   {t('tracking.orderItems')}
                 </h3>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                   {orderData.items.map((item, idx) => (
-                    <div key={idx} style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                    <div
+                      key={idx}
+                      className="tracking-item-row"
+                      style={{ borderBottom: idx < orderData.items.length - 1 ? '1px solid var(--color-border)' : 'none' }}
+                    >
                       <img
-                        src={item.image || 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?q=80&w=200&auto=format&fit=crop'}
-                        alt=""
-                        style={{ width: '48px', height: '62px', borderRadius: 'var(--radius-sm)', objectFit: 'cover' }}
+                        src={getImageUrl(item.image)}
+                        alt={item.productName}
+                        style={{
+                          width: '52px',
+                          height: '68px',
+                          borderRadius: 'var(--radius-sm)',
+                          objectFit: 'cover',
+                          flexShrink: 0,
+                          backgroundColor: 'var(--color-bg-card)'
+                        }}
+                        onError={(e) => {
+                          e.currentTarget.onerror = null;
+                          e.currentTarget.src = '/products/merya_dress_blue_1.jpg';
+                        }}
                       />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: '0.9rem', fontWeight: '600' }}>{item.productName}</div>
-                        <div style={{ fontSize: '0.78rem', color: '#666' }}>
-                          {t('cart.color')}: {item.colorName} • {t('cart.size')}: {item.size} • {t('common.quantity')}: {item.quantity}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{
+                          fontSize: '0.92rem',
+                          fontWeight: '700',
+                          color: 'var(--color-espresso)',
+                          marginBottom: '0.3rem',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {item.productName}
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', fontSize: '0.78rem', color: '#666' }}>
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.3rem',
+                            backgroundColor: 'var(--color-bg-base)',
+                            padding: '0.15rem 0.5rem',
+                            borderRadius: '4px'
+                          }}>
+                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: item.colorCode || '#222' }} />
+                            {item.colorName}
+                          </span>
+                          <span style={{ backgroundColor: 'var(--color-bg-base)', padding: '0.15rem 0.5rem', borderRadius: '4px', fontWeight: '600' }}>
+                            {item.size}
+                          </span>
+                          <span style={{ backgroundColor: 'var(--color-bg-base)', padding: '0.15rem 0.5rem', borderRadius: '4px' }}>
+                            ×{item.quantity}
+                          </span>
                         </div>
                       </div>
-                      <div style={{ fontSize: '0.95rem', fontWeight: '700' }}>
+                      <div style={{ fontSize: '0.95rem', fontWeight: '700', color: 'var(--color-espresso)', textAlign: isRtl ? 'left' : 'right', flexShrink: 0 }}>
                         {formatCurrency(item.unitPrice * item.quantity)}
                       </div>
                     </div>
                   ))}
                 </div>
 
+                {/* Financial Summary */}
                 <div style={{
                   borderTop: '1px solid var(--color-border)',
                   marginTop: '1.5rem',
-                  paddingTop: '1rem',
+                  paddingTop: '1.25rem',
                   display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
+                  flexDirection: 'column',
+                  gap: '0.6rem'
                 }}>
-                  <span style={{ fontSize: '1rem', fontWeight: '700' }}>{t('checkout.totalToPayCod')}</span>
-                  <span style={{ fontSize: '1.3rem', fontWeight: '800', color: 'var(--color-espresso)' }}>
-                    {formatCurrency(orderData.totalPrice)}
-                  </span>
+                  {typeof orderData.subtotal === 'number' && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem', color: '#666' }}>
+                      <span>{t('tracking.subtotal') || 'Sous-total'}</span>
+                      <span style={{ fontWeight: '600' }}>{formatCurrency(orderData.subtotal)}</span>
+                    </div>
+                  )}
+                  {typeof orderData.deliveryFee === 'number' && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem', color: '#666' }}>
+                      <span>{t('tracking.deliveryFee') || 'Livraison'}</span>
+                      <span style={{ fontWeight: '600' }}>
+                        {orderData.deliveryFee === 0 ? (t('tracking.freeDelivery') || 'Gratuit') : formatCurrency(orderData.deliveryFee)}
+                      </span>
+                    </div>
+                  )}
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    paddingTop: '0.75rem',
+                    borderTop: '1px dashed var(--color-border)',
+                    marginTop: '0.25rem',
+                    flexWrap: 'wrap',
+                    gap: '0.5rem'
+                  }}>
+                    <div>
+                      <span style={{ fontSize: '1rem', fontWeight: '800', color: 'var(--color-espresso)', display: 'block' }}>
+                        {t('checkout.totalToPayCod')}
+                      </span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--color-sage)', fontWeight: '600' }}>
+                        {isRtl ? 'الدفع نقداً عند الاستلام' : 'Paiement en espèces à la livraison'}
+                      </span>
+                    </div>
+                    <span style={{ fontSize: '1.35rem', fontWeight: '800', color: 'var(--color-espresso)' }}>
+                      {formatCurrency(orderData.totalPrice)}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -408,3 +612,4 @@ export default function OrderTracking({ initialPhone = '', initialOrderCode = ''
     </div>
   );
 }
+
