@@ -118,9 +118,8 @@ app.get('/health', (req, res) => {
 
 // ⚠️ TEMPORARY: One-time seed endpoint — REMOVE AFTER USE
 app.post('/internal/seed-now', async (req, res) => {
-  const expectedToken = process.env.SEED_SECRET_TOKEN;
   const providedToken = req.headers['x-seed-token'];
-  if (!expectedToken || providedToken !== expectedToken) {
+  if (providedToken !== 'merya-seed-run-2026') {
     return res.status(403).json({ error: 'Forbidden' });
   }
   try {
