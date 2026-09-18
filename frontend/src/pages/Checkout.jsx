@@ -1366,43 +1366,7 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                 </span>
               </div>
 
-              {/* Free delivery badge or threshold hint */}
-              {displayIsFreeDelivery && (
-                <div style={{
-                  fontSize: '0.78rem',
-                  color: '#16A34A',
-                  backgroundColor: '#F0FDF4',
-                  border: '1px solid #BBF7D0',
-                  borderRadius: '10px',
-                  padding: '0.45rem 0.75rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.4rem',
-                  fontWeight: '600'
-                }}>
-                  <span>🎁</span>
-                  <span>{t('checkout.freeDeliveryApplied', { threshold: formatCurrency(displayFreeThreshold) })}</span>
-                </div>
-              )}
 
-              {!displayIsFreeDelivery && displayFreeThreshold > 0 && displaySubtotal !== null && displaySubtotal < displayFreeThreshold && isSettingsReady && (
-                <div style={{
-                  fontSize: '0.76rem',
-                  color: '#9F8268',
-                  backgroundColor: '#FAF5EE',
-                  border: '1px solid #EFE4D6',
-                  borderRadius: '10px',
-                  padding: '0.45rem 0.75rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.4rem'
-                }}>
-                  <span>💡</span>
-                  <span>
-                    {t('checkout.moreForFreeDelivery', { amount: formatCurrency(displayFreeThreshold - displaySubtotal) })}
-                  </span>
-                </div>
-              )}
 
               <div style={{
                 display: 'flex',
