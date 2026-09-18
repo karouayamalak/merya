@@ -63,6 +63,15 @@ async function ensureTestAdmin() {
 async function runJourneyAudit() {
   console.log('=== RUNNING REAL CUSTOMER JOURNEY MULTI-PATH AUDIT ===\n');
 
+  // Read authoritative Wilaya 16 home delivery fee from DB before checkout
+  const { DeliverySetting } = await import('../src/models/DeliverySetting.js');
+  const deliverySetting = await DeliverySetting.findOne({});
+  const w16Rate = deliverySetting?.wilayaRates?.find(r => r.wilayaCode === 16);
+  const authoritativeW16HomeFee = w16Rate?.homeFee ?? null;
+  assert(typeof authoritativeW16HomeFee === 'number' && authoritativeW16HomeFee > 0,
+    `DeliverySetting must have a positive homeFee for Wilaya 16, got: ${authoritativeW16HomeFee}`);
+  console.log(`  ℹ Authoritative Wilaya 16 home delivery fee: ${authoritativeW16HomeFee} DZD`);
+
   // ──────────────────────────────────────────────────────────────────────────
   // JOURNEY 1: Full Happy Path to Delivery & Profit (Wilaya 16 Home)
   // ──────────────────────────────────────────────────────────────────────────
@@ -120,8 +129,16 @@ async function runJourneyAudit() {
 
   const order1Data = await checkout1Res.json();
   assert(order1Data.success, `Checkout failed: ${order1Data.message}`);
-  assert.strictEqual(order1Data.deliveryFee, 500, 'Wilaya 16 Home delivery fee must be 500 DZD');
-  assert.strictEqual(order1Data.totalPrice, product1.sellingPrice + 500);
+  assert.strictEqual(
+    order1Data.deliveryFee,
+    authoritativeW16HomeFee,
+    `Wilaya 16 Home delivery fee must match authoritative DB value (${authoritativeW16HomeFee} DZD), got ${order1Data.deliveryFee} DZD`
+  );
+  assert.strictEqual(
+    order1Data.totalPrice,
+    product1.sellingPrice + authoritativeW16HomeFee,
+    `totalPrice must equal sellingPrice (${product1.sellingPrice}) + homeFee (${authoritativeW16HomeFee})`
+  );
   const order1Code = order1Data.orderCode;
   console.log(`  ✓ Order 1 Placed Successfully! Code: ${order1Code} (Total: ${order1Data.totalPrice} DZD)`);
 

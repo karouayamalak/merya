@@ -40,6 +40,54 @@ export const localizedFieldSchema = (maxLength = 150) => z.union([
   z.undefined().transform(() => ({ fr: '', ar: '', en: '' }))
 ]);
 
+/**
+ * Validates that a string is a safe navigation URL or relative path.
+ * Allowed:
+ *  - https://...
+ *  - http://...
+ *  - Safe relative paths starting with single '/' (e.g. '/shop', '/products/slug')
+ * Rejects:
+ *  - javascript:, data:, vbscript:, file:, blob: and other executable/dangerous URI schemes
+ *  - Protocol-relative URLs ('//...')
+ *  - Backslash traversal/escapes ('/\...')
+ *  - Control characters and unparseable URLs
+ */
+export function isSafeUrl(val) {
+  if (val === null || val === undefined) return true;
+  if (typeof val !== 'string') return false;
+  const trimmed = val.trim();
+  if (trimmed === '') return true;
+
+  // Reject ASCII control characters
+  if (/[\x00-\x1F\x7F]/.test(trimmed)) return false;
+
+  // Safe relative paths starting with '/'
+  if (trimmed.startsWith('/')) {
+    // Disallow protocol-relative '//' or windows backslash '/\'
+    if (trimmed.startsWith('//') || trimmed.startsWith('/\\')) return false;
+    return true;
+  }
+
+  // Absolute URLs must be http: or https:
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+export const safeUrlSchema = (maxLength = 300) =>
+  z.string()
+    .max(maxLength)
+    .transform(v => (typeof v === 'string' ? v.trim() : v))
+    .refine(isSafeUrl, {
+      message: 'Invalid or unsafe URL. Only https://, http://, or safe relative paths starting with "/" are allowed.'
+    })
+    .nullable()
+    .optional()
+    .or(z.literal(''));
+
 export function validateVariantUniqueness(colors, ctx) {
   if (!Array.isArray(colors)) return;
   const seenColors = new Set();

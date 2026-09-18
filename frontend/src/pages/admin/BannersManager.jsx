@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Edit2, Trash2, Upload, X, Loader2, Check, AlertTriangle, ExternalLink } from 'lucide-react';
 import { adminGetBanners, adminCreateBanner, adminUpdateBanner, adminDeleteBanner, adminUploadImage } from '../../services/api';
 import { useLanguage } from '../../context/LanguageContext';
+import { isSafeUrl } from '../../utils/safeUrl';
 
 const LANGS = [
   { code: 'fr', label: '🇫🇷 FR', dir: 'ltr' },
@@ -161,6 +162,10 @@ export default function BannersManager() {
     }
 
     if (!image.trim()) return setError('Please upload a banner image');
+
+    if (ctaLink && ctaLink.trim() && !isSafeUrl(ctaLink)) {
+      return setError('Invalid or unsafe CTA Link. Only https://, http://, or relative paths starting with "/" are allowed.');
+    }
 
     setModalLoading(true);
     try {

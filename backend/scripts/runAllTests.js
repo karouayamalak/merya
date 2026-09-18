@@ -81,7 +81,8 @@ const testSuite = [
   { name: 'productionTenOutOfTenHardening.test.js', isNodeTest: true, desc: '10/10 Hardening: variant stock overwrite race guard, translation activation, price override audit' },
   { name: 'rateLimiterAdversarial.test.js', isNodeTest: true, desc: 'Rate limiter adversarial suite: namespaces, expired record reset, bounded memory' },
   { name: 'inventoryConcurrencyAdversarial.test.js', isNodeTest: true, desc: 'Inventory concurrency adversarial suite: 16 race scenarios, CAS, and 409 conflict' },
-  { name: 'multiDeviceSessionAuth.test.js', isNodeTest: false, desc: 'Multi-device session auth, access/refresh tokens, rotation & revocation' }
+  { name: 'multiDeviceSessionAuth.test.js', isNodeTest: false, desc: 'Multi-device session auth, access/refresh tokens, rotation & revocation' },
+  { name: 'productionTargetedHardening.test.js', isNodeTest: true, desc: 'Targeted hardening: safe banner URLs, checkout ObjectId, authSource, staff finance isolation, WS cap, pagination' }
 ];
 
 console.log('================================================================');

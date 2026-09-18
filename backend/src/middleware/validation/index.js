@@ -3,7 +3,9 @@ export {
   localizedStringSchema,
   multilingualStringSchema,
   localizedFieldSchema,
-  validateVariantUniqueness
+  validateVariantUniqueness,
+  isSafeUrl,
+  safeUrlSchema
 } from './common.js';
 
 export { adminLoginSchema } from './auth.js';

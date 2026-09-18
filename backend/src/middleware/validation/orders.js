@@ -62,7 +62,7 @@ export const checkoutOrderSchema = z.object({
     }
   }),
   items: z.array(z.object({
-    productId: z.string().min(1, 'Product ID required'),
+    productId: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid productId MongoDB ObjectId'),
     colorName: z.string().min(1, 'Color is required'),
     size: z.string().min(1, 'Size is required'),
     quantity: z.number().int().min(1, 'Quantity must be at least 1').max(20)

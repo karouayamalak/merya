@@ -29,7 +29,12 @@ class WebSocketService {
 
     this.wss.on('connection', async (ws, req) => {
       // ── Global server-wide capacity guard ────────────────────────────────────
-      if (this.wss.clients.size > this.MAX_TOTAL_CONNECTIONS) {
+      // When ws connects, wss.clients already includes ws.
+      // Existing connections prior to this incoming client is:
+      const existingConnections = this.wss.clients.has(ws)
+        ? this.wss.clients.size - 1
+        : this.wss.clients.size;
+      if (existingConnections >= this.MAX_TOTAL_CONNECTIONS) {
         console.warn('[WebSocket] Global connection cap reached. Rejecting new connection.');
         ws.close(1013, 'Server at capacity');
         return;

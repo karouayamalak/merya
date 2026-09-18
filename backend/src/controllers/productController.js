@@ -280,8 +280,13 @@ export const getAllProductsAdmin = async (req, res, next) => {
     ]);
 
     // Calculate aggregate stock across all color/size variants for quick overview
+    // If role is staff, omit sensitive financial costPrice
+    const isStaff = req.admin?.role === 'staff';
     const enrichedProducts = products.map(p => {
       const doc = p.toObject();
+      if (isStaff) {
+        delete doc.costPrice;
+      }
       let totalStock = 0;
       doc.colors.forEach(c => {
         c.sizes.forEach(s => {
@@ -316,6 +321,9 @@ export const getProductByIdAdmin = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
     const doc = product.toObject();
+    if (req.admin?.role === 'staff') {
+      delete doc.costPrice;
+    }
     doc.translationStatus = getTranslationStatus(doc);
     res.json({ success: true, product: doc });
   } catch (error) {

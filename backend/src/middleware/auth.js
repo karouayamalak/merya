@@ -84,6 +84,7 @@ export const authenticateAdmin = async (req, res, next) => {
 
     req.admin = admin;
     req.authSession = session;
+    req.authSource = 'db';
     next();
   } catch (error) {
     return res.status(401).json({
@@ -160,6 +161,7 @@ export const authenticateAdminJwtOnly = async (req, res, next) => {
     req.authSession = {
       _id: decoded.sid
     };
+    req.authSource = 'jwt';
 
     next();
   } catch (error) {
@@ -175,6 +177,33 @@ export const requireRoles = (...allowedRoles) => {
   return (req, res, next) => {
     if (!req.admin) {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    if (!allowedRoles.includes(req.admin.role)) {
+      return res.status(403).json({ success: false, message: 'Forbidden: Insufficient permissions' });
+    }
+
+    next();
+  };
+};
+
+/**
+ * Authoritative role verification middleware.
+ * Guarantees that the role check is performed strictly against authoritative database state.
+ * Explicitly rejects requests that bypassed database verification via authenticateAdminJwtOnly.
+ */
+export const requireAuthoritativeRoles = (...allowedRoles) => {
+  return (req, res, next) => {
+    if (!req.admin) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    if (req.authSource !== 'db') {
+      return res.status(403).json({
+        success: false,
+        message: 'Forbidden: Authoritative database authentication required for role verification',
+        code: 'AUTHORITATIVE_AUTH_REQUIRED'
+      });
     }
 
     if (!allowedRoles.includes(req.admin.role)) {

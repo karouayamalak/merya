@@ -4,6 +4,7 @@ import CategoryTile from '../components/CategoryTile';
 import ProductCard from '../components/ProductCard';
 import { fetchCategories, fetchProducts, fetchBanners } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
+import { handleSafeBannerClick } from '../utils/safeUrl';
 
 export default function Home({ setCurrentView, setSelectedProduct, setSelectedCategory }) {
   const { t, isRtl, localized } = useLanguage();
@@ -152,12 +153,7 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
                   <button
                     onClick={() => {
                       const linkUrl = banner.link || banner.ctaLink;
-                      if (linkUrl && linkUrl.startsWith('http')) {
-                        window.open(linkUrl, '_blank');
-                      } else {
-                        setCurrentView('shop');
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                      }
+                      handleSafeBannerClick(linkUrl, setCurrentView, 'shop');
                     }}
                     className="btn btn-secondary"
                     style={{
@@ -276,12 +272,7 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
           <button
             onClick={() => {
               const linkUrl = activeHeroBanner?.link || activeHeroBanner?.ctaLink;
-              if (linkUrl && linkUrl.startsWith('http')) {
-                window.open(linkUrl, '_blank');
-              } else {
-                setCurrentView('shop');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }
+              handleSafeBannerClick(linkUrl, setCurrentView, 'shop');
             }}
             style={{
               backgroundColor: '#FFFFFF',
@@ -529,12 +520,7 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
                 <button
                   onClick={() => {
                     const linkUrl = strip.link || strip.ctaLink;
-                    if (linkUrl && linkUrl.startsWith('http')) {
-                      window.open(linkUrl, '_blank');
-                    } else {
-                      setCurrentView('shop');
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }
+                    handleSafeBannerClick(linkUrl, setCurrentView, 'shop');
                   }}
                   className="btn btn-primary"
                   style={{
@@ -671,12 +657,7 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
                 <button
                   onClick={() => {
                     const linkUrl = sb.link || sb.ctaLink;
-                    if (linkUrl && linkUrl.startsWith('http')) {
-                      window.open(linkUrl, '_blank');
-                    } else {
-                      setCurrentView('shop');
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }
+                    handleSafeBannerClick(linkUrl, setCurrentView, 'shop');
                   }}
                   className="btn btn-primary"
                   style={{
@@ -822,12 +803,7 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
                   setShowPopup(false);
                   sessionStorage.setItem(`merya_dismissed_popup_${popupBanners[0]._id}`, 'true');
                   const linkUrl = popupBanners[0].link || popupBanners[0].ctaLink;
-                  if (linkUrl && linkUrl.startsWith('http')) {
-                    window.open(linkUrl, '_blank');
-                  } else {
-                    setCurrentView('shop');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }
+                  handleSafeBannerClick(linkUrl, setCurrentView, 'shop');
                 }}
                 className="btn btn-primary"
                 style={{

@@ -55,9 +55,23 @@ export const getAllOrdersAdmin = async (req, res, next) => {
       Order.countDocuments(filter)
     ]);
 
+    const isStaff = req.admin?.role === 'staff';
+    const sanitizedOrders = isStaff
+      ? orders.map(order => {
+          const o = order.toObject ? order.toObject() : { ...order };
+          if (Array.isArray(o.items)) {
+            o.items = o.items.map(item => {
+              const { unitCost, ...rest } = item;
+              return rest;
+            });
+          }
+          return o;
+        })
+      : orders;
+
     res.json({
       success: true,
-      orders,
+      orders: sanitizedOrders,
       pagination: {
         page: pageNum,
         limit: limitNum,
@@ -77,7 +91,20 @@ export const getOrderByIdAdmin = async (req, res, next) => {
     if (!order) {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
-    res.json({ success: true, order });
+
+    const isStaff = req.admin?.role === 'staff';
+    let sanitizedOrder = order.toObject ? order.toObject() : order;
+    if (isStaff && Array.isArray(sanitizedOrder.items)) {
+      sanitizedOrder = {
+        ...sanitizedOrder,
+        items: sanitizedOrder.items.map(item => {
+          const { unitCost, ...rest } = item;
+          return rest;
+        })
+      };
+    }
+
+    res.json({ success: true, order: sanitizedOrder });
   } catch (error) {
     next(error);
   }

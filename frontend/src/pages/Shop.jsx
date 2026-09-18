@@ -3,6 +3,7 @@ import { Search, ArrowUpDown } from 'lucide-react';
 import ProductCard from '../components/ProductCard';
 import { fetchProducts, fetchCategories, fetchBanners } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
+import { isSafeUrl, sanitizeUrl } from '../utils/safeUrl';
 
 export default function Shop({ selectedCategory, setSelectedCategory, onSelectProduct }) {
   const { t, localized } = useLanguage();
@@ -118,9 +119,11 @@ export default function Shop({ selectedCategory, setSelectedCategory, onSelectPr
                   {localized(shopBanner.subtitle)}
                 </p>
               )}
-              {shopBanner.ctaLink && shopBanner.ctaText && (
+              {shopBanner.ctaLink && shopBanner.ctaText && isSafeUrl(shopBanner.ctaLink) && (
                 <a
-                  href={shopBanner.ctaLink}
+                  href={sanitizeUrl(shopBanner.ctaLink)}
+                  target={shopBanner.ctaLink.trim().startsWith('http') ? '_blank' : undefined}
+                  rel={shopBanner.ctaLink.trim().startsWith('http') ? 'noopener noreferrer' : undefined}
                   style={{
                     display: 'inline-block',
                     padding: '0.6rem 1.4rem',
