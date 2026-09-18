@@ -10,8 +10,9 @@ import OrderConfirmation from './pages/OrderConfirmation';
 import OrderTracking from './pages/OrderTracking';
 import AdminLogin from './pages/admin/AdminLogin';
 import AdminLayout from './pages/admin/AdminLayout';
+import AnnouncementBar from './components/AnnouncementBar';
 import { useAdminAuth } from './context/AdminAuthContext';
-import { fetchProductBySlug } from './services/api';
+import { fetchProductBySlug, fetchBanners } from './services/api';
 
 export default function App() {
   const { isAuthenticated } = useAdminAuth();
@@ -41,6 +42,17 @@ export default function App() {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [_productLoading, setProductLoading] = useState(false);
+  const [announcementBanners, setAnnouncementBanners] = useState([]);
+
+  useEffect(() => {
+    fetchBanners({ isActive: 'true', placement: 'top_announcement' })
+      .then(res => {
+        if (res && res.success && res.banners) {
+          setAnnouncementBanners(res.banners);
+        }
+      })
+      .catch(err => console.error('Failed to load announcements:', err));
+  }, []);
 
   const setCurrentView = (view, customPath) => {
     setCurrentViewState(view);
@@ -160,6 +172,9 @@ export default function App() {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      {/* Top Announcement Bar (Site-wide) */}
+      <AnnouncementBar banners={announcementBanners} setCurrentView={setCurrentView} />
+
       {/* Top Header */}
       <Header currentView={currentView} setCurrentView={setCurrentView} />
 

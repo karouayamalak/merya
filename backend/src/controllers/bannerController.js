@@ -26,7 +26,15 @@ export const getBanners = async (req, res, next) => {
     const { placement } = req.query;
     const query = { isActive: true };
     if (placement) {
-      query.placement = placement;
+      if (placement === 'hero' || placement === 'home_hero') {
+        query.placement = { $in: ['hero', 'home_hero'] };
+      } else if (placement === 'homepage-strip' || placement === 'home_middle') {
+        query.placement = { $in: ['homepage-strip', 'home_middle'] };
+      } else if (placement === 'top_announcement' || placement === 'promo_bar') {
+        query.placement = { $in: ['top_announcement', 'promo_bar'] };
+      } else {
+        query.placement = placement;
+      }
     }
 
     const rawBanners = await Banner.find(query).sort({ displayOrder: 1, createdAt: -1 });

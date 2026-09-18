@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Upload, X, Loader2, Check, AlertTriangle, ExternalLink } from 'lucide-react';
+import { Plus, Edit2, Trash2, Upload, X, Loader2, Check, AlertTriangle, ExternalLink, Sparkles } from 'lucide-react';
 import { adminGetBanners, adminCreateBanner, adminUpdateBanner, adminDeleteBanner, adminUploadImage } from '../../services/api';
 import { useLanguage } from '../../context/LanguageContext';
 import { isSafeUrl } from '../../utils/safeUrl';
@@ -106,6 +106,56 @@ export default function BannersManager() {
 
   useEffect(() => { loadBanners(); }, []);
 
+const PLACEMENT_OPTIONS = [
+  {
+    value: 'top_announcement',
+    nameKey: 'admin.banners.placements.top_announcement',
+    descKey: 'admin.banners.placements.top_announcement_desc',
+    defaultName: "Barre d'annonce (Tout en haut du site)",
+    defaultDesc: "Visible tout en haut de toutes les pages du site (idéal pour livraison gratuite, alertes, promos).",
+    requiresImage: false
+  },
+  {
+    value: 'hero',
+    nameKey: 'admin.banners.placements.hero',
+    descKey: 'admin.banners.placements.hero_desc',
+    defaultName: "Bannière Hero (Haut page d'accueil)",
+    defaultDesc: "Grand carrousel visuel avec photo au sommet de la page d'accueil.",
+    requiresImage: true
+  },
+  {
+    value: 'homepage-strip',
+    nameKey: 'admin.banners.placements.homepage_strip',
+    descKey: 'admin.banners.placements.homepage_strip_desc',
+    defaultName: "Bandeau central (Milieu page d'accueil)",
+    defaultDesc: "Bannière élégante pleine largeur entre les catégories et les nouveautés.",
+    requiresImage: false
+  },
+  {
+    value: 'shop-top',
+    nameKey: 'admin.banners.placements.shop_top',
+    descKey: 'admin.banners.placements.shop_top_desc',
+    defaultName: "Bannière Boutique (Haut du catalogue)",
+    defaultDesc: "Bandeau au sommet de la page Collection au-dessus des filtres.",
+    requiresImage: false
+  },
+  {
+    value: 'popup',
+    nameKey: 'admin.banners.placements.popup',
+    descKey: 'admin.banners.placements.popup_desc',
+    defaultName: "Fenêtre Popup (Promotion d'accueil)",
+    defaultDesc: "Fenêtre surgissante affichée une fois par session à l'arrivée sur le site.",
+    requiresImage: false
+  }
+];
+
+const normalizePlacement = (p) => {
+  if (p === 'home_hero') return 'hero';
+  if (p === 'home_middle' || p === 'sidebar') return 'homepage-strip';
+  if (p === 'promo_bar') return 'top_announcement';
+  return p || 'top_announcement';
+};
+
   const openCreate = () => {
     setEditingBanner(null);
     setTitle(emptyLocalized());
@@ -113,7 +163,7 @@ export default function BannersManager() {
     setCtaText(emptyLocalized());
     setImage('');
     setCtaLink('');
-    setPlacement('hero');
+    setPlacement('top_announcement');
     setDisplayOrder(banners.length + 1);
     setIsActive(true);
     setActiveLang('fr');
@@ -128,7 +178,7 @@ export default function BannersManager() {
     setCtaText(normalize(banner.ctaText || banner.buttonText));
     setImage(banner.image || '');
     setCtaLink(banner.ctaLink || banner.link || '');
-    setPlacement(banner.placement || 'hero');
+    setPlacement(normalizePlacement(banner.placement));
     setDisplayOrder(banner.displayOrder || 1);
     setIsActive(banner.isActive);
     setActiveLang('fr');
@@ -161,7 +211,10 @@ export default function BannersManager() {
       return setError(t('admin.banners.cannotPublishMissingTranslations'));
     }
 
-    if (!image.trim()) return setError('Please upload a banner image');
+    // Image is required ONLY for 'hero' banners
+    if (placement === 'hero' && !image.trim()) {
+      return setError(t('admin.banners.imageRequiredHero') || 'Please upload a banner image for the Hero section');
+    }
 
     if (ctaLink && ctaLink.trim() && !isSafeUrl(ctaLink)) {
       return setError('Invalid or unsafe CTA Link. Only https://, http://, or relative paths starting with "/" are allowed.');
@@ -213,9 +266,16 @@ export default function BannersManager() {
     return n.fr || n.en || n.ar || '—';
   };
 
-  const activeLangDir = LANGS.find(l => l.code === activeLang)?.dir || 'ltr';
+  const getPlacementLabel = (p) => {
+    const norm = normalizePlacement(p);
+    const found = PLACEMENT_OPTIONS.find(opt => opt.value === norm);
+    if (found) {
+      return t(found.nameKey) || found.defaultName;
+    }
+    return p;
+  };
 
-  const PLACEMENTS = ['hero', 'homepage-strip', 'shop-top', 'sidebar', 'popup'];
+  const activeLangDir = LANGS.find(l => l.code === activeLang)?.dir || 'ltr';
 
   return (
     <div>
@@ -248,15 +308,23 @@ export default function BannersManager() {
               borderRadius: 'var(--radius-lg)',
               overflow: 'hidden',
               aspectRatio: '16 / 7',
-              boxShadow: 'var(--shadow-sm)'
+              boxShadow: 'var(--shadow-sm)',
+              background: 'linear-gradient(135deg, #1C1917 0%, #38302B 100%)',
+              border: '1px solid var(--color-border)'
             }}>
-              <img src={b.image} alt={getDisplayTitle(b)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              {b.image ? (
+                <img src={b.image} alt={getDisplayTitle(b)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : (
+                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#D4AF37' }}>
+                  <Sparkles size={26} />
+                </div>
+              )}
               <div style={{
                 position: 'absolute', inset: 0,
-                background: 'linear-gradient(to right, rgba(0,0,0,0.55) 0%, transparent 60%)',
+                background: b.image ? 'linear-gradient(to right, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.2) 100%)' : 'none',
                 display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '1rem'
               }}>
-                <div style={{ color: '#fff', fontWeight: '800', fontSize: '0.95rem', textShadow: '0 1px 3px rgba(0,0,0,0.4)' }}>
+                <div style={{ color: '#fff', fontWeight: '800', fontSize: '0.92rem', textShadow: '0 1px 3px rgba(0,0,0,0.4)', maxWidth: '85%' }}>
                   {getDisplayTitle(b)}
                 </div>
                 <span style={{
@@ -264,7 +332,7 @@ export default function BannersManager() {
                   borderRadius: '4px', backgroundColor: 'rgba(255,255,255,0.25)', color: '#fff',
                   display: 'inline-block', width: 'fit-content'
                 }}>
-                  {b.placement}
+                  {getPlacementLabel(b.placement)}
                 </span>
               </div>
             </div>
@@ -309,14 +377,14 @@ export default function BannersManager() {
                   <td style={{ padding: '1rem' }}>
                     {b.image
                       ? <img src={b.image} alt="" style={{ width: '80px', height: '36px', objectFit: 'cover', borderRadius: '4px' }} />
-                      : <div style={{ width: '80px', height: '36px', backgroundColor: 'var(--color-bg-card)', borderRadius: '4px' }} />
+                      : <div style={{ width: '80px', height: '36px', backgroundColor: '#1E1915', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#D4AF37', fontSize: '0.68rem', fontWeight: '700', letterSpacing: '0.05em' }}>TEXT</div>
                     }
                   </td>
                   <td style={{ padding: '1rem', fontWeight: '700', maxWidth: '180px' }}>{getDisplayTitle(b)}</td>
                   <td style={{ padding: '1rem' }}><TranslationBadge field={b.title} /></td>
                   <td style={{ padding: '1rem' }}>
-                    <span style={{ fontSize: '0.78rem', fontWeight: '700', backgroundColor: 'var(--color-bg-card)', padding: '0.2rem 0.5rem', borderRadius: '4px' }}>
-                      {b.placement}
+                    <span style={{ fontSize: '0.78rem', fontWeight: '700', backgroundColor: 'rgba(111,78,55,0.08)', color: 'var(--color-espresso)', padding: '0.25rem 0.6rem', borderRadius: '4px', display: 'inline-block' }}>
+                      {getPlacementLabel(b.placement)}
                     </span>
                   </td>
                   <td style={{ padding: '1rem', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -428,9 +496,16 @@ export default function BannersManager() {
 
               {/* Banner Image */}
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.5rem' }}>
-                  {t('admin.banners.image')} *
-                </label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                  <label style={{ fontSize: '0.8rem', fontWeight: '700' }}>
+                    {t('admin.banners.image')} {placement === 'hero' ? <span style={{ color: 'var(--color-danger)' }}>*</span> : <span style={{ fontWeight: '400', color: '#888' }}>({t('common.optional')})</span>}
+                  </label>
+                  {placement === 'top_announcement' && (
+                    <span style={{ fontSize: '0.74rem', color: '#888' }}>
+                      {t('admin.banners.imageOptionalTip') || "Optionnelle pour la barre d'annonce"}
+                    </span>
+                  )}
+                </div>
                 {image ? (
                   <div style={{ position: 'relative', borderRadius: 'var(--radius-md)', overflow: 'hidden', aspectRatio: '16 / 6', marginBottom: '0.5rem' }}>
                     <img src={image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -442,16 +517,23 @@ export default function BannersManager() {
                     </div>
                   </div>
                 ) : (
-                  <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-                    {uploadingImage ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-                    {uploadingImage ? t('common.loading') : t('admin.banners.uploadImage')}
-                    <input type="file" accept="image/*" onChange={(e) => handleImageUpload(e.target.files[0])} style={{ display: 'none' }} />
-                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                      {uploadingImage ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                      {uploadingImage ? t('common.loading') : t('admin.banners.uploadImage')}
+                      <input type="file" accept="image/*" onChange={(e) => handleImageUpload(e.target.files[0])} style={{ display: 'none' }} />
+                    </label>
+                    {placement !== 'hero' && (
+                      <span style={{ fontSize: '0.75rem', color: '#888' }}>
+                        {placement === 'top_announcement' ? "Texte seul (recommandé pour l'annonce)" : "Optionnelle"}
+                      </span>
+                    )}
+                  </div>
                 )}
               </div>
 
               {/* CTA Link & Placement */}
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1.6fr', gap: '1rem' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>
                     {t('admin.banners.ctaLink')} <span style={{ fontWeight: '400', color: '#888' }}>({t('common.optional')})</span>
@@ -465,16 +547,41 @@ export default function BannersManager() {
                   />
                 </div>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>{t('admin.banners.placement')} *</label>
+                  <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>
+                    {t('admin.banners.placement')} *
+                  </label>
                   <select
                     value={placement}
                     onChange={(e) => setPlacement(e.target.value)}
-                    style={{ width: '100%', padding: '0.65rem', borderRadius: '6px', border: '1px solid var(--color-border)' }}
+                    style={{ width: '100%', padding: '0.65rem', borderRadius: '6px', border: '1px solid var(--color-border)', backgroundColor: '#FFF', fontWeight: '600' }}
                   >
-                    {PLACEMENTS.map(p => <option key={p} value={p}>{p}</option>)}
+                    {PLACEMENT_OPTIONS.map(opt => (
+                      <option key={opt.value} value={opt.value}>
+                        {t(opt.nameKey) || opt.defaultName}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
+
+              {/* Placement explanation tip */}
+              {(() => {
+                const curr = PLACEMENT_OPTIONS.find(o => o.value === placement);
+                if (!curr) return null;
+                return (
+                  <div style={{
+                    fontSize: '0.78rem',
+                    color: 'var(--color-espresso)',
+                    backgroundColor: 'rgba(111,78,55,0.06)',
+                    border: '1px solid rgba(111,78,55,0.15)',
+                    padding: '0.6rem 0.85rem',
+                    borderRadius: '6px',
+                    lineHeight: '1.45'
+                  }}>
+                    <strong>📍 Emplacement : </strong>{t(curr.descKey) || curr.defaultDesc}
+                  </div>
+                );
+              })()}
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div>

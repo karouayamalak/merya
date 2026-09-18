@@ -451,7 +451,21 @@ export default {
       bannerSubtitle: 'Subtitle',
       ctaText: 'CTA Button Text',
       requiresCompleteDraft: 'Requires complete FR, AR & EN titles to publish. Otherwise save as draft.',
-      cannotPublishMissingTranslations: 'Cannot publish banner: complete French, Arabic, and English translations are required before publishing. Please complete all translations or uncheck "Active" to save as a draft.'
+      cannotPublishMissingTranslations: 'Cannot publish banner: complete French, Arabic, and English translations are required before publishing. Please complete all translations or uncheck "Active" to save as a draft.',
+      imageRequiredHero: 'An image is required for the main Hero banner.',
+      imageOptionalTip: 'Optional for announcement bar and text banners',
+      placements: {
+        top_announcement: "Top Announcement Bar (Site Header)",
+        top_announcement_desc: "Visible at the very top of all pages across the store (ideal for free delivery, alerts, promo codes).",
+        hero: "Main Hero Banner (Homepage Top)",
+        hero_desc: "Full-width photo slider at the top of the homepage.",
+        homepage_strip: "Middle Strip Banner (Homepage)",
+        homepage_strip_desc: "Full-width promotional band between categories and new arrivals.",
+        shop_top: "Shop Top Banner (Catalog Header)",
+        shop_top_desc: "Banner above the product collection and filters.",
+        popup: "Promotional Popup (Homepage)",
+        popup_desc: "Modal window displayed once per visitor session upon landing."
+      }
     },
     categories: {
       title: 'Clothing Categories',

@@ -133,45 +133,6 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
 
   return (
     <>
-      {/* TOP ANNOUNCEMENT BAR (placement: 'top_announcement') */}
-      {announcementBanners && announcementBanners.length > 0 && (
-        <section style={{
-          backgroundColor: 'var(--color-primary-dark)',
-          color: '#FFFFFF',
-          padding: '0.75rem 0',
-          overflow: 'hidden'
-        }}>
-          <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2rem' }}>
-            {announcementBanners.map((banner, index) => (
-              <div key={banner._id || index} style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1, justifyContent: 'center' }}>
-                {localized(banner.title) && (
-                  <span style={{ fontSize: '0.9rem', fontWeight: '500' }}>
-                    {localized(banner.title)}
-                  </span>
-                )}
-                {(localized(banner.buttonText) || localized(banner.ctaText)) && (
-                  <button
-                    onClick={() => {
-                      const linkUrl = banner.link || banner.ctaLink;
-                      handleSafeBannerClick(linkUrl, setCurrentView, 'shop');
-                    }}
-                    className="btn btn-secondary"
-                    style={{
-                      padding: '0.4rem 1rem',
-                      fontSize: '0.8rem',
-                      borderRadius: 'var(--radius-full)',
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    {localized(banner.buttonText) || localized(banner.ctaText)}
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
       {/* 1. HERO SECTION - Dynamic Owner Banner Image with Default Fallback */}
       <section style={{
         position: 'relative',

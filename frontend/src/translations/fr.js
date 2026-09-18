@@ -451,7 +451,21 @@ export default {
       bannerSubtitle: 'Sous-titre',
       ctaText: 'Texte du bouton CTA',
       requiresCompleteDraft: 'Nécessite des titres complets en FR, AR et EN pour être publiée. Sinon, enregistrez comme brouillon.',
-      cannotPublishMissingTranslations: 'Impossible de publier la bannière : des traductions complètes en français, arabe et anglais sont requises avant publication. Veuillez compléter toutes les traductions ou décocher "Actif" pour enregistrer comme brouillon.'
+      cannotPublishMissingTranslations: 'Impossible de publier la bannière : des traductions complètes en français, arabe et anglais sont requises avant publication. Veuillez compléter toutes les traductions ou décocher "Actif" pour enregistrer comme brouillon.',
+      imageRequiredHero: 'Une image est obligatoire pour la bannière principale (Hero).',
+      imageOptionalTip: 'Optionnelle pour la barre d\'annonce et les bandeaux textuels',
+      placements: {
+        top_announcement: "Barre d'annonce (Tout en haut du site)",
+        top_announcement_desc: "Visible tout en haut de toutes les pages du site (idéal pour livraison gratuite, alertes, promos).",
+        hero: "Bannière Hero (Haut page d'accueil)",
+        hero_desc: "Grand carrousel visuel avec photo au sommet de la page d'accueil.",
+        homepage_strip: "Bandeau central (Milieu page d'accueil)",
+        homepage_strip_desc: "Bannière élégante pleine largeur entre les catégories et les nouveautés.",
+        shop_top: "Bannière Boutique (Haut du catalogue)",
+        shop_top_desc: "Bandeau au sommet de la page Collection au-dessus des filtres.",
+        popup: "Fenêtre Popup (Promotion d'accueil)",
+        popup_desc: "Fenêtre surgissante affichée une fois par session à l'arrivée sur le site."
+      }
     },
     categories: {
       title: 'Catégories de Vêtements',
