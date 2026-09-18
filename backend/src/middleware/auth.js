@@ -86,7 +86,7 @@ export const authenticateAdmin = async (req, res, next) => {
     req.authSession = session;
     req.authSource = 'db';
     next();
-  } catch (error) {
+} catch {
     return res.status(401).json({
       success: false,
       message: 'Authentication failure',
@@ -95,8 +95,8 @@ export const authenticateAdmin = async (req, res, next) => {
   }
 };
 
-/**
- * Lightweight authentication middleware - JWT verification only, no DB queries.
+  /**
+  * Lightweight authentication middleware - JWT verification only, no DB queries.
  * Use for read-only routes that only need identity from the verified JWT.
  * Attaches admin/session info from JWT payload:
  *   - req.admin = { _id: decoded.sub, sessionId: decoded.sid, email?: decoded.email, role?: decoded.role }
@@ -164,7 +164,7 @@ export const authenticateAdminJwtOnly = async (req, res, next) => {
     req.authSource = 'jwt';
 
     next();
-  } catch (error) {
+  } catch {
     return res.status(401).json({
       success: false,
       message: 'Authentication failure',

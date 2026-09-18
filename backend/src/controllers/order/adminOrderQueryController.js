@@ -61,7 +61,7 @@ export const getAllOrdersAdmin = async (req, res, next) => {
           const o = order.toObject ? order.toObject() : { ...order };
           if (Array.isArray(o.items)) {
             o.items = o.items.map(item => {
-              const { unitCost, ...rest } = item;
+              const { unitCost: _unitCost, ...rest } = item;
               return rest;
             });
           }
@@ -98,7 +98,7 @@ export const getOrderByIdAdmin = async (req, res, next) => {
       sanitizedOrder = {
         ...sanitizedOrder,
         items: sanitizedOrder.items.map(item => {
-          const { unitCost, ...rest } = item;
+          const { unitCost: _unitCost, ...rest } = item;
           return rest;
         })
       };

@@ -117,7 +117,7 @@ export const refresh = async (req, res, next) => {
         email: admin.email,
         role: admin.role
       });
-    } catch (rotationErr) {
+    } catch {
       clearAuthCookies(res);
       return res.status(401).json({
         success: false,

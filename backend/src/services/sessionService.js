@@ -4,8 +4,7 @@ import { AUTH_CONFIG } from '../config/authConfig.js';
 import {
   generateAccessToken,
   generateRefreshToken,
-  hashToken,
-  verifyTokenHash
+  hashToken
 } from '../utils/tokenUtils.js';
 
 /**

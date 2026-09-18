@@ -306,7 +306,7 @@ class WebSocketService {
       await ws._authPromise;
     }
 
-    const { action, orderCode, phone, token } = message;
+    const { action, orderCode, phone } = message;
 
     // 1. ADMIN SUBSCRIPTION — Authenticated via HttpOnly cookie at connection time
     if (action === 'SUBSCRIBE_ADMIN') {
@@ -479,7 +479,7 @@ class WebSocketService {
         if (ws.readyState === WebSocket.OPEN) {
           try {
             ws.send(payload);
-          } catch (err) {
+          } catch {
             this.cleanupClient(ws);
           }
         }
@@ -490,7 +490,7 @@ class WebSocketService {
       if (ws.readyState === WebSocket.OPEN) {
         try {
           ws.send(payload);
-        } catch (err) {
+        } catch {
           this.cleanupClient(ws);
         }
       }

@@ -5,7 +5,7 @@ import mongoose from 'mongoose';
 if (typeof dns.setServers === 'function') {
   try {
     dns.setServers(['8.8.8.8', '1.1.1.1']);
-  } catch (e) {
+  } catch {
     // Non-critical if network environment restricts setting custom DNS
   }
 }

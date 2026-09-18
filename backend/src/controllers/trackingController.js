@@ -13,7 +13,7 @@ export const trackOrder = async (req, res, next) => {
     let normalizedSubmittedPhone;
     try {
       normalizedSubmittedPhone = normalizeAlgerianPhone(String(phone));
-    } catch (err) {
+    } catch {
       // Return generic not found message to prevent phone validation enumeration
       return res.status(404).json({
         success: false,

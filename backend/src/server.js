@@ -198,7 +198,6 @@ app.use(errorHandler);
 wsService.init(server, allowedOrigins);
 
 const PORT = process.env.PORT || 5000;
-const HOST = process.env.HOST;
 
 async function startServer() {
   try {

@@ -96,8 +96,6 @@ export const createCategory = async (req, res, next) => {
       counter++;
     }
 
-    const candidateName = typeof name === 'object' && name !== null ? name : { fr: name || '' };
-    const candidateDesc = typeof description === 'object' && description !== null ? description : { fr: description || '' };
     const isComplete = isCategoryFullyTranslated({ name, description });
 
     // Publishing requires complete French, Arabic, and English translations

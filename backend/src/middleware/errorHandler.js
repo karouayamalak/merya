@@ -1,4 +1,4 @@
-export const errorHandler = (err, req, res, next) => {
+export const errorHandler = (err, req, res, _next) => {
   const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
   const isProduction = process.env.NODE_ENV === 'production';
   const timestamp = new Date().toISOString();
