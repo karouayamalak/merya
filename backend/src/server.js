@@ -22,6 +22,7 @@ import settingRoutes from './routes/settingRoutes.js';
 import analyticsRoutes from './routes/analyticsRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
 import bannerRoutes from './routes/bannerRoutes.js';
+import { runSeedOnServer } from './seed/seedRunner.js';
 
 if (process.env.NODE_ENV !== 'production') {
   dotenv.config();
@@ -113,6 +114,21 @@ app.get('/health', (req, res) => {
     service: 'MERYA DZ E-Commerce API',
     uptime: process.uptime()
   });
+});
+
+// ⚠️ TEMPORARY: One-time seed endpoint — REMOVE AFTER USE
+app.post('/internal/seed-now', async (req, res) => {
+  const expectedToken = process.env.SEED_SECRET_TOKEN;
+  const providedToken = req.headers['x-seed-token'];
+  if (!expectedToken || providedToken !== expectedToken) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  try {
+    const result = await runSeedOnServer();
+    res.json({ success: true, message: 'Seed completed', details: result });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 // Readiness Check Endpoint (Database Connectivity)
