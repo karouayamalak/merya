@@ -1,13 +1,14 @@
 const API_BASE = ((typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) || '') + '/api/v1';
 
 export function getImageUrl(imagePath) {
-  if (!imagePath) return '';
+  if (!imagePath) return '/products/merya_dress_blue_1.jpg';
   if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
     return imagePath;
   }
   // Repository-owned frontend static assets (must never hit backend)
   if (
     imagePath.startsWith('/products/') ||
+    imagePath.startsWith('/uploads/') ||
     imagePath.startsWith('/decor_') ||
     imagePath.startsWith('/logo') ||
     imagePath.startsWith('/favicon') ||
@@ -16,15 +17,8 @@ export function getImageUrl(imagePath) {
   ) {
     return imagePath;
   }
-  // Legacy /uploads/ paths for repository-owned assets map to /products/
-  if (imagePath.startsWith('/uploads/')) {
-    const filename = imagePath.replace(/^\/uploads\//, '');
-    if (filename.startsWith('merya_')) {
-      return `/products/${filename}`;
-    }
-  }
   const backendBase = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_BACKEND_URL) || '';
-  return `${backendBase}${imagePath}`;
+  return `${backendBase}${imagePath.startsWith('/') ? '' : '/'}${imagePath}`;
 }
 
 let _csrfToken = null;

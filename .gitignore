@@ -36,9 +36,11 @@ desktop.ini
 *.swp
 *.swo
 
-# Uploads (user-generated content — managed at runtime, not in repo)
-backend/uploads/*
-frontend/public/uploads/*
+# Uploads — ephemeral runtime files; preserve catalog webp and jpg images
+!backend/uploads/*.webp
+!backend/uploads/*.jpg
+!backend/uploads/*.png
+!frontend/public/uploads/*
 !backend/uploads/.gitkeep
 !frontend/public/uploads/.gitkeep
 

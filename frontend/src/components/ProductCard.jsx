@@ -93,6 +93,10 @@ export default function ProductCard({ product, onSelect }) {
           src={currentImage}
           alt={`${localized(product.name)} ${activeColor.colorName || ''}`}
           loading="lazy"
+          onError={(e) => {
+            e.currentTarget.onerror = null;
+            e.currentTarget.src = '/products/merya_dress_blue_1.jpg';
+          }}
           style={{
             width: '100%',
             height: '100%',

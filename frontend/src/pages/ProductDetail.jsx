@@ -109,6 +109,10 @@ export default function ProductDetail({ product, onBack, _onSelectRelated }) {
               <img
                 src={getImageUrl(mainImage)}
                 alt={`${localized(product.name)} - ${activeColor.colorName}`}
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = '/products/merya_dress_blue_1.jpg';
+                }}
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
               />
 
@@ -150,7 +154,15 @@ export default function ProductDetail({ product, onBack, _onSelectRelated }) {
                       flexShrink: 0
                     }}
                   >
-                    <img src={getImageUrl(img)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <img
+                      src={getImageUrl(img)}
+                      alt=""
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = '/products/merya_dress_blue_1.jpg';
+                      }}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
                   </button>
                 ))}
               </div>

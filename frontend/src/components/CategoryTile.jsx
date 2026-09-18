@@ -29,6 +29,10 @@ export default function CategoryTile({ category, onClick }) {
         src={getImageUrl(category.image)}
         alt={displayName}
         loading="lazy"
+        onError={(e) => {
+          e.currentTarget.onerror = null;
+          e.currentTarget.src = '/products/merya_dress_blue_1.jpg';
+        }}
         style={{
           position: 'absolute',
           top: 0,
