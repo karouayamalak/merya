@@ -258,8 +258,8 @@ export default function DeliverySettingsManager() {
             </div>
           </div>
 
-          <div style={{ overflowX: 'auto', maxHeight: '550px' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: isRtl ? 'right' : 'left' }}>
+          <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', maxHeight: '550px' }}>
+            <table style={{ width: '100%', minWidth: '540px', borderCollapse: 'collapse', textAlign: isRtl ? 'right' : 'left' }}>
               <thead>
                 <tr style={{ backgroundColor: 'var(--color-bg-base)', borderBottom: '1px solid var(--color-border)', position: 'sticky', top: 0, zIndex: 5 }}>
                   <th style={{ padding: '0.85rem 1.25rem', fontSize: '0.75rem', textTransform: 'uppercase', width: '80px' }}>{t('admin.delivery.wilayaCode')}</th>

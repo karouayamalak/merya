@@ -432,7 +432,8 @@ export default function OrdersManager() {
       <div style={{
         backgroundColor: 'var(--color-surface)',
         borderRadius: 'var(--radius-xl)',
-        overflow: 'hidden',
+        overflowX: 'auto',
+        WebkitOverflowScrolling: 'touch',
         border: '1px solid var(--color-border)',
         boxShadow: 'var(--shadow-sm)'
       }}>
@@ -446,7 +447,7 @@ export default function OrdersManager() {
             <p>{t('admin.orders.noOrders')}</p>
           </div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: isRtl ? 'right' : 'left', fontSize: '0.88rem' }}>
+          <table style={{ width: '100%', minWidth: '720px', borderCollapse: 'collapse', textAlign: isRtl ? 'right' : 'left', fontSize: '0.88rem' }}>
             <thead>
               <tr style={{ backgroundColor: 'var(--color-bg-card)', borderBottom: '1px solid var(--color-border)' }}>
                 <th style={{ padding: '1rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.75rem' }}>{t('admin.orders.orderCode')}</th>
@@ -537,16 +538,16 @@ export default function OrdersManager() {
           alignItems: 'center',
           justifyContent: 'center',
           zIndex: 1000,
-          padding: '1rem'
+          padding: 'clamp(0.5rem, 2vw, 1rem)'
         }}>
           <div style={{
             backgroundColor: 'var(--color-surface)',
             borderRadius: 'var(--radius-xl)',
             maxWidth: '820px',
             width: '100%',
-            maxHeight: '92vh',
+            maxHeight: '94vh',
             overflowY: 'auto',
-            padding: '2rem',
+            padding: 'clamp(1rem, 3vw, 2rem)',
             boxShadow: 'var(--shadow-lg)'
           }}>
             {/* Modal Header */}

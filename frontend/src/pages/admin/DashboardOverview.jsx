@@ -78,29 +78,29 @@ export default function DashboardOverview({ onNavigateToOrders }) {
       {/* Primary KPI Cards */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-        gap: '1rem'
+        gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))',
+        gap: '0.75rem'
       }}>
         {/* Realized Revenue */}
         <div style={{
           backgroundColor: 'var(--color-surface)',
-          padding: '1.75rem',
+          padding: 'clamp(1rem, 2.5vw, 1.6rem)',
           borderRadius: 'var(--radius-lg)',
           border: '1px solid var(--color-border)',
           boxShadow: 'var(--shadow-sm)'
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <span style={{ fontSize: '0.78rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#777' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#777' }}>
               {t('admin.dashboard.totalRevenue')}
             </span>
-            <div style={{ backgroundColor: '#E8F5E9', padding: '0.4rem', borderRadius: 'var(--radius-sm)', color: 'var(--color-success)' }}>
-              <DollarSign size={18} />
+            <div style={{ backgroundColor: '#E8F5E9', padding: '0.35rem', borderRadius: 'var(--radius-sm)', color: 'var(--color-success)', flexShrink: 0 }}>
+              <DollarSign size={16} />
             </div>
           </div>
-          <div style={{ fontSize: '1.8rem', fontWeight: '800', color: 'var(--color-espresso)', marginTop: '0.75rem' }}>
+          <div style={{ fontSize: 'clamp(1.2rem, 3.2vw, 1.75rem)', fontWeight: '800', color: 'var(--color-espresso)', marginTop: '0.5rem', wordBreak: 'break-word' }}>
             {formatCurrency(metrics?.realizedRevenue || 0)}
           </div>
-          <div style={{ fontSize: '0.75rem', color: '#777', marginTop: '0.35rem' }}>
+          <div style={{ fontSize: '0.72rem', color: '#777', marginTop: '0.25rem' }}>
             {t('status.delivered')}
           </div>
         </div>
@@ -108,24 +108,30 @@ export default function DashboardOverview({ onNavigateToOrders }) {
         {/* Realized Profit */}
         <div style={{
           backgroundColor: 'var(--color-surface)',
-          padding: '1.75rem',
+          padding: 'clamp(1rem, 2.5vw, 1.6rem)',
           borderRadius: 'var(--radius-lg)',
           border: '1px solid var(--color-border)',
           boxShadow: 'var(--shadow-sm)'
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <span style={{ fontSize: '0.78rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#777' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#777' }}>
               {t('admin.dashboard.netProfit')}
             </span>
-            <div style={{ backgroundColor: 'var(--color-primary-subtle)', padding: '0.4rem', borderRadius: 'var(--radius-sm)', color: 'var(--color-primary-dark)' }}>
-              <TrendingUp size={18} />
+            <div style={{ backgroundColor: 'var(--color-primary-subtle)', padding: '0.35rem', borderRadius: 'var(--radius-sm)', color: 'var(--color-primary-dark)', flexShrink: 0 }}>
+              <TrendingUp size={16} />
             </div>
           </div>
-          <div style={{ fontSize: '1.8rem', fontWeight: '800', color: 'var(--color-primary-dark)', marginTop: '0.75rem' }}>
+          <div style={{
+            fontSize: 'clamp(1.2rem, 3.2vw, 1.75rem)',
+            fontWeight: '800',
+            color: (metrics?.realizedProfit ?? 0) >= 0 ? 'var(--color-espresso)' : 'var(--color-danger)',
+            marginTop: '0.5rem',
+            wordBreak: 'break-word'
+          }}>
             {formatCurrency(metrics?.realizedProfit || 0)}
           </div>
-          <div style={{ fontSize: '0.75rem', color: '#777', marginTop: '0.35rem' }}>
-            {t('admin.products.sellingPrice')} - {t('admin.products.costPrice')}
+          <div style={{ fontSize: '0.72rem', color: '#777', marginTop: '0.25rem' }}>
+            {t('status.delivered')}
           </div>
         </div>
 
@@ -134,25 +140,25 @@ export default function DashboardOverview({ onNavigateToOrders }) {
           onClick={onNavigateToOrders}
           style={{
             backgroundColor: 'var(--color-surface)',
-            padding: '1.75rem',
+            padding: 'clamp(1rem, 2.5vw, 1.6rem)',
             borderRadius: 'var(--radius-lg)',
             border: '1px solid var(--color-border)',
             boxShadow: 'var(--shadow-sm)',
             cursor: 'pointer'
           }}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <span style={{ fontSize: '0.78rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#777' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#777' }}>
               {t('admin.dashboard.totalOrders')}
             </span>
-            <div style={{ backgroundColor: '#EDE7F6', padding: '0.4rem', borderRadius: 'var(--radius-sm)', color: '#6A1B9A' }}>
-              <Package size={18} />
+            <div style={{ backgroundColor: '#EDE7F6', padding: '0.35rem', borderRadius: 'var(--radius-sm)', color: '#6A1B9A', flexShrink: 0 }}>
+              <Package size={16} />
             </div>
           </div>
-          <div style={{ fontSize: '1.8rem', fontWeight: '800', color: 'var(--color-espresso)', marginTop: '0.75rem' }}>
+          <div style={{ fontSize: 'clamp(1.2rem, 3.2vw, 1.75rem)', fontWeight: '800', color: 'var(--color-espresso)', marginTop: '0.5rem' }}>
             {metrics?.totalOrders || 0}
           </div>
-          <div style={{ fontSize: '0.75rem', color: '#777', marginTop: '0.35rem' }}>
+          <div style={{ fontSize: '0.72rem', color: '#777', marginTop: '0.25rem' }}>
             {t('admin.orders.title')}
           </div>
         </div>
@@ -160,23 +166,23 @@ export default function DashboardOverview({ onNavigateToOrders }) {
         {/* Units Sold */}
         <div style={{
           backgroundColor: 'var(--color-surface)',
-          padding: '1.75rem',
+          padding: 'clamp(1rem, 2.5vw, 1.6rem)',
           borderRadius: 'var(--radius-lg)',
           border: '1px solid var(--color-border)',
           boxShadow: 'var(--shadow-sm)'
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <span style={{ fontSize: '0.78rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#777' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#777' }}>
               {t('admin.dashboard.deliveredOrders')}
             </span>
-            <div style={{ backgroundColor: '#FFF3E0', padding: '0.4rem', borderRadius: 'var(--radius-sm)', color: '#EF6C00' }}>
-              <CheckCircle2 size={18} />
+            <div style={{ backgroundColor: '#FFF3E0', padding: '0.35rem', borderRadius: 'var(--radius-sm)', color: '#EF6C00', flexShrink: 0 }}>
+              <CheckCircle2 size={16} />
             </div>
           </div>
-          <div style={{ fontSize: '1.8rem', fontWeight: '800', color: 'var(--color-espresso)', marginTop: '0.75rem' }}>
+          <div style={{ fontSize: 'clamp(1.2rem, 3.2vw, 1.75rem)', fontWeight: '800', color: 'var(--color-espresso)', marginTop: '0.5rem' }}>
             {metrics?.unitsSold || 0}
           </div>
-          <div style={{ fontSize: '0.75rem', color: '#777', marginTop: '0.35rem' }}>
+          <div style={{ fontSize: '0.72rem', color: '#777', marginTop: '0.25rem' }}>
             {t('admin.inventory.title')}
           </div>
         </div>
@@ -186,18 +192,18 @@ export default function DashboardOverview({ onNavigateToOrders }) {
       <div style={{
         backgroundColor: 'var(--color-surface)',
         borderRadius: 'var(--radius-xl)',
-        padding: '2rem',
+        padding: 'clamp(1rem, 2.5vw, 2rem)',
         border: '1px solid var(--color-border)',
         boxShadow: 'var(--shadow-sm)'
       }}>
-        <h3 style={{ fontSize: '1rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '1.5rem' }}>
+        <h3 style={{ fontSize: '0.92rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '1rem' }}>
           {t('admin.orders.title')}
         </h3>
 
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-          gap: '1rem'
+          gridTemplateColumns: 'repeat(auto-fit, minmax(115px, 1fr))',
+          gap: '0.65rem'
         }}>
           {/* Pending */}
           <div style={{ padding: '1.25rem', backgroundColor: '#FFF8E1', borderRadius: 'var(--radius-md)', border: '1px solid #FFE082' }}>

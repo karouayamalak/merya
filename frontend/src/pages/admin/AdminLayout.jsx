@@ -132,7 +132,9 @@ export default function AdminLayout({ onExitAdmin }) {
           flex: 1;
           padding: 2.5rem;
           overflow-y: auto;
+          overflow-x: hidden;
           min-width: 0;
+          max-width: 100%;
           box-sizing: border-box;
         }
         .admin-drawer-backdrop {
@@ -202,7 +204,10 @@ export default function AdminLayout({ onExitAdmin }) {
 
         @media (max-width: 640px) {
           .admin-main-content {
-            padding: 1rem 0.75rem !important;
+            padding: 0.85rem 0.6rem !important;
+          }
+          .admin-mobile-header {
+            padding: 0.6rem 0.75rem !important;
           }
         }
       `}</style>

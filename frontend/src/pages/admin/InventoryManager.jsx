@@ -124,7 +124,8 @@ export default function InventoryManager() {
       <div style={{
         backgroundColor: 'var(--color-surface)',
         borderRadius: 'var(--radius-xl)',
-        overflow: 'hidden',
+        overflowX: 'auto',
+        WebkitOverflowScrolling: 'touch',
         border: '1px solid var(--color-border)',
         boxShadow: 'var(--shadow-sm)'
       }}>
@@ -133,7 +134,7 @@ export default function InventoryManager() {
             <Loader2 size={32} className="animate-spin" style={{ margin: '0 auto' }} />
           </div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: isRtl ? 'right' : 'left', fontSize: '0.88rem' }}>
+          <table style={{ width: '100%', minWidth: '660px', borderCollapse: 'collapse', textAlign: isRtl ? 'right' : 'left', fontSize: '0.88rem' }}>
             <thead>
               <tr style={{ backgroundColor: 'var(--color-bg-card)', borderBottom: '1px solid var(--color-border)' }}>
                 <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.products.productName')}</th>

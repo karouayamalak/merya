@@ -202,7 +202,8 @@ export default function CategoriesManager() {
       <div style={{
         backgroundColor: 'var(--color-surface)',
         borderRadius: 'var(--radius-xl)',
-        overflow: 'hidden',
+        overflowX: 'auto',
+        WebkitOverflowScrolling: 'touch',
         border: '1px solid var(--color-border)',
         boxShadow: 'var(--shadow-sm)'
       }}>
@@ -211,7 +212,7 @@ export default function CategoriesManager() {
             <Loader2 size={32} className="animate-spin" style={{ margin: '0 auto' }} />
           </div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: isRtl ? 'right' : 'left', fontSize: '0.88rem' }}>
+          <table style={{ width: '100%', minWidth: '680px', borderCollapse: 'collapse', textAlign: isRtl ? 'right' : 'left', fontSize: '0.88rem' }}>
             <thead>
               <tr style={{ backgroundColor: 'var(--color-bg-card)', borderBottom: '1px solid var(--color-border)' }}>
                 <th style={{ padding: '1rem', fontSize: '0.75rem', textTransform: 'uppercase' }}>{t('admin.banners.image')}</th>
@@ -274,16 +275,16 @@ export default function CategoriesManager() {
           alignItems: 'center',
           justifyContent: 'center',
           zIndex: 1000,
-          padding: '1rem'
+          padding: 'clamp(0.5rem, 2vw, 1rem)'
         }}>
           <div style={{
             backgroundColor: 'var(--color-surface)',
             borderRadius: 'var(--radius-xl)',
             maxWidth: '560px',
             width: '100%',
-            maxHeight: '90vh',
+            maxHeight: '94vh',
             overflowY: 'auto',
-            padding: '2rem',
+            padding: 'clamp(1rem, 3vw, 2rem)',
             boxShadow: 'var(--shadow-lg)'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid var(--color-border)', paddingBottom: '1rem' }}>

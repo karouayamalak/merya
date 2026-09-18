@@ -262,12 +262,13 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
         {/* SHOP NOW BUTTON IN THE BOTTOM MIDDLE */}
         <div style={{
           position: 'absolute',
-          bottom: 'clamp(2rem, 5.5vh, 3.8rem)',
+          bottom: 'clamp(1.5rem, 5vh, 3.5rem)',
           left: '50%',
           transform: 'translateX(-50%)',
           zIndex: 10,
           textAlign: 'center',
-          width: 'max-content'
+          width: 'max-content',
+          maxWidth: '90vw'
         }}>
           <button
             onClick={() => {
@@ -277,29 +278,30 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
             style={{
               backgroundColor: '#FFFFFF',
               color: 'var(--color-espresso)',
-              padding: '1.2rem 4rem',
-              fontSize: '0.92rem',
-              fontWeight: '800',
-              letterSpacing: isRtl ? '0' : '0.2em',
+              padding: 'clamp(0.6rem, 1.8vw, 0.85rem) clamp(1.5rem, 4vw, 2.5rem)',
+              fontSize: 'clamp(0.78rem, 1.8vw, 0.88rem)',
+              fontWeight: '700',
+              letterSpacing: isRtl ? '0' : '0.12em',
               textTransform: isRtl ? 'none' : 'uppercase',
               borderRadius: 'var(--radius-full)',
-              boxShadow: '0 14px 35px rgba(0, 0, 0, 0.35)',
-              border: '2px solid rgba(255, 255, 255, 0.9)',
+              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3)',
+              border: '1.5px solid rgba(255, 255, 255, 0.95)',
               cursor: 'pointer',
               transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
-              whiteSpace: 'nowrap'
+              whiteSpace: 'nowrap',
+              maxWidth: '100%'
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.backgroundColor = 'var(--color-espresso)';
               e.currentTarget.style.color = '#FFFFFF';
-              e.currentTarget.style.transform = 'translateY(-3px) scale(1.02)';
-              e.currentTarget.style.boxShadow = '0 18px 40px rgba(0, 0, 0, 0.42)';
+              e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
+              e.currentTarget.style.boxShadow = '0 12px 28px rgba(0, 0, 0, 0.38)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.backgroundColor = '#FFFFFF';
               e.currentTarget.style.color = 'var(--color-espresso)';
               e.currentTarget.style.transform = 'translateY(0) scale(1)';
-              e.currentTarget.style.boxShadow = '0 14px 35px rgba(0, 0, 0, 0.35)';
+              e.currentTarget.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.3)';
             }}
           >
             {(activeHeroBanner && (localized(activeHeroBanner.buttonText) || localized(activeHeroBanner.ctaText)))
