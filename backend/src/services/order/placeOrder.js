@@ -8,6 +8,7 @@ import { wsService } from '../websocketService.js';
 import { withTransactionRetry } from '../../utils/transactionRetry.js';
 import { resolveAuthoritativeDelivery, validateCartItem, parseAuthoritativeWilayaCode } from '../deliveryService.js';
 import { computeOrderFingerprint } from './orderFingerprint.js';
+import { sendTelegramOrderNotification } from '../telegramService.js';
 
 /**
  * Place a new order with full database validation and atomic inventory deduction.
@@ -261,6 +262,15 @@ export async function placeOrder({ customer, items, idempotencyKey }) {
       wsService.broadcastNewOrder(finalOrder);
     } catch (wsErr) {
       console.warn(`[OrderService] WebSocket broadcastNewOrder failed (non-fatal): ${wsErr.message}`);
+    }
+
+    // 9. Instant Telegram Order Alert to Store Owner (non-blocking)
+    try {
+      sendTelegramOrderNotification(finalOrder).catch(tErr => {
+        console.warn(`[OrderService] Telegram alert failed (non-fatal): ${tErr.message}`);
+      });
+    } catch (tErr) {
+      console.warn(`[OrderService] Telegram alert dispatch error (non-fatal): ${tErr.message}`);
     }
   }
 
