@@ -279,7 +279,7 @@ const normalizePlacement = (p) => {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+      <div className="admin-page-header">
         <div>
           <h1 className="heading-display" style={{ fontSize: '1.8rem', color: 'var(--color-espresso)' }}>
             {t('admin.banners.title')}
@@ -288,7 +288,7 @@ const normalizePlacement = (p) => {
             {t('admin.banners.subtitle')}
           </p>
         </div>
-        <button onClick={openCreate} className="btn btn-primary btn-sm">
+        <button onClick={openCreate} className="btn btn-primary btn-sm" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
           <Plus size={16} className="rtl-flip" />
           <span>{t('admin.banners.addBanner')}</span>
         </button>
@@ -299,7 +299,7 @@ const normalizePlacement = (p) => {
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-          gap: '1.5rem',
+          gap: '1rem',
           marginBottom: '2rem'
         }}>
           {banners.filter(b => b.isActive).map(b => (
@@ -340,8 +340,8 @@ const normalizePlacement = (p) => {
         </div>
       )}
 
-      {/* Full Table */}
-      <div style={{
+      {/* Desktop Table (> 768px) */}
+      <div className="admin-desktop-only-table" style={{
         backgroundColor: 'var(--color-surface)',
         borderRadius: 'var(--radius-xl)',
         overflowX: 'auto',
@@ -376,8 +376,8 @@ const normalizePlacement = (p) => {
                 <tr key={b._id} style={{ borderBottom: '1px solid var(--color-border)' }}>
                   <td style={{ padding: '1rem' }}>
                     {b.image
-                      ? <img src={b.image} alt="" style={{ width: '80px', height: '36px', objectFit: 'cover', borderRadius: '4px' }} />
-                      : <div style={{ width: '80px', height: '36px', backgroundColor: '#1E1915', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#D4AF37', fontSize: '0.68rem', fontWeight: '700', letterSpacing: '0.05em' }}>TEXT</div>
+                       ? <img src={b.image} alt="" style={{ width: '80px', height: '36px', objectFit: 'cover', borderRadius: '4px' }} />
+                       : <div style={{ width: '80px', height: '36px', backgroundColor: '#1E1915', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#D4AF37', fontSize: '0.68rem', fontWeight: '700', letterSpacing: '0.05em' }}>TEXT</div>
                     }
                   </td>
                   <td style={{ padding: '1rem', fontWeight: '700', maxWidth: '180px' }}>{getDisplayTitle(b)}</td>
@@ -417,6 +417,61 @@ const normalizePlacement = (p) => {
               ))}
             </tbody>
           </table>
+        )}
+      </div>
+
+      {/* Mobile Banners Cards (<= 768px) */}
+      <div className="admin-mobile-only-cards">
+        {loading ? (
+          <div style={{ padding: '3rem', textAlign: 'center' }}>
+            <Loader2 size={32} className="animate-spin" style={{ margin: '0 auto' }} />
+          </div>
+        ) : banners.length === 0 ? (
+          <div style={{ padding: '3rem 1rem', textAlign: 'center', color: '#777', backgroundColor: 'var(--color-surface)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)' }}>
+            <p>{t('admin.banners.noBanners')}</p>
+          </div>
+        ) : (
+          banners.map((b) => (
+            <div key={b._id} className="admin-card-item">
+              {b.image ? (
+                <img src={b.image} alt={getDisplayTitle(b)} style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '6px' }} />
+              ) : (
+                <div style={{ width: '100%', height: '80px', backgroundColor: '#1E1915', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#D4AF37', fontWeight: '700' }}>
+                  {getDisplayTitle(b)}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
+                <div>
+                  <div style={{ fontWeight: '800', fontSize: '0.95rem', color: 'var(--color-espresso)' }}>
+                    {getDisplayTitle(b)}
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', marginTop: '0.3rem' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: '700', backgroundColor: 'rgba(111,78,55,0.08)', color: 'var(--color-espresso)', padding: '0.2rem 0.5rem', borderRadius: '4px' }}>
+                      {getPlacementLabel(b.placement)}
+                    </span>
+                    <span style={{ fontSize: '0.75rem', color: '#666' }}>Ordre: {b.displayOrder}</span>
+                  </div>
+                </div>
+
+                {b.isActive ? (
+                  <span className="badge badge-delivered" style={{ fontSize: '0.68rem', padding: '0.15rem 0.45rem' }}>{t('admin.products.active')}</span>
+                ) : (
+                  <span className="badge badge-cancelled" style={{ fontSize: '0.68rem', padding: '0.15rem 0.45rem' }}>{t('admin.products.inactive')}</span>
+                )}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.5rem', marginTop: '0.25rem' }}>
+                <button onClick={() => openEdit(b)} className="btn btn-secondary btn-sm" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', padding: '0.55rem', minHeight: '40px' }}>
+                  <Edit2 size={13} />
+                  <span>{t('common.edit')}</span>
+                </button>
+                <button onClick={() => handleDelete(b)} className="btn btn-secondary btn-sm" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0.55rem 0.85rem', color: 'var(--color-danger)', minHeight: '40px' }}>
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            </div>
+          ))
         )}
       </div>
 

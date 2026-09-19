@@ -258,7 +258,7 @@ export default function DeliverySettingsManager() {
             </div>
           </div>
 
-          <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', maxHeight: '550px' }}>
+          <div className="admin-desktop-only-table" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', maxHeight: '550px' }}>
             <table style={{ width: '100%', minWidth: '540px', borderCollapse: 'collapse', textAlign: isRtl ? 'right' : 'left' }}>
               <thead>
                 <tr style={{ backgroundColor: 'var(--color-bg-base)', borderBottom: '1px solid var(--color-border)', position: 'sticky', top: 0, zIndex: 5 }}>
@@ -337,6 +337,96 @@ export default function DeliverySettingsManager() {
               </tbody>
             </table>
           </div>
+
+          {/* Mobile Wilayas Cards (<= 768px) */}
+          <div className="admin-mobile-only-cards" style={{ padding: '0.85rem', maxHeight: '550px', overflowY: 'auto' }}>
+            {filteredWilayas.map((w) => (
+              <div key={w.wilayaCode} style={{
+                backgroundColor: 'var(--color-bg-base)',
+                borderRadius: 'var(--radius-lg)',
+                padding: '0.85rem 1rem',
+                border: '1px solid var(--color-border)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.65rem'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{
+                      backgroundColor: 'var(--color-espresso)',
+                      color: '#FFF',
+                      fontSize: '0.75rem',
+                      fontWeight: '800',
+                      padding: '0.2rem 0.5rem',
+                      borderRadius: '4px'
+                    }}>
+                      {String(w.wilayaCode).padStart(2, '0')}
+                    </span>
+                    <span style={{ fontWeight: '800', fontSize: '0.95rem', color: 'var(--color-espresso)' }}>
+                      {isRtl && w.wilayaNameAr ? w.wilayaNameAr : w.wilayaName}
+                    </span>
+                  </div>
+                  {w.wilayaNameAr && (
+                    <span style={{ fontSize: '0.8rem', color: '#777' }}>
+                      {isRtl ? w.wilayaName : w.wilayaNameAr}
+                    </span>
+                  )}
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem' }}>
+                  <div>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.72rem', fontWeight: '700', color: '#555', marginBottom: '0.25rem' }}>
+                      <HomeIcon size={12} color="var(--color-primary-dark)" />
+                      <span>{t('admin.delivery.homeFee')}</span>
+                    </label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                      <input
+                        type="number"
+                        min="0"
+                        value={w.homeFee}
+                        onChange={(e) => handleWilayaPriceChange(w.wilayaCode, 'homeFee', e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '0.45rem',
+                          borderRadius: '6px',
+                          border: '1px solid var(--color-border)',
+                          fontWeight: '800',
+                          fontSize: '0.92rem',
+                          backgroundColor: '#FFF'
+                        }}
+                      />
+                      <span style={{ fontSize: '0.72rem', color: '#888', fontWeight: '600' }}>DA</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.72rem', fontWeight: '700', color: '#555', marginBottom: '0.25rem' }}>
+                      <Building2 size={12} color="var(--color-primary-dark)" />
+                      <span>{t('admin.delivery.agencyFee')}</span>
+                    </label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                      <input
+                        type="number"
+                        min="0"
+                        value={w.agencyFee}
+                        onChange={(e) => handleWilayaPriceChange(w.wilayaCode, 'agencyFee', e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '0.45rem',
+                          borderRadius: '6px',
+                          border: '1px solid var(--color-border)',
+                          fontWeight: '800',
+                          fontSize: '0.92rem',
+                          backgroundColor: '#FFF'
+                        }}
+                      />
+                      <span style={{ fontSize: '0.72rem', color: '#888', fontWeight: '600' }}>DA</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Global Save Button */}
@@ -344,13 +434,15 @@ export default function DeliverySettingsManager() {
           position: 'sticky',
           bottom: '1rem',
           backgroundColor: 'var(--color-surface)',
-          padding: '1.25rem 2rem',
+          padding: 'clamp(0.75rem, 2.5vw, 1.25rem) clamp(1rem, 3vw, 2rem)',
           borderRadius: 'var(--radius-xl)',
           border: '1px solid var(--color-border)',
           boxShadow: 'var(--shadow-lg)',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '0.75rem',
           zIndex: 10
         }}>
           <div>
@@ -366,7 +458,7 @@ export default function DeliverySettingsManager() {
             type="submit"
             disabled={saving}
             className="btn btn-primary"
-            style={{ padding: '0.9rem 2.25rem' }}
+            style={{ padding: '0.75rem 2rem', minHeight: '44px' }}
           >
             {saving ? <Loader2 size={18} className="animate-spin" /> : null}
             <span>{t('common.save')}</span>

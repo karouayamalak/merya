@@ -199,7 +199,7 @@ export default function CategoriesManager() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+      <div className="admin-page-header">
         <div>
           <h1 className="heading-display" style={{ fontSize: '1.8rem', color: 'var(--color-espresso)' }}>
             {t('admin.categories.title').toUpperCase()}
@@ -208,13 +208,14 @@ export default function CategoriesManager() {
             {t('admin.nav.categories')}
           </p>
         </div>
-        <button onClick={openCreateModal} className="btn btn-primary btn-sm">
+        <button onClick={openCreateModal} className="btn btn-primary btn-sm" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
           <Plus size={16} className="rtl-flip" />
           <span>{t('admin.categories.addCategory')}</span>
         </button>
       </div>
 
-      <div style={{
+      {/* Desktop Table View (> 768px) */}
+      <div className="admin-desktop-only-table" style={{
         backgroundColor: 'var(--color-surface)',
         borderRadius: 'var(--radius-xl)',
         overflowX: 'auto',
@@ -305,6 +306,75 @@ export default function CategoriesManager() {
               )}
             </tbody>
           </table>
+        )}
+      </div>
+
+      {/* Mobile Categories Cards (<= 768px) */}
+      <div className="admin-mobile-only-cards">
+        {loading ? (
+          <div style={{ padding: '3rem', textAlign: 'center' }}>
+            <Loader2 size={32} className="animate-spin" style={{ margin: '0 auto' }} />
+          </div>
+        ) : categories.length === 0 ? (
+          <div style={{ padding: '3rem 1rem', textAlign: 'center', color: '#777', backgroundColor: 'var(--color-surface)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)' }}>
+            Aucune catégorie trouvée.
+          </div>
+        ) : (
+          categories.map((c) => (
+            <div key={c._id} className="admin-card-item">
+              <div style={{ display: 'flex', gap: '0.85rem', alignItems: 'center' }}>
+                <img src={c.image} alt="" style={{ width: '56px', height: '72px', objectFit: 'cover', borderRadius: '6px', flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.4rem' }}>
+                    <div style={{ fontWeight: '800', fontSize: '0.95rem', color: 'var(--color-espresso)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {getDisplayName(c)}
+                    </div>
+                    {c.isArchived ? (
+                      <span className="badge badge-cancelled" style={{ fontSize: '0.68rem', padding: '0.15rem 0.45rem' }}>{t('admin.products.archived')}</span>
+                    ) : c.isActive ? (
+                      <span className="badge badge-delivered" style={{ fontSize: '0.68rem', padding: '0.15rem 0.45rem' }}>{t('admin.products.active')}</span>
+                    ) : (
+                      <span className="badge badge-pending" style={{ fontSize: '0.68rem', padding: '0.15rem 0.45rem' }}>{t('admin.products.inactive')}</span>
+                    )}
+                  </div>
+
+                  <div style={{ fontSize: '0.78rem', color: '#666', fontFamily: 'monospace', marginTop: '2px' }}>
+                    /{c.slug}
+                  </div>
+
+                  <div style={{ marginTop: '0.35rem' }}>
+                    <TranslationBadge status={c.translationStatus} />
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginTop: '0.25rem' }}>
+                <button onClick={() => openEditModal(c)} className="btn btn-secondary btn-sm" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', padding: '0.55rem', minHeight: '40px' }}>
+                  <Edit2 size={13} />
+                  <span>{t('common.edit')}</span>
+                </button>
+                {c.isArchived ? (
+                  <button
+                    onClick={() => handleUnarchive(c._id)}
+                    className="btn btn-secondary btn-sm"
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', padding: '0.55rem', color: 'var(--color-success)', borderColor: 'var(--color-success)', minHeight: '40px' }}
+                  >
+                    <RotateCcw size={13} />
+                    <span>{t('common.restore') || 'Restaurer'}</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleArchive(c._id)}
+                    className="btn btn-secondary btn-sm"
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', padding: '0.55rem', color: 'var(--color-danger)', minHeight: '40px' }}
+                  >
+                    <Archive size={13} />
+                    <span>{t('admin.products.archiveProduct') || 'Archiver'}</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          ))
         )}
       </div>
 

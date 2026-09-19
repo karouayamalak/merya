@@ -294,7 +294,7 @@ export default function DashboardOverview({ onNavigateToOrders }) {
       <div style={{
         backgroundColor: 'var(--color-surface)',
         borderRadius: 'var(--radius-xl)',
-        padding: '2rem',
+        padding: 'clamp(1rem, 2.5vw, 1.75rem)',
         border: '1px solid var(--color-border)',
         boxShadow: 'var(--shadow-sm)'
       }}>
@@ -308,7 +308,7 @@ export default function DashboardOverview({ onNavigateToOrders }) {
         {metrics?.lowStockItems?.length === 0 ? (
           <p style={{ fontSize: '0.88rem', color: '#666' }}>{t('product.inStock').replace('{count}', '')}</p>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(260px, 100%), 1fr))', gap: '1rem' }}>
             {metrics?.lowStockItems?.map((item, idx) => (
               <div
                 key={idx}

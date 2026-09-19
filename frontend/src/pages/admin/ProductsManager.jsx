@@ -263,7 +263,7 @@ export default function ProductsManager() {
   return (
     <div>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+      <div className="admin-page-header">
         <div>
           <h1 className="heading-display" style={{ fontSize: '1.8rem', color: 'var(--color-espresso)' }}>
             {t('admin.products.title').toUpperCase()}
@@ -273,7 +273,7 @@ export default function ProductsManager() {
           </p>
         </div>
 
-        <button onClick={openCreateModal} className="btn btn-primary btn-sm">
+        <button onClick={openCreateModal} className="btn btn-primary btn-sm" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
           <Plus size={16} className="rtl-flip" />
           <span>{t('admin.products.addProduct')}</span>
         </button>
@@ -286,22 +286,29 @@ export default function ProductsManager() {
         backgroundColor: 'var(--color-surface)',
         border: '1px solid var(--color-border)',
         borderRadius: 'var(--radius-md)',
-        padding: '0.5rem 0.85rem',
-        maxWidth: '380px',
-        marginBottom: '1.5rem'
+        padding: '0.55rem 0.85rem',
+        maxWidth: '400px',
+        width: '100%',
+        marginBottom: '1.5rem',
+        minHeight: '44px'
       }}>
-        <Search size={18} color="#888" style={{ [isRtl ? 'marginLeft' : 'marginRight']: '0.5rem' }} />
+        <Search size={18} color="#888" style={{ [isRtl ? 'marginLeft' : 'marginRight']: '0.5rem', flexShrink: 0 }} />
         <input
           type="text"
           placeholder={t('admin.products.searchPlaceholder')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none' }}
+          style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none', fontSize: '0.92rem' }}
         />
+        {search && (
+          <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 0.25rem', color: '#888' }}>
+            <X size={16} />
+          </button>
+        )}
       </div>
 
-      {/* Table */}
-      <div style={{
+      {/* Desktop Table View (> 768px) */}
+      <div className="admin-desktop-only-table" style={{
         backgroundColor: 'var(--color-surface)',
         borderRadius: 'var(--radius-xl)',
         overflowX: 'auto',
@@ -424,6 +431,137 @@ export default function ProductsManager() {
         )}
       </div>
 
+      {/* Mobile Products Cards View (<= 768px) */}
+      <div className="admin-mobile-only-cards">
+        {loading ? (
+          <div style={{ padding: '3rem', textAlign: 'center' }}>
+            <Loader2 size={32} className="animate-spin" style={{ margin: '0 auto', color: 'var(--color-espresso)' }} />
+          </div>
+        ) : products.length === 0 ? (
+          <div style={{ padding: '3rem', textAlign: 'center', color: '#777', backgroundColor: 'var(--color-surface)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)' }}>
+            {t('shop.noProducts')}
+          </div>
+        ) : (
+          products.map((p) => {
+            const catName = (() => { const n = p.category?.name; return typeof n === 'object' ? (n.fr || n.en || n.ar || '—') : (n || '—'); })();
+            const prodName = typeof p.name === 'object' ? (p.name.fr || p.name.en || p.name.ar || '—') : (p.name || '—');
+            const hasPromo = p.promotion && p.promotion.active && p.promotion.promotionalPrice;
+
+            return (
+              <div key={p._id} className="admin-card-item">
+                <div style={{ display: 'flex', gap: '0.85rem' }}>
+                  <img
+                    src={p.colors?.[0]?.images?.[0] || 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?q=80&w=150&auto=format&fit=crop'}
+                    alt=""
+                    style={{ width: '64px', height: '80px', objectFit: 'cover', borderRadius: '6px', flexShrink: 0 }}
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.4rem' }}>
+                      <div style={{ fontWeight: '800', fontSize: '0.95rem', color: 'var(--color-espresso)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {prodName}
+                      </div>
+                      {p.isActive ? (
+                        <span className="badge badge-delivered" style={{ flexShrink: 0, fontSize: '0.68rem', padding: '0.15rem 0.45rem' }}>
+                          {t('admin.products.active')}
+                        </span>
+                      ) : (
+                        <span className="badge badge-cancelled" style={{ flexShrink: 0, fontSize: '0.68rem', padding: '0.15rem 0.45rem' }}>
+                          {t('admin.products.inactive')}
+                        </span>
+                      )}
+                    </div>
+
+                    <div style={{ fontSize: '0.78rem', color: '#666', marginTop: '2px' }}>
+                      {catName}
+                    </div>
+
+                    <div style={{ marginTop: '0.35rem' }}>
+                      <TranslationBadge status={p.translationStatus} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Price & Stock info */}
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  backgroundColor: 'var(--color-bg-base)',
+                  padding: '0.55rem 0.75rem',
+                  borderRadius: 'var(--radius-md)'
+                }}>
+                  <div>
+                    {hasPromo ? (
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.4rem' }}>
+                        <span style={{ fontWeight: '800', color: '#DC2626', fontSize: '0.95rem' }}>
+                          {formatCurrency(p.promotion.promotionalPrice)}
+                        </span>
+                        <span style={{ fontSize: '0.75rem', color: '#888', textDecoration: 'line-through' }}>
+                          {formatCurrency(p.sellingPrice)}
+                        </span>
+                      </div>
+                    ) : (
+                      <span style={{ fontWeight: '800', fontSize: '0.95rem', color: 'var(--color-espresso)' }}>
+                        {formatCurrency(p.sellingPrice)}
+                      </span>
+                    )}
+                    <div style={{ fontSize: '0.7rem', color: '#888' }}>
+                      Coût: {formatCurrency(p.costPrice)}
+                    </div>
+                  </div>
+
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontWeight: '700', fontSize: '0.85rem' }}>
+                      {p.totalStock} {t('common.quantity')}
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: '#777' }}>
+                      {p.colors?.length} {t('product.colorsAvailable')}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                  <button
+                    onClick={() => openEditModal(p)}
+                    className="btn btn-secondary btn-sm"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.35rem',
+                      padding: '0.55rem',
+                      minHeight: '40px'
+                    }}
+                  >
+                    <Edit2 size={14} />
+                    <span>{t('common.edit')}</span>
+                  </button>
+                  <button
+                    onClick={() => handleDeleteProduct(p)}
+                    className="btn btn-secondary btn-sm"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.35rem',
+                      padding: '0.55rem',
+                      color: '#C62828',
+                      borderColor: '#FFCDD2',
+                      backgroundColor: '#FFF5F5',
+                      minHeight: '40px'
+                    }}
+                  >
+                    <Trash2 size={14} />
+                    <span>{t('common.delete')}</span>
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
       {/* Product Create/Edit Modal */}
       {modalOpen && (
         <div style={{
@@ -486,7 +624,7 @@ export default function ProductsManager() {
                   })}
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1rem', marginBottom: '0.75rem' }}>
+                <div className="admin-modal-grid-2" style={{ marginBottom: '0.75rem' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>
                       {t('admin.products.productName')} ({activeLang.toUpperCase()}){activeLang === 'fr' && <span style={{ color: 'var(--color-danger)' }}> *</span>}
@@ -531,7 +669,7 @@ export default function ProductsManager() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '1rem' }}>
+              <div className="admin-form-grid-4">
                 <div>
                   <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>{t('admin.products.sellingPrice')} (DA) *</label>
                   <input
@@ -707,13 +845,13 @@ export default function ProductsManager() {
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flex: 1, flexWrap: 'wrap' }}>
                           <input
                             type="text"
                             value={color.colorName}
                             onChange={(e) => handleColorChange(cIdx, 'colorName', e.target.value)}
                             placeholder={t('admin.products.colorNamePlaceholder')}
-                            style={{ padding: '0.45rem', borderRadius: '4px', border: '1px solid #CCC', fontWeight: '700', minWidth: '180px' }}
+                            style={{ padding: '0.5rem', borderRadius: '4px', border: '1px solid #CCC', fontWeight: '700', flex: '1 1 140px', minWidth: 0 }}
                           />
                           <input
                             type="color"
