@@ -79,7 +79,6 @@ export default function OrdersManager({ initialStatus = '' }) {
   const [editWilayaCode, setEditWilayaCode] = useState(16);
   const [editDeliveryMethod, setEditDeliveryMethod] = useState('home'); // 'home' | 'agency'
   const [editAddress, setEditAddress] = useState('');
-  const [editAgencyName, setEditAgencyName] = useState('');
   const [editDeliveryFee, setEditDeliveryFee] = useState(0);
   const [deliveryFeeError, setDeliveryFeeError] = useState(null);
   const [editNotes, setEditNotes] = useState('');
@@ -140,7 +139,6 @@ export default function OrdersManager({ initialStatus = '' }) {
     setEditWilayaCode(Number(wCode));
     setEditDeliveryMethod(method);
     setEditAddress(order.customer.address || '');
-    setEditAgencyName(order.customer.agencyName || '');
     setEditDeliveryFee(order.deliveryFee !== undefined ? order.deliveryFee : 0);
     setEditNotes(order.customer.notes || '');
     setDeliveryFeeError(null);
@@ -257,7 +255,7 @@ export default function OrdersManager({ initialStatus = '' }) {
         wilaya: wilayaPayload,
         deliveryMethod: editDeliveryMethod,
         address: editDeliveryMethod === 'home' ? editAddress.trim() : '',
-        agencyName: editDeliveryMethod === 'agency' ? editAgencyName.trim() : '',
+        agencyName: '',
         notes: editNotes.trim(),
         expectedVersion: activeOrder.__v
       };
@@ -935,7 +933,7 @@ export default function OrdersManager({ initialStatus = '' }) {
                     </div>
                   </div>
 
-                  {editDeliveryMethod === 'home' ? (
+                  {editDeliveryMethod === 'home' && (
                     <div>
                       <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.3rem' }}>{t('admin.orders.homeAddress')} *</label>
                       <input
@@ -944,18 +942,6 @@ export default function OrdersManager({ initialStatus = '' }) {
                         value={editAddress}
                         onChange={(e) => setEditAddress(e.target.value)}
                         placeholder="Street, Building, Apartment, Commune..."
-                        style={{ width: '100%', padding: '0.55rem', borderRadius: '6px', border: '1px solid var(--color-border)' }}
-                      />
-                    </div>
-                  ) : (
-                    <div>
-                      <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.3rem' }}>{t('admin.orders.agencyName')} *</label>
-                      <input
-                        type="text"
-                        required
-                        value={editAgencyName}
-                        onChange={(e) => setEditAgencyName(e.target.value)}
-                        placeholder="e.g. Yalidine Bureau Bab Ezzouar..."
                         style={{ width: '100%', padding: '0.55rem', borderRadius: '6px', border: '1px solid var(--color-border)' }}
                       />
                     </div>
@@ -1034,9 +1020,11 @@ export default function OrdersManager({ initialStatus = '' }) {
                   <div><strong>{t('admin.orders.phoneNumber')}:</strong> <a href={`tel:${activeOrder.customer.phone}`} style={{ textDecoration: 'underline', color: 'var(--color-espresso)', fontWeight: '700' }}>{activeOrder.customer.phone}</a></div>
                   <div><strong>{t('admin.orders.deliveryMethod')}:</strong> {String(activeOrder.customer.deliveryMethod).toLowerCase() === 'agency' ? t('admin.orders.stopDesk') : t('admin.orders.homeDelivery')}</div>
                   <div><strong>{t('admin.orders.wilaya')}:</strong> {activeOrder.customer.wilaya?.code} - {activeOrder.customer.wilaya?.name}</div>
-                  <div style={{ gridColumn: 'span 2' }}>
-                    <strong>{t('admin.orders.homeAddress')}:</strong> {activeOrder.customer.address || activeOrder.customer.agencyName || t('admin.orders.notConfigured')}
-                  </div>
+                  {String(activeOrder.customer.deliveryMethod).toLowerCase() === 'home' && (
+                    <div style={{ gridColumn: 'span 2' }}>
+                      <strong>{t('admin.orders.homeAddress')}:</strong> {activeOrder.customer.address || t('admin.orders.notConfigured')}
+                    </div>
+                  )}
                   {activeOrder.customer.notes && (
                     <div style={{ gridColumn: 'span 2', color: '#666', backgroundColor: '#FFF', padding: '0.5rem', borderRadius: '4px', border: '1px solid #EEE' }}>
                       <strong>{t('admin.orders.customerNotes')}:</strong> {activeOrder.customer.notes}
