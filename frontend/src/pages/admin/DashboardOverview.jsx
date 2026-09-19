@@ -76,31 +76,27 @@ export default function DashboardOverview({ onNavigateToOrders }) {
       </div>
 
       {/* Primary KPI Cards */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))',
-        gap: '0.75rem'
-      }}>
+      <div className="admin-kpi-grid">
         {/* Realized Revenue */}
         <div style={{
           backgroundColor: 'var(--color-surface)',
-          padding: 'clamp(1rem, 2.5vw, 1.6rem)',
+          padding: 'clamp(0.85rem, 2.5vw, 1.5rem)',
           borderRadius: 'var(--radius-lg)',
           border: '1px solid var(--color-border)',
           boxShadow: 'var(--shadow-sm)'
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
-            <span style={{ fontSize: '0.72rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#777' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.4rem' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em', color: '#777' }}>
               {t('admin.dashboard.totalRevenue')}
             </span>
             <div style={{ backgroundColor: '#E8F5E9', padding: '0.35rem', borderRadius: 'var(--radius-sm)', color: 'var(--color-success)', flexShrink: 0 }}>
               <DollarSign size={16} />
             </div>
           </div>
-          <div style={{ fontSize: 'clamp(1.2rem, 3.2vw, 1.75rem)', fontWeight: '800', color: 'var(--color-espresso)', marginTop: '0.5rem', wordBreak: 'break-word' }}>
+          <div style={{ fontSize: 'clamp(1.15rem, 3.5vw, 1.7rem)', fontWeight: '800', color: 'var(--color-espresso)', marginTop: '0.4rem', wordBreak: 'break-word', lineHeight: 1.2 }}>
             {formatCurrency(metrics?.realizedRevenue || 0)}
           </div>
-          <div style={{ fontSize: '0.72rem', color: '#777', marginTop: '0.25rem' }}>
+          <div style={{ fontSize: '0.7rem', color: '#888', marginTop: '0.2rem' }}>
             {t('status.delivered')}
           </div>
         </div>
@@ -108,13 +104,13 @@ export default function DashboardOverview({ onNavigateToOrders }) {
         {/* Realized Profit */}
         <div style={{
           backgroundColor: 'var(--color-surface)',
-          padding: 'clamp(1rem, 2.5vw, 1.6rem)',
+          padding: 'clamp(0.85rem, 2.5vw, 1.5rem)',
           borderRadius: 'var(--radius-lg)',
           border: '1px solid var(--color-border)',
           boxShadow: 'var(--shadow-sm)'
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
-            <span style={{ fontSize: '0.72rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#777' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.4rem' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em', color: '#777' }}>
               {t('admin.dashboard.netProfit')}
             </span>
             <div style={{ backgroundColor: 'var(--color-primary-subtle)', padding: '0.35rem', borderRadius: 'var(--radius-sm)', color: 'var(--color-primary-dark)', flexShrink: 0 }}>
@@ -122,67 +118,69 @@ export default function DashboardOverview({ onNavigateToOrders }) {
             </div>
           </div>
           <div style={{
-            fontSize: 'clamp(1.2rem, 3.2vw, 1.75rem)',
+            fontSize: 'clamp(1.15rem, 3.5vw, 1.7rem)',
             fontWeight: '800',
             color: (metrics?.realizedProfit ?? 0) >= 0 ? 'var(--color-espresso)' : 'var(--color-danger)',
-            marginTop: '0.5rem',
-            wordBreak: 'break-word'
+            marginTop: '0.4rem',
+            wordBreak: 'break-word',
+            lineHeight: 1.2
           }}>
             {formatCurrency(metrics?.realizedProfit || 0)}
           </div>
-          <div style={{ fontSize: '0.72rem', color: '#777', marginTop: '0.25rem' }}>
+          <div style={{ fontSize: '0.7rem', color: '#888', marginTop: '0.2rem' }}>
             {t('status.delivered')}
           </div>
         </div>
 
         {/* Total Orders */}
         <div
-          onClick={onNavigateToOrders}
+          onClick={() => onNavigateToOrders && onNavigateToOrders('')}
           style={{
             backgroundColor: 'var(--color-surface)',
-            padding: 'clamp(1rem, 2.5vw, 1.6rem)',
+            padding: 'clamp(0.85rem, 2.5vw, 1.5rem)',
             borderRadius: 'var(--radius-lg)',
             border: '1px solid var(--color-border)',
             boxShadow: 'var(--shadow-sm)',
-            cursor: 'pointer'
+            cursor: 'pointer',
+            transition: 'var(--transition-fast)'
           }}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
-            <span style={{ fontSize: '0.72rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#777' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.4rem' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em', color: '#777' }}>
               {t('admin.dashboard.totalOrders')}
             </span>
             <div style={{ backgroundColor: '#EDE7F6', padding: '0.35rem', borderRadius: 'var(--radius-sm)', color: '#6A1B9A', flexShrink: 0 }}>
               <Package size={16} />
             </div>
           </div>
-          <div style={{ fontSize: 'clamp(1.2rem, 3.2vw, 1.75rem)', fontWeight: '800', color: 'var(--color-espresso)', marginTop: '0.5rem' }}>
+          <div style={{ fontSize: 'clamp(1.15rem, 3.5vw, 1.7rem)', fontWeight: '800', color: 'var(--color-espresso)', marginTop: '0.4rem', lineHeight: 1.2 }}>
             {metrics?.totalOrders || 0}
           </div>
-          <div style={{ fontSize: '0.72rem', color: '#777', marginTop: '0.25rem' }}>
-            {t('admin.orders.title')}
+          <div style={{ fontSize: '0.7rem', color: '#888', marginTop: '0.2rem' }}>
+            {t('admin.orders.title')} →
           </div>
         </div>
 
         {/* Units Sold */}
         <div style={{
           backgroundColor: 'var(--color-surface)',
-          padding: 'clamp(1rem, 2.5vw, 1.6rem)',
+          padding: 'clamp(0.85rem, 2.5vw, 1.5rem)',
           borderRadius: 'var(--radius-lg)',
           border: '1px solid var(--color-border)',
           boxShadow: 'var(--shadow-sm)'
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
-            <span style={{ fontSize: '0.72rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#777' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.4rem' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em', color: '#777' }}>
               {t('admin.dashboard.deliveredOrders')}
             </span>
             <div style={{ backgroundColor: '#FFF3E0', padding: '0.35rem', borderRadius: 'var(--radius-sm)', color: '#EF6C00', flexShrink: 0 }}>
               <CheckCircle2 size={16} />
             </div>
           </div>
-          <div style={{ fontSize: 'clamp(1.2rem, 3.2vw, 1.75rem)', fontWeight: '800', color: 'var(--color-espresso)', marginTop: '0.5rem' }}>
+          <div style={{ fontSize: 'clamp(1.15rem, 3.5vw, 1.7rem)', fontWeight: '800', color: 'var(--color-espresso)', marginTop: '0.4rem', lineHeight: 1.2 }}>
             {metrics?.unitsSold || 0}
           </div>
-          <div style={{ fontSize: '0.72rem', color: '#777', marginTop: '0.25rem' }}>
+          <div style={{ fontSize: '0.7rem', color: '#888', marginTop: '0.2rem' }}>
             {t('admin.inventory.title')}
           </div>
         </div>
@@ -192,81 +190,100 @@ export default function DashboardOverview({ onNavigateToOrders }) {
       <div style={{
         backgroundColor: 'var(--color-surface)',
         borderRadius: 'var(--radius-xl)',
-        padding: 'clamp(1rem, 2.5vw, 2rem)',
+        padding: 'clamp(1rem, 2.5vw, 1.75rem)',
         border: '1px solid var(--color-border)',
         boxShadow: 'var(--shadow-sm)'
       }}>
-        <h3 style={{ fontSize: '0.92rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '1rem' }}>
-          {t('admin.orders.title')}
-        </h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+          <h3 style={{ fontSize: '0.92rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.04em', margin: 0 }}>
+            {t('admin.orders.title')}
+          </h3>
+          <span style={{ fontSize: '0.72rem', color: '#888' }}>
+            {t('common.tapToFilter') || 'Cliquez pour filtrer'}
+          </span>
+        </div>
 
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(115px, 1fr))',
-          gap: '0.65rem'
-        }}>
+        <div className="admin-status-grid">
           {/* Pending */}
-          <div style={{ padding: '1.25rem', backgroundColor: '#FFF8E1', borderRadius: 'var(--radius-md)', border: '1px solid #FFE082' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#B78103', fontSize: '0.8rem', fontWeight: '700' }}>
-              <Clock size={16} />
+          <div
+            onClick={() => onNavigateToOrders && onNavigateToOrders('Pending')}
+            style={{ padding: '0.9rem', backgroundColor: '#FFF8E1', borderRadius: 'var(--radius-md)', border: '1px solid #FFE082', cursor: 'pointer', transition: 'transform 0.15s ease' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#B78103', fontSize: '0.78rem', fontWeight: '700' }}>
+              <Clock size={15} />
               <span>{t('status.pending')}</span>
             </div>
-            <div style={{ fontSize: '1.6rem', fontWeight: '800', color: '#B78103', marginTop: '0.5rem' }}>
+            <div style={{ fontSize: '1.5rem', fontWeight: '800', color: '#B78103', marginTop: '0.35rem', lineHeight: 1.1 }}>
               {statusMap['Pending'] || 0}
             </div>
           </div>
 
           {/* Confirmed */}
-          <div style={{ padding: '1.25rem', backgroundColor: '#E3F2FD', borderRadius: 'var(--radius-md)', border: '1px solid #BBDEFB' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#1565C0', fontSize: '0.8rem', fontWeight: '700' }}>
-              <CheckCircle2 size={16} />
+          <div
+            onClick={() => onNavigateToOrders && onNavigateToOrders('Confirmed')}
+            style={{ padding: '0.9rem', backgroundColor: '#E3F2FD', borderRadius: 'var(--radius-md)', border: '1px solid #BBDEFB', cursor: 'pointer', transition: 'transform 0.15s ease' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#1565C0', fontSize: '0.78rem', fontWeight: '700' }}>
+              <CheckCircle2 size={15} />
               <span>{t('status.confirmed')}</span>
             </div>
-            <div style={{ fontSize: '1.6rem', fontWeight: '800', color: '#1565C0', marginTop: '0.5rem' }}>
+            <div style={{ fontSize: '1.5rem', fontWeight: '800', color: '#1565C0', marginTop: '0.35rem', lineHeight: 1.1 }}>
               {statusMap['Confirmed'] || 0}
             </div>
           </div>
 
           {/* On the way */}
-          <div style={{ padding: '1.25rem', backgroundColor: '#EDE7F6', borderRadius: 'var(--radius-md)', border: '1px solid #D1C4E9' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#6A1B9A', fontSize: '0.8rem', fontWeight: '700' }}>
-              <Truck size={16} />
+          <div
+            onClick={() => onNavigateToOrders && onNavigateToOrders('On the way')}
+            style={{ padding: '0.9rem', backgroundColor: '#EDE7F6', borderRadius: 'var(--radius-md)', border: '1px solid #D1C4E9', cursor: 'pointer', transition: 'transform 0.15s ease' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#6A1B9A', fontSize: '0.78rem', fontWeight: '700' }}>
+              <Truck size={15} />
               <span>{t('status.onTheWay')}</span>
             </div>
-            <div style={{ fontSize: '1.6rem', fontWeight: '800', color: '#6A1B9A', marginTop: '0.5rem' }}>
+            <div style={{ fontSize: '1.5rem', fontWeight: '800', color: '#6A1B9A', marginTop: '0.35rem', lineHeight: 1.1 }}>
               {statusMap['On the way'] || 0}
             </div>
           </div>
 
           {/* At agency */}
-          <div style={{ padding: '1.25rem', backgroundColor: '#E0F2F1', borderRadius: 'var(--radius-md)', border: '1px solid #B2DFDB' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#00695C', fontSize: '0.8rem', fontWeight: '700' }}>
-              <Building2 size={16} />
+          <div
+            onClick={() => onNavigateToOrders && onNavigateToOrders('At agency')}
+            style={{ padding: '0.9rem', backgroundColor: '#E0F2F1', borderRadius: 'var(--radius-md)', border: '1px solid #B2DFDB', cursor: 'pointer', transition: 'transform 0.15s ease' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#00695C', fontSize: '0.78rem', fontWeight: '700' }}>
+              <Building2 size={15} />
               <span>{t('status.atAgency')}</span>
             </div>
-            <div style={{ fontSize: '1.6rem', fontWeight: '800', color: '#00695C', marginTop: '0.5rem' }}>
+            <div style={{ fontSize: '1.5rem', fontWeight: '800', color: '#00695C', marginTop: '0.35rem', lineHeight: 1.1 }}>
               {statusMap['At agency'] || 0}
             </div>
           </div>
 
           {/* Delivered */}
-          <div style={{ padding: '1.25rem', backgroundColor: '#E8F5E9', borderRadius: 'var(--radius-md)', border: '1px solid #C8E6C9' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#2E7D32', fontSize: '0.8rem', fontWeight: '700' }}>
-              <CheckCircle2 size={16} />
+          <div
+            onClick={() => onNavigateToOrders && onNavigateToOrders('Delivered')}
+            style={{ padding: '0.9rem', backgroundColor: '#E8F5E9', borderRadius: 'var(--radius-md)', border: '1px solid #C8E6C9', cursor: 'pointer', transition: 'transform 0.15s ease' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#2E7D32', fontSize: '0.78rem', fontWeight: '700' }}>
+              <CheckCircle2 size={15} />
               <span>{t('status.delivered')}</span>
             </div>
-            <div style={{ fontSize: '1.6rem', fontWeight: '800', color: '#2E7D32', marginTop: '0.5rem' }}>
+            <div style={{ fontSize: '1.5rem', fontWeight: '800', color: '#2E7D32', marginTop: '0.35rem', lineHeight: 1.1 }}>
               {statusMap['Delivered'] || 0}
             </div>
           </div>
 
           {/* Cancelled */}
-          <div style={{ padding: '1.25rem', backgroundColor: '#FFEBEE', borderRadius: 'var(--radius-md)', border: '1px solid #FFCDD2' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#C62828', fontSize: '0.8rem', fontWeight: '700' }}>
-              <XCircle size={16} />
+          <div
+            onClick={() => onNavigateToOrders && onNavigateToOrders('Cancelled')}
+            style={{ padding: '0.9rem', backgroundColor: '#FFEBEE', borderRadius: 'var(--radius-md)', border: '1px solid #FFCDD2', cursor: 'pointer', transition: 'transform 0.15s ease' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#C62828', fontSize: '0.78rem', fontWeight: '700' }}>
+              <XCircle size={15} />
               <span>{t('status.cancelled')}</span>
             </div>
-            <div style={{ fontSize: '1.6rem', fontWeight: '800', color: '#C62828', marginTop: '0.5rem' }}>
+            <div style={{ fontSize: '1.5rem', fontWeight: '800', color: '#C62828', marginTop: '0.35rem', lineHeight: 1.1 }}>
               {statusMap['Cancelled'] || 0}
             </div>
           </div>

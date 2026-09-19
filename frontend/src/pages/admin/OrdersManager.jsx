@@ -10,7 +10,9 @@ import {
   Save,
   Check,
   Plus,
-  Trash2
+  Trash2,
+  Phone,
+  MapPin
 } from 'lucide-react';
 import {
   adminGetOrders,
@@ -33,7 +35,7 @@ const ORDER_STATUSES = [
   'Cancelled'
 ];
 
-export default function OrdersManager() {
+export default function OrdersManager({ initialStatus = '' }) {
   const { t, isRtl, formatCurrency, localized } = useLanguage();
   const [orders, setOrders] = useState([]);
 
@@ -51,9 +53,15 @@ export default function OrdersManager() {
     return key ? t(key) : status;
   };
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState(initialStatus || '');
   const [loading, setLoading] = useState(true);
   const [updatingOrderId, setUpdatingOrderId] = useState(null);
+
+  useEffect(() => {
+    if (initialStatus !== undefined) {
+      setStatusFilter(initialStatus);
+    }
+  }, [initialStatus]);
 
   // Delivery settings & all 58 Wilayas for editing
   const [wilayasList, setWilayasList] = useState([]);
@@ -385,7 +393,7 @@ export default function OrdersManager() {
       {/* Filter and Search Bar */}
       <div style={{
         display: 'flex',
-        gap: '1rem',
+        gap: '0.75rem',
         marginBottom: '1.5rem',
         flexWrap: 'wrap'
       }}>
@@ -395,18 +403,27 @@ export default function OrdersManager() {
           backgroundColor: 'var(--color-surface)',
           border: '1px solid var(--color-border)',
           borderRadius: 'var(--radius-md)',
-          padding: '0.5rem 0.85rem',
-          flex: 1,
-          maxWidth: '400px'
+          padding: '0.55rem 0.85rem',
+          flex: '1 1 240px',
+          minHeight: '44px'
         }}>
-          <Search size={18} color="#888" style={{ [isRtl ? 'marginLeft' : 'marginRight']: '0.5rem' }} />
+          <Search size={18} color="#888" style={{ [isRtl ? 'marginLeft' : 'marginRight']: '0.5rem', flexShrink: 0 }} />
           <input
             type="text"
             placeholder={t('admin.orders.searchPlaceholder')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none' }}
+            style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none', fontSize: '0.92rem' }}
           />
+          {search && (
+            <button
+              onClick={() => setSearch('')}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 0.25rem', color: '#888' }}
+              aria-label="Clear search"
+            >
+              <X size={16} />
+            </button>
+          )}
         </div>
 
         <select
@@ -416,9 +433,12 @@ export default function OrdersManager() {
             backgroundColor: 'var(--color-surface)',
             border: '1px solid var(--color-border)',
             borderRadius: 'var(--radius-md)',
-            padding: '0.5rem 1rem',
+            padding: '0.55rem 1rem',
             outline: 'none',
-            fontSize: '0.85rem'
+            fontSize: '0.88rem',
+            fontWeight: '600',
+            minHeight: '44px',
+            flex: '1 1 180px'
           }}
         >
           <option value="">{t('admin.orders.allStatuses')}</option>
@@ -428,8 +448,8 @@ export default function OrdersManager() {
         </select>
       </div>
 
-      {/* Orders Table */}
-      <div style={{
+      {/* Desktop Table View (> 768px) */}
+      <div className="admin-orders-desktop-table" style={{
         backgroundColor: 'var(--color-surface)',
         borderRadius: 'var(--radius-xl)',
         overflowX: 'auto',
@@ -524,6 +544,170 @@ export default function OrdersManager() {
               })}
             </tbody>
           </table>
+        )}
+      </div>
+
+      {/* Mobile Orders Cards View (<= 768px) */}
+      <div className="admin-orders-mobile-cards">
+        {loading ? (
+          <div style={{ padding: '3rem', textAlign: 'center' }}>
+            <Loader2 size={32} className="animate-spin" style={{ margin: '0 auto', color: 'var(--color-espresso)' }} />
+          </div>
+        ) : orders.length === 0 ? (
+          <div style={{ padding: '3rem 1rem', textAlign: 'center', color: '#777', backgroundColor: 'var(--color-surface)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)' }}>
+            <ShoppingBag size={40} strokeWidth={1.5} style={{ margin: '0 auto 1rem auto' }} />
+            <p>{t('admin.orders.noOrders')}</p>
+          </div>
+        ) : (
+          orders.map((o) => {
+            const isUpdating = updatingOrderId === o._id;
+            const badgeStyle = getStatusBadgeStyle(o.status);
+            const phone = o.customer?.phone || '';
+            const cleanPhone = phone.replace(/[^0-9+]/g, '');
+            const itemCount = o.items?.reduce((sum, it) => sum + (it.quantity || 1), 0) || 0;
+
+            return (
+              <div key={o._id} className="admin-order-card">
+                {/* Header: Code + Date + Badge */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--color-border)', paddingBottom: '0.65rem' }}>
+                  <div>
+                    <div style={{ fontWeight: '800', fontFamily: 'monospace', fontSize: '1rem', color: 'var(--color-espresso)' }}>
+                      #{o.orderCode}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: '#777', marginTop: '2px' }}>
+                      {new Date(o.createdAt).toLocaleDateString()} {new Date(o.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  </div>
+
+                  <div style={{
+                    padding: '0.35rem 0.75rem',
+                    borderRadius: '6px',
+                    fontWeight: '700',
+                    fontSize: '0.78rem',
+                    ...badgeStyle
+                  }}>
+                    {getStatusLabel(o.status)}
+                  </div>
+                </div>
+
+                {/* Customer Info & Location */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                  <div style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--color-espresso)' }}>
+                    {o.customer.fullName}
+                  </div>
+                  <div style={{ fontSize: '0.82rem', color: '#555', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <MapPin size={14} color="#888" style={{ flexShrink: 0 }} />
+                    <span>
+                      {t('confirmation.wilaya')} {o.customer.wilaya?.code} - {o.customer.wilaya?.name}
+                      {' '}({String(o.customer.deliveryMethod).toLowerCase() === 'agency' ? t('checkout.agency') : t('checkout.home')})
+                    </span>
+                  </div>
+                </div>
+
+                {/* Price & Items Summary */}
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  backgroundColor: 'var(--color-bg-base)',
+                  padding: '0.6rem 0.85rem',
+                  borderRadius: 'var(--radius-md)',
+                  margin: '0.25rem 0'
+                }}>
+                  <div style={{ fontSize: '0.82rem', color: '#666' }}>
+                    {itemCount} {itemCount > 1 ? t('cart.title').toLowerCase() : 'article'}
+                  </div>
+                  <div style={{ fontWeight: '800', fontSize: '1.05rem', color: 'var(--color-espresso)' }}>
+                    {formatCurrency(o.totalPrice)}
+                  </div>
+                </div>
+
+                {/* Status Quick Changer on Card */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ fontSize: '0.78rem', fontWeight: '600', color: '#666', whiteSpace: 'nowrap' }}>
+                    {t('admin.orders.changeStatus')}:
+                  </span>
+                  <div style={{ position: 'relative', flex: 1 }}>
+                    <select
+                      value={o.status}
+                      onChange={(e) => handleQuickStatusChange(o._id, e.target.value)}
+                      disabled={isUpdating}
+                      style={{
+                        width: '100%',
+                        padding: '0.5rem 0.75rem',
+                        borderRadius: '6px',
+                        fontWeight: '700',
+                        fontSize: '0.85rem',
+                        cursor: 'pointer',
+                        outline: 'none',
+                        minHeight: '40px',
+                        ...badgeStyle
+                      }}
+                    >
+                      {ORDER_STATUSES.map(st => (
+                        <option key={st} value={st}>{getStatusLabel(st)}</option>
+                      ))}
+                    </select>
+                    {isUpdating && (
+                      <Loader2
+                        size={14}
+                        className="animate-spin"
+                        color="var(--color-espresso)"
+                        style={{ position: 'absolute', right: '10px', top: 'calc(50% - 7px)' }}
+                      />
+                    )}
+                  </div>
+                </div>
+
+                {/* Action Buttons: 1-Tap Call & Details */}
+                <div style={{ display: 'grid', gridTemplateColumns: cleanPhone ? '1fr 1fr' : '1fr', gap: '0.5rem', marginTop: '0.25rem' }}>
+                  {cleanPhone ? (
+                    <a
+                      href={`tel:${cleanPhone}`}
+                      className="btn btn-sm"
+                      style={{
+                        backgroundColor: '#E8F5E9',
+                        color: '#2E7D32',
+                        border: '1px solid #A5D6A7',
+                        fontWeight: '700',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.4rem',
+                        padding: '0.55rem',
+                        borderRadius: 'var(--radius-md)',
+                        textDecoration: 'none',
+                        fontSize: '0.85rem',
+                        minHeight: '42px'
+                      }}
+                    >
+                      <Phone size={15} />
+                      <span>{t('admin.orders.phoneNumber') || 'Appeler'}</span>
+                    </a>
+                  ) : null}
+
+                  <button
+                    onClick={() => openOrderDetails(o._id)}
+                    className="btn btn-secondary btn-sm"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.4rem',
+                      padding: '0.55rem',
+                      borderRadius: 'var(--radius-md)',
+                      fontWeight: '700',
+                      fontSize: '0.85rem',
+                      minHeight: '42px'
+                    }}
+                  >
+                    <Eye size={15} />
+                    <span>{t('admin.orders.viewDetails')}</span>
+                  </button>
+                </div>
+              </div>
+            );
+          })
         )}
       </div>
 
@@ -692,7 +876,7 @@ export default function OrdersManager() {
 
               {editCustomerOpen ? (
                 <form onSubmit={handleSaveCustomer} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div className="admin-modal-grid-2">
                     <div>
                       <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.3rem' }}>{t('admin.orders.customerFullName')} *</label>
                       <input
@@ -716,7 +900,7 @@ export default function OrdersManager() {
                     </div>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div className="admin-modal-grid-2">
                     <div>
                       <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.3rem' }}>{t('admin.orders.wilayaField')} *</label>
                       <select
@@ -783,7 +967,7 @@ export default function OrdersManager() {
                     </div>
                   )}
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div className="admin-modal-grid-2">
                     <div>
                       <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '700', marginBottom: '0.3rem' }}>
                         {t('admin.orders.authoritativeFee')}
@@ -845,7 +1029,7 @@ export default function OrdersManager() {
                   </div>
                 </form>
               ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', fontSize: '0.88rem' }}>
+                <div className="admin-modal-grid-2" style={{ gap: '0.75rem', fontSize: '0.88rem' }}>
                   <div><strong>{t('admin.orders.customerFullName')}:</strong> {activeOrder.customer.fullName}</div>
                   <div><strong>{t('admin.orders.phoneNumber')}:</strong> <a href={`tel:${activeOrder.customer.phone}`} style={{ textDecoration: 'underline', color: 'var(--color-espresso)', fontWeight: '700' }}>{activeOrder.customer.phone}</a></div>
                   <div><strong>{t('admin.orders.deliveryMethod')}:</strong> {String(activeOrder.customer.deliveryMethod).toLowerCase() === 'agency' ? t('admin.orders.stopDesk') : t('admin.orders.homeDelivery')}</div>
@@ -914,7 +1098,7 @@ export default function OrdersManager() {
                               )}
                             </div>
 
-                            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: '0.5rem' }}>
+                            <div className="admin-item-edit-grid">
                               {/* Product Select */}
                               <div>
                                 <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', marginBottom: '0.2rem' }}>Product</label>

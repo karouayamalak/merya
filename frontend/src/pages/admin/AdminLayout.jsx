@@ -32,6 +32,7 @@ export default function AdminLayout({ onExitAdmin }) {
   const { t, isRtl, formatCurrency } = useLanguage();
 
   const [activeTab, setActiveTab] = useState('overview');
+  const [ordersInitialStatus, setOrdersInitialStatus] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [liveNotification, setLiveNotification] = useState(null);
 
@@ -198,13 +199,13 @@ export default function AdminLayout({ onExitAdmin }) {
             z-index: 999;
           }
           .admin-main-content {
-            padding: 1.5rem 1rem !important;
+            padding: 1.5rem 1rem 5.5rem 1rem !important;
           }
         }
 
         @media (max-width: 640px) {
           .admin-main-content {
-            padding: 0.85rem 0.6rem !important;
+            padding: 0.85rem 0.65rem 5.5rem 0.65rem !important;
           }
           .admin-mobile-header {
             padding: 0.6rem 0.75rem !important;
@@ -454,8 +455,15 @@ export default function AdminLayout({ onExitAdmin }) {
 
           {/* Tab Router wrapped in ErrorBoundary */}
           <ErrorBoundary fallbackTitle="Erreur dans le panneau d'administration">
-            {activeTab === 'overview' && <DashboardOverview onNavigateToOrders={() => setActiveTab('orders')} />}
-            {activeTab === 'orders' && <OrdersManager />}
+            {activeTab === 'overview' && (
+              <DashboardOverview
+                onNavigateToOrders={(status) => {
+                  setOrdersInitialStatus(status || '');
+                  setActiveTab('orders');
+                }}
+              />
+            )}
+            {activeTab === 'orders' && <OrdersManager initialStatus={ordersInitialStatus} />}
             {activeTab === 'products' && <ProductsManager />}
             {activeTab === 'categories' && <CategoriesManager />}
             {activeTab === 'inventory' && <InventoryManager />}
@@ -464,6 +472,50 @@ export default function AdminLayout({ onExitAdmin }) {
           </ErrorBoundary>
         </main>
       </div>
+
+      {/* Mobile Bottom Navigation Bar (Phone App Experience) */}
+      <nav className="admin-bottom-nav" aria-label="Mobile Admin Navigation">
+        <button
+          onClick={() => setActiveTab('overview')}
+          className={`admin-bottom-nav-item ${activeTab === 'overview' ? 'active' : ''}`}
+        >
+          <LayoutDashboard size={20} />
+          <span>{t('admin.nav.dashboard')}</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('orders')}
+          className={`admin-bottom-nav-item ${activeTab === 'orders' ? 'active' : ''}`}
+        >
+          <ShoppingBag size={20} />
+          <span>{t('admin.nav.orders')}</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('products')}
+          className={`admin-bottom-nav-item ${activeTab === 'products' ? 'active' : ''}`}
+        >
+          <Layers size={20} />
+          <span>{t('admin.nav.products')}</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('inventory')}
+          className={`admin-bottom-nav-item ${activeTab === 'inventory' ? 'active' : ''}`}
+        >
+          <Warehouse size={20} />
+          <span>{t('admin.nav.inventory')}</span>
+        </button>
+
+        <button
+          onClick={() => setMobileMenuOpen(true)}
+          className={`admin-bottom-nav-item ${['categories', 'banners', 'settings'].includes(activeTab) ? 'active' : ''}`}
+        >
+          <Menu size={20} />
+          <span>{isRtl ? 'المزيد' : 'Menu'}</span>
+        </button>
+      </nav>
     </div>
   );
 }
+

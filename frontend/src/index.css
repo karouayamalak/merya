@@ -363,6 +363,164 @@ html[dir="rtl"] input[type="number"] {
   }
 }
 
+/* Admin Mobile Bottom Navigation Bar */
+.admin-bottom-nav {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .admin-bottom-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 60px;
+    background-color: var(--color-surface);
+    border-top: 1px solid var(--color-border);
+    box-shadow: 0 -4px 16px rgba(42, 36, 31, 0.08);
+    z-index: 900;
+    padding: 0 0.25rem;
+  }
+
+  .admin-bottom-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    height: 100%;
+    background: transparent;
+    border: none;
+    color: #888;
+    font-size: 0.68rem;
+    font-weight: 600;
+    gap: 3px;
+    cursor: pointer;
+    transition: var(--transition-fast);
+    padding: 0.25rem 0;
+  }
+
+  .admin-bottom-nav-item.active {
+    color: var(--color-espresso);
+    font-weight: 800;
+  }
+
+  .admin-bottom-nav-item.active svg {
+    color: var(--color-espresso);
+    stroke-width: 2.3;
+    transform: scale(1.08);
+  }
+}
+
+/* Admin Responsive Grids */
+.admin-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+}
+
+@media (max-width: 1024px) {
+  .admin-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.85rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.6rem;
+  }
+}
+
+.admin-status-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 0.75rem;
+}
+
+@media (max-width: 1200px) {
+  .admin-status-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-status-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.6rem;
+  }
+}
+
+/* Orders Desktop Table vs Mobile Cards */
+@media (min-width: 769px) {
+  .admin-orders-mobile-cards {
+    display: none !important;
+  }
+  .admin-orders-desktop-table {
+    display: block;
+  }
+}
+
+@media (max-width: 768px) {
+  .admin-orders-desktop-table {
+    display: none !important;
+  }
+  .admin-orders-mobile-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+  }
+}
+
+.admin-order-card {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 1rem;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.admin-modal-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+@media (max-width: 640px) {
+  .admin-modal-grid-2 {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+}
+
+.admin-item-edit-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 0.5rem;
+}
+
+@media (max-width: 640px) {
+  .admin-item-edit-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+  }
+}
+
+@media (max-width: 440px) {
+  .admin-item-edit-grid {
+    grid-template-columns: 1fr;
+    gap: 0.4rem;
+  }
+}
+
+
 /* ==========================================================================
    Order Tracking Responsive Styles
    ========================================================================== */
