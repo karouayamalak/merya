@@ -802,19 +802,24 @@ html[dir="rtl"] input[type="number"] {
   }
 }
 
-/* Hero Banner Section — Full-width, edge-to-edge, natural height (no crop, no zoom) */
+/* Hero Banner Section — Full-width, capped height for crisp display */
 .hero-banner-section {
   position: relative;
   width: 100%;
+  height: clamp(320px, 40vw, 560px);
+  overflow: hidden;
   background-color: #FFFFFF;
   margin-bottom: 2rem;
-  line-height: 0; /* removes phantom inline gap below image */
 }
 
 .hero-banner-img {
   width: 100%;
-  height: auto;
+  height: 100%;
+  object-fit: cover;
+  object-position: center center;
   display: block;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: high-quality;
   transition: opacity 0.6s ease;
   margin: 0;
   padding: 0;
