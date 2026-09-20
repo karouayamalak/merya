@@ -10,19 +10,8 @@ const localizedSubSchema = {
 
 const bannerSchema = new mongoose.Schema({
   title: {
-    ...localizedSubSchema,
-    required: [true, 'Banner title is required'],
-    validate: {
-      validator: function(v) {
-        if (!v) return false;
-        if (typeof v === 'string') return v.trim().length > 0;
-        if (typeof v === 'object') {
-          return Boolean((v.fr && v.fr.trim().length > 0) || (v.en && v.en.trim().length > 0) || (v.ar && v.ar.trim().length > 0));
-        }
-        return false;
-      },
-      message: 'Banner title must have at least one language translation provided.'
-    }
+    ...localizedSubSchema
+    // title is optional — image-only banners (e.g. hero) don't require a title
   },
   subtitle: localizedSubSchema,
   badgeText: localizedSubSchema,
@@ -82,9 +71,19 @@ bannerSchema.virtual('translationStatus').get(function() {
   };
 });
 
-// Helper: check if banner has complete FR, AR, EN translations
+// Helper: check if banner is publishable.
+// Title is optional — image-only banners (hero) are valid with just an image.
+// If title is provided, it should have at least one language translation.
 export function isBannerFullyTranslated(banner) {
-  const t = typeof banner.title === 'object' && banner.title !== null ? banner.title : { fr: banner.title || '' };
+  // If banner has no title at all, it's fine (image-only banner)
+  const t = typeof banner.title === 'object' && banner.title !== null ? banner.title : { fr: banner.title || '', ar: '', en: '' };
+  const hasAnyTitle = Boolean(
+    (t.fr && t.fr.trim().length > 0) ||
+    (t.ar && t.ar.trim().length > 0) ||
+    (t.en && t.en.trim().length > 0)
+  );
+  // If title has any content, require all 3 languages. If no title at all, that's acceptable.
+  if (!hasAnyTitle) return true;
   return Boolean(t.fr && t.fr.trim().length > 0 && t.ar && t.ar.trim().length > 0 && t.en && t.en.trim().length > 0);
 }
 

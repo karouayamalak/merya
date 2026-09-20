@@ -82,21 +82,24 @@ export const createBanner = async (req, res, next) => {
       displayOrder
     } = req.body;
 
-    const isComplete = Boolean(
-      title && typeof title === 'object' && title.fr?.trim() && title.ar?.trim() && title.en?.trim()
+    // isComplete: title is either absent entirely OR has all 3 language translations
+    const hasAnyTitleContent = title && typeof title === 'object' &&
+      (title.fr?.trim() || title.ar?.trim() || title.en?.trim());
+    const isTitleComplete = !hasAnyTitleContent || Boolean(
+      title?.fr?.trim() && title?.ar?.trim() && title?.en?.trim()
     );
 
-    // Publishing requires complete French, Arabic, and English translations
-    if (isActive === true && !isComplete) {
+    // Publishing requires either: no title (image-only), OR complete 3-language title
+    if (isActive === true && !isTitleComplete) {
       return res.status(400).json({
         success: false,
         code: 'TRANSLATIONS_INCOMPLETE',
-        message: 'Cannot publish banner: complete translations in French, Arabic, and English are required before publishing. Please provide all translations or save as an unpublished draft.'
+        message: 'Cannot publish banner: if a title is provided, complete translations in French, Arabic, and English are required. Either provide all translations or leave the title empty.'
       });
     }
 
-    // When isActive is omitted: only activate if complete, otherwise safely default to inactive draft
-    const effectiveIsActive = isActive !== undefined ? Boolean(isActive) : isComplete;
+    // When isActive is omitted: activate if title is complete or absent (image-only), else draft
+    const effectiveIsActive = isActive !== undefined ? Boolean(isActive) : isTitleComplete;
     const effectiveButton = buttonText !== undefined ? buttonText : ctaText;
     const effectiveLink = link !== undefined ? link : (ctaLink || '/shop');
 
@@ -172,15 +175,18 @@ export const updateBanner = async (req, res, next) => {
     if (displayOrder !== undefined) banner.displayOrder = displayOrder;
 
     // Final-state check: If banner is active (newly set or remaining active), require complete translations
-    if (banner.isActive === true) {
-      const isComplete = isBannerFullyTranslated(banner);
-      if (!isComplete) {
-        return res.status(400).json({
-          success: false,
-          code: 'TRANSLATIONS_INCOMPLETE',
-          message: 'Cannot publish banner: complete translations in French, Arabic, and English are required before publishing. Please provide all translations or save as an unpublished draft.'
-        });
-      }
+    const hasAnyTitleContent = banner.title && typeof banner.title === 'object' &&
+      ((banner.title.fr && banner.title.fr.trim()) ||
+       (banner.title.ar && banner.title.ar.trim()) ||
+       (banner.title.en && banner.title.en.trim()));
+    const isTitleComplete = !hasAnyTitleContent || isBannerFullyTranslated(banner);
+
+    if (banner.isActive === true && !isTitleComplete) {
+      return res.status(400).json({
+        success: false,
+        code: 'TRANSLATIONS_INCOMPLETE',
+        message: 'Cannot publish banner: if a title is provided, complete translations in French, Arabic, and English are required. Either provide all translations or leave the title empty.'
+      });
     }
 
     await banner.save();

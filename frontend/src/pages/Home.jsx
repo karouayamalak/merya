@@ -134,85 +134,59 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
   return (
     <>
       {/* 1. HERO SECTION - Dynamic Owner Banner Image with Default Fallback */}
-      <section style={{
-        position: 'relative',
-        width: '100%',
-        minHeight: '85vh',
-        height: 'clamp(580px, 88vh, 920px)',
-        overflow: 'hidden',
-        backgroundColor: 'var(--color-bg-base)',
-        marginBottom: '2rem'
-      }}>
+      <section className="hero-banner-section">
         <img
           key={heroImageSrc}
           src={heroImageSrc}
           alt="MERYA DZ Haute Modest Couture Campaign"
-          style={{
-            width: '100%',
-            height: '100%',
-            objectFit: 'cover',
-            objectPosition: 'center 22%',
-            display: 'block',
-            transition: 'opacity 0.6s ease'
-          }}
+          className="hero-banner-img"
         />
 
-        {/* LOGO IN THE MIDDLE OF THE HERO IMAGE */}
-        <div style={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          zIndex: 10,
-          textAlign: 'center',
-          pointerEvents: 'none',
-          width: '90%',
-          maxWidth: '560px',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center'
-        }}>
-          <img
-            src="/logo_white.png"
-            alt="MERYA DZ"
-            style={{
-              width: 'clamp(240px, 36vw, 380px)',
-              height: 'auto',
-              objectFit: 'contain',
-              display: 'block',
-              margin: '0 auto'
-            }}
-          />
-
-          {/* Optional banner title & subtitle if configured by owner */}
-          {activeHeroBanner && localized(activeHeroBanner.title) && (
-            <h2 style={{
-              fontFamily: "var(--font-serif, 'Cormorant Garamond', Georgia, serif)",
-              fontSize: 'clamp(1.3rem, 2.4vw, 2rem)',
-              color: '#FFFFFF',
-              marginTop: '1.2rem',
-              fontWeight: '600',
-              letterSpacing: '0.04em'
-            }}>
-              {localized(activeHeroBanner.title)}
-            </h2>
-          )}
-          {activeHeroBanner && localized(activeHeroBanner.subtitle) && (
-            <p style={{
-              fontSize: 'clamp(0.85rem, 1.2vw, 1.05rem)',
-              color: 'rgba(255,255,255,0.92)',
-              marginTop: '0.4rem'
-            }}>
-              {localized(activeHeroBanner.subtitle)}
-            </p>
-          )}
-        </div>
+        {/* Optional banner title & subtitle if configured by owner */}
+        {activeHeroBanner && (localized(activeHeroBanner.title) || localized(activeHeroBanner.subtitle)) && (
+          <div style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            zIndex: 10,
+            textAlign: 'center',
+            pointerEvents: 'none',
+            width: '90%',
+            maxWidth: '560px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            {localized(activeHeroBanner.title) && (
+              <h2 style={{
+                fontFamily: "var(--font-serif, 'Cormorant Garamond', Georgia, serif)",
+                fontSize: 'clamp(1.3rem, 2.4vw, 2rem)',
+                color: '#FFFFFF',
+                marginTop: '1.2rem',
+                fontWeight: '600',
+                letterSpacing: '0.04em'
+              }}>
+                {localized(activeHeroBanner.title)}
+              </h2>
+            )}
+            {localized(activeHeroBanner.subtitle) && (
+              <p style={{
+                fontSize: 'clamp(0.85rem, 1.2vw, 1.05rem)',
+                color: 'rgba(255,255,255,0.92)',
+                marginTop: '0.4rem'
+              }}>
+                {localized(activeHeroBanner.subtitle)}
+              </p>
+            )}
+          </div>
+        )}
 
         {/* SHOP NOW BUTTON IN THE BOTTOM MIDDLE */}
         <div style={{
           position: 'absolute',
-          bottom: 'clamp(1.5rem, 5vh, 3.5rem)',
+          bottom: 'clamp(1rem, 3.5vh, 2.2rem)',
           left: '50%',
           transform: 'translateX(-50%)',
           zIndex: 10,
@@ -226,32 +200,28 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
               handleSafeBannerClick(linkUrl, setCurrentView, 'shop');
             }}
             style={{
-              backgroundColor: '#FFFFFF',
-              color: 'var(--color-espresso)',
-              padding: 'clamp(0.6rem, 1.8vw, 0.85rem) clamp(1.5rem, 4vw, 2.5rem)',
+              backgroundColor: 'var(--color-espresso)',
+              color: '#FFFFFF',
+              padding: 'clamp(0.65rem, 1.8vw, 0.85rem) clamp(1.8rem, 4vw, 2.8rem)',
               fontSize: 'clamp(0.78rem, 1.8vw, 0.88rem)',
               fontWeight: '700',
               letterSpacing: isRtl ? '0' : '0.12em',
               textTransform: isRtl ? 'none' : 'uppercase',
               borderRadius: 'var(--radius-full)',
-              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3)',
-              border: '1.5px solid rgba(255, 255, 255, 0.95)',
+              boxShadow: 'var(--shadow-md)',
+              border: 'none',
               cursor: 'pointer',
               transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
               whiteSpace: 'nowrap',
               maxWidth: '100%'
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = 'var(--color-espresso)';
-              e.currentTarget.style.color = '#FFFFFF';
+              e.currentTarget.style.backgroundColor = 'var(--color-primary-dark)';
               e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
-              e.currentTarget.style.boxShadow = '0 12px 28px rgba(0, 0, 0, 0.38)';
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = '#FFFFFF';
-              e.currentTarget.style.color = 'var(--color-espresso)';
+              e.currentTarget.style.backgroundColor = 'var(--color-espresso)';
               e.currentTarget.style.transform = 'translateY(0) scale(1)';
-              e.currentTarget.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.3)';
             }}
           >
             {(activeHeroBanner && (localized(activeHeroBanner.buttonText) || localized(activeHeroBanner.ctaText)))
@@ -272,10 +242,10 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
                 top: '50%',
                 transform: 'translateY(-50%)',
                 zIndex: 12,
-                backgroundColor: 'rgba(255, 255, 255, 0.3)',
+                backgroundColor: 'rgba(255, 255, 255, 0.85)',
                 backdropFilter: 'blur(8px)',
-                color: '#FFFFFF',
-                border: '1px solid rgba(255, 255, 255, 0.4)',
+                color: 'var(--color-espresso)',
+                border: '1px solid rgba(0, 0, 0, 0.08)',
                 borderRadius: '50%',
                 width: '44px',
                 height: '44px',
@@ -283,6 +253,7 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
                 alignItems: 'center',
                 justifyContent: 'center',
                 cursor: 'pointer',
+                boxShadow: 'var(--shadow-sm)',
                 transition: 'all 0.2s ease'
               }}
               aria-label={t('carousel.previous') || 'Previous'}
@@ -298,10 +269,10 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
                 top: '50%',
                 transform: 'translateY(-50%)',
                 zIndex: 12,
-                backgroundColor: 'rgba(255, 255, 255, 0.3)',
+                backgroundColor: 'rgba(255, 255, 255, 0.85)',
                 backdropFilter: 'blur(8px)',
-                color: '#FFFFFF',
-                border: '1px solid rgba(255, 255, 255, 0.4)',
+                color: 'var(--color-espresso)',
+                border: '1px solid rgba(0, 0, 0, 0.08)',
                 borderRadius: '50%',
                 width: '44px',
                 height: '44px',
@@ -309,6 +280,7 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
                 alignItems: 'center',
                 justifyContent: 'center',
                 cursor: 'pointer',
+                boxShadow: 'var(--shadow-sm)',
                 transition: 'all 0.2s ease'
               }}
               aria-label={t('carousel.next') || 'Next'}
@@ -333,7 +305,7 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
                     height: '8px',
                     borderRadius: '4px',
                     border: 'none',
-                    backgroundColor: idx === currentSlide ? '#FFFFFF' : 'rgba(255,255,255,0.45)',
+                    backgroundColor: idx === currentSlide ? 'var(--color-espresso)' : 'rgba(0, 0, 0, 0.2)',
                     cursor: 'pointer',
                     transition: 'all 0.3s ease'
                   }}

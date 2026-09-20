@@ -801,3 +801,21 @@ html[dir="rtl"] input[type="number"] {
     align-items: flex-start;
   }
 }
+
+/* Hero Banner Section — Full-width, edge-to-edge, natural height (no crop, no zoom) */
+.hero-banner-section {
+  position: relative;
+  width: 100%;
+  background-color: #FFFFFF;
+  margin-bottom: 2rem;
+  line-height: 0; /* removes phantom inline gap below image */
+}
+
+.hero-banner-img {
+  width: 100%;
+  height: auto;
+  display: block;
+  transition: opacity 0.6s ease;
+  margin: 0;
+  padding: 0;
+}

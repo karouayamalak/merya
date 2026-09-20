@@ -3,7 +3,7 @@ import { localizedFieldSchema, safeUrlSchema } from './common.js';
 
 // Banner validation schemas — strict: rejects unknown fields, oversized strings, invalid types
 export const bannerSchema = z.object({
-  title: localizedFieldSchema(150),
+  title: localizedFieldSchema(150).optional(),
   subtitle: localizedFieldSchema(300).optional(),
   badgeText: localizedFieldSchema(100).optional(),
   buttonText: localizedFieldSchema(100).optional(),

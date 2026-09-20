@@ -202,12 +202,10 @@ const normalizePlacement = (p) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!title.fr.trim() && !title.ar.trim() && !title.en.trim()) {
-      return setError('Please enter a banner title in at least one language');
-    }
-
     const isTitleComplete = Boolean(title.fr?.trim() && title.ar?.trim() && title.en?.trim());
-    if (isActive && !isTitleComplete) {
+    const hasAnyTitle = Boolean(title.fr?.trim() || title.ar?.trim() || title.en?.trim());
+    // If any title language is filled, require all 3
+    if (hasAnyTitle && !isTitleComplete && isActive) {
       return setError(t('admin.banners.cannotPublishMissingTranslations'));
     }
 
@@ -508,7 +506,7 @@ const normalizePlacement = (p) => {
                 <div style={{ marginBottom: '0.75rem' }}>
                   <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', marginBottom: '0.3rem' }}>
                     {t('admin.banners.bannerTitle')} ({activeLang.toUpperCase()})
-                    {activeLang === 'fr' && <span style={{ color: 'var(--color-danger)' }}> *</span>}
+                    <span style={{ color: '#999', fontWeight: '400', marginLeft: '0.3rem' }}>(optionnel)</span>
                   </label>
                   <input
                     type="text"
