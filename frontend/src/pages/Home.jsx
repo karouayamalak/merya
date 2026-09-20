@@ -157,14 +157,6 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
           }}
         />
 
-        {/* Centered gradient overlay */}
-        <div style={{
-          position: 'absolute',
-          inset: 0,
-          background: 'linear-gradient(to bottom, rgba(0, 0, 0, 0.18) 0%, rgba(0, 0, 0, 0.3) 50%, rgba(0, 0, 0, 0.62) 100%)',
-          pointerEvents: 'none'
-        }} />
-
         {/* LOGO IN THE MIDDLE OF THE HERO IMAGE */}
         <div style={{
           position: 'absolute',
@@ -188,7 +180,6 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
               width: 'clamp(240px, 36vw, 380px)',
               height: 'auto',
               objectFit: 'contain',
-              filter: 'drop-shadow(0 4px 20px rgba(0, 0, 0, 0.65))',
               display: 'block',
               margin: '0 auto'
             }}
@@ -202,7 +193,6 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
               color: '#FFFFFF',
               marginTop: '1.2rem',
               fontWeight: '600',
-              textShadow: '0 2px 12px rgba(0,0,0,0.7)',
               letterSpacing: '0.04em'
             }}>
               {localized(activeHeroBanner.title)}
@@ -212,8 +202,7 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
             <p style={{
               fontSize: 'clamp(0.85rem, 1.2vw, 1.05rem)',
               color: 'rgba(255,255,255,0.92)',
-              marginTop: '0.4rem',
-              textShadow: '0 1px 8px rgba(0,0,0,0.65)'
+              marginTop: '0.4rem'
             }}>
               {localized(activeHeroBanner.subtitle)}
             </p>
