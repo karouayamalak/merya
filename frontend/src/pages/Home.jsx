@@ -129,7 +129,7 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
   const activeHeroBanner = heroBanners.length > 0 ? heroBanners[currentSlide] : null;
   const heroImageSrc = (activeHeroBanner && activeHeroBanner.image)
     ? activeHeroBanner.image
-    : '/products/merya_dress_blue_1.jpg';
+    : '/hero_banner.jpg';
 
   return (
     <>
