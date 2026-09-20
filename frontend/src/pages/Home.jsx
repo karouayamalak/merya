@@ -142,6 +142,30 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
           className="hero-banner-img"
         />
 
+        {/* Logo centered over the hero image */}
+        <div style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          zIndex: 10,
+          pointerEvents: 'none',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}>
+          <img
+            src="/logo.png"
+            alt="MERYA DZ"
+            style={{
+              width: 'clamp(160px, 22vw, 300px)',
+              height: 'auto',
+              objectFit: 'contain',
+              display: 'block'
+            }}
+          />
+        </div>
+
         {/* Optional banner title & subtitle if configured by owner */}
         {activeHeroBanner && (localized(activeHeroBanner.title) || localized(activeHeroBanner.subtitle)) && (
           <div style={{
