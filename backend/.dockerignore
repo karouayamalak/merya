@@ -1,0 +1,16 @@
+node_modules
+npm-debug.log*
+.env
+.env.local
+.env.production
+tests
+coverage
+.git
+.gitignore
+.github
+*.tmp
+*.temp
+test_data_rs
+mongo_rs0
+scratch_run.js
+testAdminCategories.cjs
