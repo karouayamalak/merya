@@ -6,7 +6,7 @@
  * Fails gracefully and non-blockingly if Telegram API is unreachable.
  */
 
-const DEFAULT_BOT_TOKEN = '8744518070:AAG9iYQhsDBqmcAmz_9HFGUOvDmfzZPcT14';
+
 
 function escapeHtml(text) {
   if (!text) return '';
@@ -91,7 +91,7 @@ export function buildOrderTelegramMessage(order) {
  * Non-blocking: returns boolean indicating success, never throws unhandled errors.
  */
 export async function sendTelegramOrderNotification(order) {
-  const botToken = process.env.TELEGRAM_BOT_TOKEN || DEFAULT_BOT_TOKEN;
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
 
   if (!botToken) {

@@ -1,7 +1,11 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
-const token = process.env.TELEGRAM_BOT_TOKEN || '8744518070:AAG9iYQhsDBqmcAmz_9HFGUOvDmfzZPcT14';
+const token = process.env.TELEGRAM_BOT_TOKEN;
+if (!token) {
+  console.error('❌ TELEGRAM_BOT_TOKEN is not set in your .env file. Cannot check chat ID.');
+  process.exit(1);
+}
 
 async function checkChatId() {
   console.log(`Checking updates for bot: ${token.slice(0, 10)}...`);
