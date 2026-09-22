@@ -391,7 +391,7 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
               gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
               gap: '1.5rem'
             }}>
-              {categories.slice(0, 4).map(cat => (
+              {categories.map(cat => (
                 <CategoryTile
                   key={cat._id}
                   category={cat}

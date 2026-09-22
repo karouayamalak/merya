@@ -824,3 +824,17 @@ html[dir="rtl"] input[type="number"] {
   margin: 0;
   padding: 0;
 }
+
+/* On mobile: hero adapts to the natural image height */
+@media (max-width: 767px) {
+  .hero-banner-section {
+    height: auto;
+    min-height: 220px;
+  }
+
+  .hero-banner-img {
+    height: auto;
+    width: 100%;
+    object-fit: unset;
+  }
+}
