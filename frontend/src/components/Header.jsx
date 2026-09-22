@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
-import { ShoppingBag, Compass, Menu, X } from 'lucide-react';
+import { ShoppingBag, Compass, Menu, X, LayoutDashboard } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useLanguage } from '../context/LanguageContext';
+import { useAdminAuth } from '../context/AdminAuthContext';
 import LanguageSwitcher from './LanguageSwitcher';
 
 export default function Header({ currentView, setCurrentView }) {
   const { totalQuantity, setIsDrawerOpen } = useCart();
   const { t, isRtl } = useLanguage();
+  const { isAuthenticated } = useAdminAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
@@ -101,6 +103,36 @@ export default function Header({ currentView, setCurrentView }) {
         {/* Action icons & Language switcher */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <LanguageSwitcher compact />
+
+          {/* Back to Dashboard — only visible when admin is logged in */}
+          {isAuthenticated && (
+            <button
+              onClick={() => setCurrentView('admin-portal')}
+              title="Retour au tableau de bord"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                backgroundColor: 'var(--color-espresso)',
+                color: '#FFFFFF',
+                border: 'none',
+                borderRadius: 'var(--radius-full)',
+                padding: '0.38rem 0.85rem',
+                fontSize: '0.75rem',
+                fontWeight: '700',
+                letterSpacing: '0.04em',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                transition: 'all 0.2s ease',
+                boxShadow: '0 2px 8px rgba(42,36,31,0.25)'
+              }}
+              onMouseEnter={e => e.currentTarget.style.opacity = '0.85'}
+              onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+            >
+              <LayoutDashboard size={14} />
+              <span className="desktop-only" style={{ display: 'inline' }}>Dashboard</span>
+            </button>
+          )}
 
           <button
             onClick={() => { setCurrentView('tracking'); window.scrollTo(0,0); }}
