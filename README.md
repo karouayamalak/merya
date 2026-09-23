@@ -8,6 +8,8 @@
 
 A production-grade, full-stack e-commerce platform engineered for the Algerian modest fashion market, targeting hijab-wearing women across all 58 wilayas.
 
+**🌐 Live Storefront:** [https://www.meryadz.com](https://www.meryadz.com) &nbsp;|&nbsp; **⚡ Production API:** [https://api.meryadz.com](https://api.meryadz.com)
+
 [![Node.js](https://img.shields.io/badge/Node.js-22.x-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev)
 [![MongoDB](https://img.shields.io/badge/MongoDB-8.x-47A248?style=flat-square&logo=mongodb&logoColor=white)](https://mongodb.com)
@@ -32,6 +34,7 @@ A production-grade, full-stack e-commerce platform engineered for the Algerian m
 - [Business Logic](#business-logic)
 - [Security Model](#security-model)
 - [Admin Dashboard](#admin-dashboard)
+- [Search Engine Optimization (SEO)](#search-engine-optimization-seo)
 - [Algerian Market Specifics](#algerian-market-specifics)
 - [Test Suite](#test-suite)
 - [Deployment](#deployment)
@@ -50,6 +53,7 @@ The platform is built around these core principles:
 - **Real-time** — WebSocket push notifications keep customers informed of order status changes the instant the admin updates them
 - **Atomic operations** — inventory deductions and stock restorations use MongoDB conditional updates to prevent overselling, even under concurrent load
 - **Algerian-native** — built for DZD currency, Cash on Delivery (COD/Paiement à la livraison), and all 58 wilayas with dynamically configured delivery fees
+- **SEO-optimized** — comprehensive Google Search indexing via canonical sitemap.xml, robots.txt, and Schema.org structured data
 
 ---
 
@@ -61,17 +65,22 @@ The platform is built around these core principles:
 │                                                             │
 │   React 19 + Vite 8                                         │
 │   ├── Storefront (Public)                                   │
-│   │   ├── Hero / Category Discovery / Product Grid         │
+│   │   ├── Dynamic Hero (Mobile-adaptive aspect ratio)       │
+│   │   ├── All-Category Showcase Grid (Dynamic DB-loaded)    │
+│   │   ├── Product Grid (Filter, sorting, new arrivals)      │
 │   │   ├── Product Detail (color/size variant matrix)       │
 │   │   ├── Cart Drawer (persistent, context-based)          │
 │   │   ├── Checkout (COD, 58 Wilayas, Agency/Home)          │
 │   │   ├── Order Confirmation (confetti + order code)       │
-│   │   └── Order Tracking (real-time WebSocket feed)        │
+│   │   ├── Order Tracking (real-time WebSocket feed)        │
+│   │   ├── Owner Navigation (Direct return-to-dashboard bar) │
+│   │   └── Search Engine Assets (sitemap, robots, JSON-LD)   │
 │   └── Admin Panel (Protected /admin route)                  │
 │       ├── Dashboard Overview (live revenue analytics)       │
 │       ├── Orders Manager (status state machine)             │
 │       ├── Products Manager (multi-color/size/image upload)  │
 │       ├── Categories Manager (drag-reorder, image upload)   │
+│       ├── Banners Manager (Hero campaigns & CTA links)      │
 │       ├── Inventory Manager (quick stock adjust)            │
 │       └── Delivery Settings (per-wilaya rate config)        │
 └────────────────────┬───────────────────────┬────────────────┘
@@ -84,6 +93,7 @@ The platform is built around these core principles:
 │   ├── /auth          → Login, logout (CSRF), session verify │
 │   ├── /categories    → CRUD + display order management      │
 │   ├── /products      → CRUD + variant matrix management     │
+│   ├── /banners       → Hero campaign management & active list
 │   ├── /orders        → Place COD, state machine mutations   │
 │   ├── /tracking      → Public order lookup (rate limited)   │
 │   ├── /settings      → Delivery fee config per wilaya       │
@@ -112,11 +122,13 @@ The platform is built around these core principles:
 │                        MongoDB                               │
 │                                                             │
 │   Collections                                               │
-│   ├── admins           (bcrypt-hashed passwords, RBAC)      │
-│   ├── categories       (slug, displayOrder, image)          │
-│   ├── products         (colors[] → sizes[] → stock)         │
-│   ├── orders           (COD, idempotency, state machine)    │
-│   └── deliverysettings (singleton, 58 wilaya rate map)      │
+│   ├── admins               (bcrypt-hashed passwords, RBAC)  │
+│   ├── banners              (hero promotional image & CTA)   │
+│   ├── categories           (slug, displayOrder, image)      │
+│   ├── products             (colors[] → sizes[] → stock)     │
+│   ├── orders               (COD, idempotency, state machine)│
+│   ├── sessions             (secure token hashes)            │
+│   └── deliverysettings     (singleton, 58 wilaya rate map)  │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -128,24 +140,27 @@ The platform is built around these core principles:
 
 | Feature | Details |
 |---------|---------|
-| **Hero Campaign** | Full-bleed editorial image with centered logo and CTA |
-| **Category Discovery** | Dynamic grid loaded from DB, admin-managed images |
-| **Product Grid** | Filter by category, best-sellers, new arrivals |
+| **Adaptive Hero Banner** | Dynamic DB-managed campaign banners with responsive aspect-ratio preserving composition across mobile and desktop |
+| **All-Category Showcase** | Complete dynamic grid showcasing all active boutique collections with admin-managed imagery |
+| **Product Grid** | Instant filtering by category, best-sellers, new arrivals, and pricing |
 | **Variant Matrix** | Color swatches → size grid → real-time stock indicators |
 | **Cart Drawer** | Slide-in drawer, quantity control, persists across navigation |
-| **COD Checkout** | 58-wilaya selector, Agency Pickup / Home Delivery toggle |
-| **Order Confirmation** | Confetti animation, cryptographic order code display |
+| **COD Checkout** | 58-wilaya selector, Agency Pickup / Home Delivery toggle, automatic fee calculation |
+| **Order Confirmation** | Celebration confetti animation, cryptographic order code display |
 | **Live Order Tracking** | WebSocket-powered timeline — updates without page refresh |
+| **Admin Quick Switch** | Floating / top navigation bar allowing logged-in store owners to seamlessly jump back to `/admin` |
+| **Google Search SEO** | Pre-configured `sitemap.xml`, `robots.txt`, HTML verification, Open Graph tags, and Schema.org JSON-LD |
 
 ### Admin Dashboard
 
 | Module | Capabilities |
 |--------|-------------|
-| **Analytics** | Realized revenue (delivered only), profit margin, order KPIs |
-| **Orders** | Full table, per-order status advancement, customer editor |
+| **Analytics** | Realized revenue (delivered only), profit margin, order KPIs, status breakdowns |
+| **Orders** | Full table, per-order status advancement, customer editor, print view |
 | **Products** | Create/edit/delete, multi-color + multi-size, image bulk upload |
 | **Categories** | Create/edit/delete/reorder, image upload, active toggle |
-| **Inventory** | Per-variant quick stock adjustment table |
+| **Banners Manager** | Upload & manage hero campaign banners, custom subtitles, CTA buttons, and display priority |
+| **Inventory** | Per-variant quick stock adjustment table with real-time sync |
 | **Delivery Settings** | Authoritative per-wilaya rates for all 58 wilayas (home & agency fees) |
 
 ---
@@ -197,13 +212,17 @@ merya_dz/
 │   │   │
 │   │   ├── models/
 │   │   │   ├── Admin.js              # Admin user schema (bcrypt, RBAC)
+│   │   │   ├── Banner.js             # Hero campaign banners (image, CTA, order)
 │   │   │   ├── Category.js           # Category with slug + displayOrder
 │   │   │   ├── Product.js            # Nested colors[] → sizes[] → stock
 │   │   │   ├── Order.js              # COD order with idempotency key
+│   │   │   ├── Session.js            # Admin device session & token hashes
+│   │   │   ├── InventoryAdjustment.js # Stock adjustment audit trail
 │   │   │   └── DeliverySetting.js    # Singleton with 58-wilaya rate map
 │   │   │
 │   │   ├── controllers/
 │   │   │   ├── authController.js     # Login, logout, session verify
+│   │   │   ├── bannerController.js   # Hero promotional banner management
 │   │   │   ├── categoryController.js # CRUD + reorder
 │   │   │   ├── productController.js  # CRUD + variant management
 │   │   │   ├── orderController.js    # Place order, state machine
@@ -222,6 +241,7 @@ merya_dz/
 │   │   │
 │   │   ├── routes/
 │   │   │   ├── authRoutes.js         # Admin auth + CSRF token endpoints
+│   │   │   ├── bannerRoutes.js       # Hero campaign banner endpoints
 │   │   │   ├── categoryRoutes.js
 │   │   │   ├── productRoutes.js
 │   │   │   ├── orderRoutes.js
@@ -261,18 +281,21 @@ merya_dz/
 │   │   ├── logo.png                  # MERYA DZ brand logo (dark espresso)
 │   │   ├── logo_white.png            # White variant for dark backgrounds
 │   │   ├── favicon.svg
+│   │   ├── robots.txt                # Search bot crawler indexation policy
+│   │   ├── sitemap.xml               # Canonical Google Search XML sitemap
+│   │   ├── google37b319bedd37fba8.html # Google Search Console verification
 │   │   └── uploads/                  # Dev-mode mirrored uploads (gitignored)
 │   │
 │   ├── src/
 │   │   ├── components/
-│   │   │   ├── Header.jsx            # Sticky nav with cart badge
+│   │   │   ├── Header.jsx            # Sticky nav with cart badge & owner admin bar
 │   │   │   ├── Footer.jsx            # Brand footer with links
 │   │   │   ├── CategoryTile.jsx      # Hover-zoom category cards
 │   │   │   ├── ProductCard.jsx       # Color swatch interactive card
 │   │   │   └── CartDrawer.jsx        # Slide-in cart with quantity control
 │   │   │
 │   │   ├── pages/
-│   │   │   ├── Home.jsx              # Hero + Categories + Best Sellers + Editorial
+│   │   │   ├── Home.jsx              # Hero (adaptive) + All Categories + Best Sellers
 │   │   │   ├── Shop.jsx              # Filterable product grid
 │   │   │   ├── ProductDetail.jsx     # Variant selector + add to cart
 │   │   │   ├── Checkout.jsx          # COD form, wilaya selector, delivery toggle
@@ -285,6 +308,7 @@ merya_dz/
 │   │   │       ├── OrdersManager.jsx
 │   │   │       ├── ProductsManager.jsx
 │   │   │       ├── CategoriesManager.jsx
+│   │   │       ├── BannersManager.jsx
 │   │   │       ├── InventoryManager.jsx
 │   │   │       └── DeliverySettingsManager.jsx
 │   │   │
@@ -433,6 +457,15 @@ All endpoints are prefixed with `/api/v1`. 🔒 = requires admin JWT cookie.
 | `POST` | `/products` | 🔒 | Create product with variants |
 | `PUT` | `/products/:id` | 🔒 | Update product |
 | `DELETE` | `/products/:id` | 🔒 | Soft delete (sets `isActive: false`) |
+
+### Banners
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `GET` | `/banners` | Public | List all active promotional hero banners (sorted by displayOrder) |
+| `GET` | `/banners/admin/all` | 🔒 | List all banners including inactive ones (admin management) |
+| `POST` | `/banners` | 🔒 | Create banner (title, subtitle, image, CTA link, displayOrder) |
+| `PUT` | `/banners/:id` | 🔒 | Update banner details, ordering, or toggle active status |
+| `DELETE` | `/banners/:id` | 🔒 | Remove promotional banner |
 
 ### Orders
 | Method | Endpoint | Auth | Description |
@@ -595,13 +628,13 @@ if (!order.stockRestored) {
 | **Security Headers** | `helmet` sets CSP, HSTS, X-Frame-Options, X-Content-Type-Options, and more. |
 | **CORS** | Strict allowlist — restricted to `CLIENT_ORIGIN` in production with credentials support. |
 | **File Uploads** | Multer validates MIME type + enforces 10 MB limit; Sharp re-encodes to WebP stripping EXIF metadata. |
-| **Admin Route** | `/admin` — no link from the public storefront; accessible only by direct URL. |
+| **Admin Route** | `/admin` — direct protected route; authenticated sessions display a persistent top navigation bar to return from the public store. |
 
 ---
 
 ## Admin Dashboard
 
-Access at **`/admin`** — direct URL only, no public link.
+Access at **`/admin`** — protected route with an intuitive back-to-dashboard bar for authenticated owners browsing the storefront.
 
 ### Admin Authentication & Provisioning
 
@@ -637,6 +670,12 @@ INITIAL_ADMIN_USERNAME="Store Owner"
 - Image upload per category
 - Active/inactive toggle
 
+#### 🖼️ Banners Manager
+- Upload promotional campaign hero banners (desktop & mobile optimized)
+- Configure custom title, subtitle, CTA button text, and destination link
+- Toggle banner visibility (active/inactive) and set display sequence
+- Full integration with the storefront's responsive aspect-ratio engine
+
 #### 📋 Inventory Manager
 - Flat table view of every product → color → size → stock
 - Inline quick-adjust input for rapid stock corrections
@@ -647,6 +686,36 @@ INITIAL_ADMIN_USERNAME="Store Owner"
 - Free delivery threshold configuration (order subtotal threshold in DZD)
 - Toggle individual wilaya availability (fail-closed for disabled zones)
 - Optimistic Concurrency Control (CAS on `__v`) preventing conflicting admin overwrites
+
+---
+
+## Search Engine Optimization (SEO)
+
+MERYA DZ is fully engineered for discovery and fast indexation on **Google Search** and social platforms:
+
+### 1. Canonical Sitemap (`/sitemap.xml`)
+Automatically served at `https://www.meryadz.com/sitemap.xml`. Informs search engines of all primary public routes:
+- `/` (Homepage & Hero campaigns, priority 1.0)
+- `/#shop` (Product catalog & collections, priority 0.9)
+- `/#tracking` (Customer COD tracking, priority 0.8)
+
+### 2. Robots Directives (`/robots.txt`)
+Served at `https://www.meryadz.com/robots.txt`:
+- Explicitly allows indexing of all public customer assets and routes by `Googlebot` and web crawlers
+- Disallows crawling of sensitive admin routes (`/admin`, `/admin/*`)
+- References the canonical sitemap location
+
+### 3. Google Search Console Verification
+Pre-installed HTML verification at root (`/google37b319bedd37fba8.html`) and `<meta name="google-site-verification" ... />` tag for instantaneous site ownership validation in Google Search Console.
+
+### 4. Structured Data (Schema.org JSON-LD)
+Embedded rich snippets assist Google in displaying rich search results:
+- **`ClothingStore` / `Store`**: Brand name, logo, Algerian geographic service area (`DZ`), currency accepted (`DZD`), payment methods (`CashOnDelivery`).
+- **`WebSite`**: Canonical URL with integrated search intent metadata.
+- **`Organization`**: Brand identity and social profiles.
+
+### 5. Social & Open Graph Metadata
+High-resolution Open Graph (`og:image`, `og:title`, `og:description`) and Twitter Card tags ensure links shared on Instagram, Facebook, and WhatsApp render previews.
 
 ---
 
@@ -728,7 +797,16 @@ Runs a full verification pipeline against the live servers:
 
 ## Deployment
 
-## Deployment
+### Production Infrastructure Overview
+
+The production architecture is deployed across top-tier cloud providers with custom domain routing:
+
+- **Frontend Application**: Deployed on [Vercel](https://vercel.com) serving [`https://www.meryadz.com`](https://www.meryadz.com) with global edge caching and automatic SSL.
+- **Backend API & WebSockets**: Deployed on [Render](https://render.com) serving [`https://api.meryadz.com`](https://api.meryadz.com) with HTTP/2 and native WebSocket support.
+- **Database**: [MongoDB Atlas](https://www.mongodb.com/atlas) multi-node replica set with ACID multi-document transaction support.
+- **Media Delivery**: Cloudinary CDN pipeline for high-performance WebP image transformation and storage.
+
+---
 
 ### Render Deployment (Backend Web Service)
 
@@ -760,8 +838,8 @@ The repository includes a ready-to-deploy [`render.yaml`](render.yaml) blueprint
 | `REFRESH_TOKEN_SECRET` | Yes | Cryptographic secret for signing admin refresh JWT tokens (min 64 hex characters). Never commit to git. |
 | `COOKIE_SECRET` | Yes | Secret for signing HTTP cookies. |
 | `CSRF_SECRET` | Yes | Secret for HMAC-SHA256 CSRF double-submit token verification. |
-| `CLIENT_ORIGIN` | Yes | Production URL of the frontend (e.g. `https://merya.vercel.app`). Enforces strict CORS and WebSocket Origin validation. |
-| `COOKIE_SAME_SITE` | Yes | Set to `none` when frontend and backend are hosted on different domains (e.g. Vercel + Render). |
+| `CLIENT_ORIGIN` | Yes | Production URL of the frontend (`https://www.meryadz.com`). Enforces strict CORS and WebSocket Origin validation. |
+| `COOKIE_SAME_SITE` | Yes | Set to `none` when frontend and backend are hosted on different subdomains / domains. |
 | `CLOUDINARY_CLOUD_NAME` | Yes | Cloudinary cloud name for persistent product/category image uploads. |
 | `CLOUDINARY_API_KEY` | Yes | Cloudinary API key. |
 | `CLOUDINARY_API_SECRET` | Yes | Cloudinary API secret. Image uploads fail fast if Cloudinary is omitted in production. |
@@ -771,11 +849,11 @@ The repository includes a ready-to-deploy [`render.yaml`](render.yaml) blueprint
 
 #### Frontend (`frontend/.env` / Vercel Dashboard)
 
-| Variable | Description | Example |
+| Variable | Description | Production Example |
 |---|---|---|
-| `VITE_API_URL` | Backend base URL for REST API | `https://merya-api.onrender.com` |
-| `VITE_BACKEND_URL` | Backend root URL for static assets | `https://merya-api.onrender.com` |
-| `VITE_WS_URL` | Backend WebSocket endpoint | `wss://merya-api.onrender.com/ws` |
+| `VITE_API_URL` | Backend base URL for REST API | `https://api.meryadz.com` |
+| `VITE_BACKEND_URL` | Backend root URL for static assets | `https://api.meryadz.com` |
+| `VITE_WS_URL` | Backend WebSocket endpoint | `wss://api.meryadz.com/ws` |
 
 > 🔒 **Security Notice:** Never prefix backend secret keys (`JWT_SECRET`, `MONGODB_URI`, `CLOUDINARY_API_SECRET`) with `VITE_`. Any `VITE_*` variable is bundled directly into public client-side JavaScript.
 
