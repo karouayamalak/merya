@@ -17,6 +17,7 @@ export {
   localizedFieldSchema,
   validateVariantUniqueness,
   adminLoginSchema,
+  changePasswordSchema,
   checkoutOrderSchema,
   cartQuoteSchema,
   trackingSchema,

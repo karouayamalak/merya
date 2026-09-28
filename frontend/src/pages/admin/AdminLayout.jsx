@@ -12,7 +12,8 @@ import {
   Image as ImageIcon,
   Menu,
   X,
-  Store
+  Store,
+  KeyRound
 } from 'lucide-react';
 import { useAdminAuth } from '../../context/AdminAuthContext';
 import { useWebSocket } from '../../context/WebSocketContext';
@@ -26,6 +27,7 @@ import InventoryManager from './InventoryManager';
 import DeliverySettingsManager from './DeliverySettingsManager';
 import BannersManager from './BannersManager';
 import StoreSettingsManager from './StoreSettingsManager';
+import ChangePasswordModal from '../../components/ChangePasswordModal';
 import ErrorBoundary from '../../components/ErrorBoundary';
 
 export default function AdminLayout({ onExitAdmin }) {
@@ -37,6 +39,7 @@ export default function AdminLayout({ onExitAdmin }) {
   const [ordersInitialStatus, setOrdersInitialStatus] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [liveNotification, setLiveNotification] = useState(null);
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
 
   // Close mobile drawer on Escape key press
   useEffect(() => {
@@ -380,6 +383,28 @@ export default function AdminLayout({ onExitAdmin }) {
 
             <button
               onClick={() => {
+                setPasswordModalOpen(true);
+                setMobileMenuOpen(false);
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.65rem 1rem',
+                borderRadius: 'var(--radius-md)',
+                fontSize: '0.82rem',
+                color: 'var(--color-espresso)',
+                backgroundColor: 'var(--color-bg-card)',
+                border: '1px solid var(--color-border)',
+                cursor: 'pointer'
+              }}
+            >
+              <KeyRound size={15} style={{ flexShrink: 0 }} />
+              <span>{isRtl ? 'تغيير كلمة المرور' : 'Changer mot de passe'}</span>
+            </button>
+
+            <button
+              onClick={() => {
                 onExitAdmin();
                 setMobileMenuOpen(false);
               }}
@@ -474,6 +499,11 @@ export default function AdminLayout({ onExitAdmin }) {
             {activeTab === 'settings' && <DeliverySettingsManager />}
             {activeTab === 'store-settings' && <StoreSettingsManager />}
           </ErrorBoundary>
+
+          <ChangePasswordModal
+            isOpen={passwordModalOpen}
+            onClose={() => setPasswordModalOpen(false)}
+          />
         </main>
       </div>
 

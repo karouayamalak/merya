@@ -238,6 +238,10 @@ export const adminLogoutAll = async () => {
 export const adminRefreshToken = () => refreshAccessToken();
 export const adminGetSessions = () => request('/auth/sessions');
 export const adminGetMe = () => request('/auth/me');
+export const adminChangePassword = (oldPassword, newPassword) => request('/auth/change-password', {
+  method: 'PUT',
+  body: JSON.stringify({ oldPassword, newPassword })
+});
 
 // Admin Management APIs
 export const adminGetDashboard = () => request('/analytics/dashboard');

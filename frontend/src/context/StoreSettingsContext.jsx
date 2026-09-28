@@ -1,14 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { fetchStoreSettings, adminUpdateStoreSettings } from '../services/api';
+import { STATIC_SOCIAL_LINKS } from '../config/socialLinks';
 
 const DEFAULT_SETTINGS = {
   logoVariant: 'white',
   deliveryNoticeDays: 3,
-  socialLinks: {
-    facebook: '',
-    instagram: '',
-    tiktok: ''
-  }
+  socialLinks: { ...STATIC_SOCIAL_LINKS }
 };
 
 const StoreSettingsContext = createContext({

@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Palette, Link2, Save, CheckCircle2, Truck, AlertCircle, Loader2 } from 'lucide-react';
+import { Palette, Link2, Save, CheckCircle2, Truck, AlertCircle, Loader2, KeyRound, ShieldCheck, ExternalLink } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useStoreSettings } from '../../context/StoreSettingsContext';
+import { STATIC_SOCIAL_LINKS } from '../../config/socialLinks';
+import ChangePasswordModal from '../../components/ChangePasswordModal';
 
 export default function StoreSettingsManager() {
   const { isRtl } = useLanguage();
@@ -17,6 +19,7 @@ export default function StoreSettingsManager() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
 
   // Populate form when database settings load or change
   useEffect(() => {
@@ -225,67 +228,218 @@ export default function StoreSettingsManager() {
         </div>
       </div>
 
-      {/* SOCIAL LINKS */}
+      {/* OWNER ACCOUNT & SECURITY */}
       <div style={card}>
         <div style={sectionTitle}>
-          <Link2 size={15} />
-          Social Media Links (Database Stored)
+          <KeyRound size={15} />
+          {isRtl ? 'أمان الحساب وكلمة المرور' : 'Sécurité du Compte & Mot de Passe Propriétaire'}
         </div>
         <p style={{ fontSize: '0.82rem', color: '#777', marginBottom: '1.25rem', lineHeight: 1.6 }}>
-          Paste your full profile URLs below. They are saved in the database and appear as clickable icon buttons in the store footer.
-          Leave any field empty to hide that icon.
+          {isRtl
+            ? 'يمكن للمالك تغيير كلمة المرور بمفرده بطريقة آمنة تمامًا. يتطلب التغيير كتابة كلمة المرور الحالية أولاً ثم تأكيد كلمة المرور الجديدة.'
+            : 'Le propriétaire peut modifier son mot de passe en toute autonomie et de manière ultra-sécurisée. Saisissez votre mot de passe actuel pour valider le changement.'}
         </p>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          {/* Facebook */}
-          <div>
-            <label style={labelStyle} htmlFor="ss-facebook">
-              Facebook Page URL
-            </label>
-            <input
-              id="ss-facebook"
-              type="url"
-              value={facebook}
-              onChange={e => setFacebook(e.target.value)}
-              placeholder="https://www.facebook.com/meryaDZ"
-              style={inputStyle}
-              onFocus={e => { e.target.style.borderColor = '#2A241F'; }}
-              onBlur={e => { e.target.style.borderColor = '#e0d9d0'; }}
-            />
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          backgroundColor: '#FAF8F5',
+          border: '1.5px solid #e0d9d0',
+          borderRadius: '12px',
+          padding: '1.25rem 1.5rem',
+          flexWrap: 'wrap',
+          gap: '1rem'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+            <div style={{
+              width: '42px',
+              height: '42px',
+              borderRadius: '10px',
+              backgroundColor: '#2A241F',
+              color: '#FFF',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0
+            }}>
+              <ShieldCheck size={22} />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.9rem', fontWeight: '700', color: '#2A241F' }}>
+                {isRtl ? 'تحديث كلمة المرور' : 'Modifier le mot de passe du compte'}
+              </div>
+              <div style={{ fontSize: '0.78rem', color: '#777' }}>
+                {isRtl ? 'حماية مشفرة بنظام bcrypt' : 'Protection chiffrée & révocation automatique des sessions'}
+              </div>
+            </div>
           </div>
 
+          <button
+            type="button"
+            onClick={() => setPasswordModalOpen(true)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              backgroundColor: '#2A241F',
+              color: '#FFF',
+              border: 'none',
+              borderRadius: '9px',
+              padding: '0.65rem 1.4rem',
+              fontSize: '0.82rem',
+              fontWeight: '700',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.12)'
+            }}
+            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; }}
+            onMouseLeave={e => { e.currentTarget.style.transform = 'none'; }}
+          >
+            <KeyRound size={15} />
+            <span>{isRtl ? 'تغيير كلمة المرور الآن' : 'Changer mon mot de passe'}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* OFFICIAL SOCIAL LINKS (STATIC BRAND ACCOUNTS) */}
+      <div style={card}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <div style={{ ...sectionTitle, marginBottom: 0 }}>
+            <Link2 size={15} />
+            {isRtl ? 'حسابات التواصل الاجتماعي الرسمية' : 'Comptes Officiels Réseaux Sociaux'}
+          </div>
+          <span style={{
+            fontSize: '0.72rem',
+            backgroundColor: '#e8f4fd',
+            color: '#1a56db',
+            padding: '0.2rem 0.6rem',
+            borderRadius: '20px',
+            fontWeight: '600'
+          }}>
+            Static Config
+          </span>
+        </div>
+
+        <p style={{ fontSize: '0.82rem', color: '#777', marginBottom: '1.25rem', lineHeight: 1.6 }}>
+          {isRtl
+            ? 'روابط وسائل التواصل الاجتماعي الرسمية لعلامة MERYA DZ مفعلة مباشرة في المتجر وتظهر في أسفل الصفحة.'
+            : 'Ces liens officiels vers vos réseaux sociaux sont actifs sur votre boutique dans le pied de page.'}
+        </p>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           {/* Instagram */}
-          <div>
-            <label style={labelStyle} htmlFor="ss-instagram">
-              Instagram Profile URL
-            </label>
-            <input
-              id="ss-instagram"
-              type="url"
-              value={instagram}
-              onChange={e => setInstagram(e.target.value)}
-              placeholder="https://www.instagram.com/merya.dz"
-              style={inputStyle}
-              onFocus={e => { e.target.style.borderColor = '#2A241F'; }}
-              onBlur={e => { e.target.style.borderColor = '#e0d9d0'; }}
-            />
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0.85rem 1.25rem',
+            borderRadius: '10px',
+            backgroundColor: '#FAF8F5',
+            border: '1px solid #ECE7E1'
+          }}>
+            <div>
+              <div style={{ fontSize: '0.82rem', fontWeight: '700', color: '#2A241F' }}>Instagram</div>
+              <div style={{ fontSize: '0.75rem', color: '#666', wordBreak: 'break-all' }}>{STATIC_SOCIAL_LINKS.instagram}</div>
+            </div>
+            <a
+              href={STATIC_SOCIAL_LINKS.instagram}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                fontSize: '0.75rem',
+                fontWeight: '600',
+                color: '#2A241F',
+                textDecoration: 'none',
+                backgroundColor: '#FFF',
+                border: '1px solid #e0d9d0',
+                padding: '0.4rem 0.8rem',
+                borderRadius: '6px',
+                flexShrink: 0
+              }}
+            >
+              <span>{isRtl ? 'زيارة' : 'Visiter'}</span>
+              <ExternalLink size={13} />
+            </a>
           </div>
 
           {/* TikTok */}
-          <div>
-            <label style={labelStyle} htmlFor="ss-tiktok">
-              TikTok Profile URL
-            </label>
-            <input
-              id="ss-tiktok"
-              type="url"
-              value={tiktok}
-              onChange={e => setTiktok(e.target.value)}
-              placeholder="https://www.tiktok.com/@merya.dz"
-              style={inputStyle}
-              onFocus={e => { e.target.style.borderColor = '#2A241F'; }}
-              onBlur={e => { e.target.style.borderColor = '#e0d9d0'; }}
-            />
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0.85rem 1.25rem',
+            borderRadius: '10px',
+            backgroundColor: '#FAF8F5',
+            border: '1px solid #ECE7E1'
+          }}>
+            <div>
+              <div style={{ fontSize: '0.82rem', fontWeight: '700', color: '#2A241F' }}>TikTok</div>
+              <div style={{ fontSize: '0.75rem', color: '#666', wordBreak: 'break-all' }}>{STATIC_SOCIAL_LINKS.tiktok}</div>
+            </div>
+            <a
+              href={STATIC_SOCIAL_LINKS.tiktok}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                fontSize: '0.75rem',
+                fontWeight: '600',
+                color: '#2A241F',
+                textDecoration: 'none',
+                backgroundColor: '#FFF',
+                border: '1px solid #e0d9d0',
+                padding: '0.4rem 0.8rem',
+                borderRadius: '6px',
+                flexShrink: 0
+              }}
+            >
+              <span>{isRtl ? 'زيارة' : 'Visiter'}</span>
+              <ExternalLink size={13} />
+            </a>
+          </div>
+
+          {/* Facebook */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0.85rem 1.25rem',
+            borderRadius: '10px',
+            backgroundColor: '#FAF8F5',
+            border: '1px solid #ECE7E1'
+          }}>
+            <div>
+              <div style={{ fontSize: '0.82rem', fontWeight: '700', color: '#2A241F' }}>Facebook</div>
+              <div style={{ fontSize: '0.75rem', color: '#666', wordBreak: 'break-all' }}>{STATIC_SOCIAL_LINKS.facebook}</div>
+            </div>
+            <a
+              href={STATIC_SOCIAL_LINKS.facebook}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                fontSize: '0.75rem',
+                fontWeight: '600',
+                color: '#2A241F',
+                textDecoration: 'none',
+                backgroundColor: '#FFF',
+                border: '1px solid #e0d9d0',
+                padding: '0.4rem 0.8rem',
+                borderRadius: '6px',
+                flexShrink: 0
+              }}
+            >
+              <span>{isRtl ? 'زيارة' : 'Visiter'}</span>
+              <ExternalLink size={13} />
+            </a>
           </div>
         </div>
       </div>
@@ -344,6 +498,11 @@ export default function StoreSettingsManager() {
           </span>
         )}
       </div>
+
+      <ChangePasswordModal
+        isOpen={passwordModalOpen}
+        onClose={() => setPasswordModalOpen(false)}
+      />
 
     </div>
   );

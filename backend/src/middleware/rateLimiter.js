@@ -238,3 +238,11 @@ export const refreshLimiter = createLimiter({
   message: 'Too many token refresh attempts. Please try again later.',
   prefix: 'refresh'
 });
+
+// Dedicated rate limiter for owner password change
+export const changePasswordLimiter = createLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: process.env.NODE_ENV === 'production' ? 8 : 10000,
+  message: 'Too many password change attempts. Please try again in 15 minutes.',
+  prefix: 'change_password'
+});

@@ -8,7 +8,7 @@ export {
   safeUrlSchema
 } from './common.js';
 
-export { adminLoginSchema } from './auth.js';
+export { adminLoginSchema, changePasswordSchema } from './auth.js';
 
 export {
   checkoutOrderSchema,

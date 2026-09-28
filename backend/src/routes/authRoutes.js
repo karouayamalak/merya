@@ -5,12 +5,13 @@ import {
   logout,
   logoutAll,
   getMe,
-  getSessions
+  getSessions,
+  changePassword
 } from '../controllers/authController.js';
 import { authenticateAdmin } from '../middleware/auth.js';
 import { issueCsrfToken, verifyCsrf } from '../middleware/csrf.js';
-import { loginLimiter, refreshLimiter } from '../middleware/rateLimiter.js';
-import { validate, adminLoginSchema } from '../middleware/validation.js';
+import { loginLimiter, refreshLimiter, changePasswordLimiter } from '../middleware/rateLimiter.js';
+import { validate, adminLoginSchema, changePasswordSchema } from '../middleware/validation.js';
 
 const router = express.Router();
 
@@ -18,6 +19,7 @@ router.post('/login', loginLimiter, validate(adminLoginSchema), login);
 router.post('/refresh', refreshLimiter, verifyCsrf, refresh);
 router.post('/logout', verifyCsrf, logout);
 router.post('/logout-all', verifyCsrf, authenticateAdmin, logoutAll);
+router.put('/change-password', changePasswordLimiter, verifyCsrf, authenticateAdmin, validate(changePasswordSchema), changePassword);
 router.get('/sessions', authenticateAdmin, getSessions);
 router.get('/me', authenticateAdmin, getMe);
 // GET: issues a fresh CSRF token as a JS-readable cookie + JSON body value

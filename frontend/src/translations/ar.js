@@ -66,9 +66,9 @@ export default {
     features: {
       qualityTitle: 'أقمشة فاخرة وخياطة متقنة',
       qualityDesc: 'اختيار دقيق لأفضل الأقمشة لضمان الجودة العالية والراحة المستمرة.',
-      deliveryTitle: 'توصيل لـ 58 ولاية',
-      deliveryDesc: 'شحن سريع وموثوق إلى باب المنزل أو المكتب مع خدمة الدفع عند الاستلام.',
-      deliveryDays: 'مدة التوصيل المتوقعة: {days} أيام عمل',
+      deliveryTitle: 'توصيل لـ 58 ولاية — وكالة DHD Express',
+      deliveryDesc: 'شحن سريع وموثوق إلى باب المنزل أو المكتب عبر وكالة DHD Express مع خدمة الدفع عند الاستلام.',
+      deliveryDays: 'مدة التوصيل المتوقعة: {days} أيام عمل عبر DHD Express',
       codTitle: 'الدفع عند الاستلام',
       codDesc: 'اطلبي بكل طمأنينة وادفعي نقداً عند استلام طلبك ومعاينته.'
     }
@@ -119,7 +119,7 @@ export default {
     backToCollection: 'العودة إلى المجموعة',
     codNotice: 'الدفع عند الاستلام متوفر في جميع الـ 58 ولاية جزائرية.',
     qualityNotice: 'أقمشة فاخرة وخياطة مزدوجة دقيقة.',
-    deliveryTimeNotice: 'مدة التوصيل المتوقعة: {days} أيام عمل عبر 58 ولاية.'
+    deliveryTimeNotice: 'مدة التوصيل المتوقعة: ~{days} أيام عمل عبر 58 ولاية من خلال وكالة DHD Express.'
   },
   cart: {
     title: 'سلة المشتريات',
@@ -131,16 +131,16 @@ export default {
     removeItem: 'حذف المنتج',
     freeDeliveryProgress: 'أضيفي {remaining} د.ج فقط للاستفادة من التوصيل المجاني!',
     freeDeliveryUnlocked: 'مبروك! استفدتِ من التوصيل المجاني لطلبك.',
-    deliverySpeed: 'شحن سريع: ~{days} أيام عمل',
+    deliverySpeed: 'شحن سريع: ~{days} أيام عمل عبر وكالة DHD Express',
     color: 'اللون',
     size: 'المقاس'
   },
   checkout: {
     title: 'تأكيد وإتمام الطلب',
-    deliveryDelayNotice: 'مدة التوصيل المتوقعة: {days} أيام عمل',
-    deliveryDelayDesc: 'يتم تجهيز طلبك وتغليفه بعناية فائقة، ثم شحنه إلى باب منزلك أو المكتب في غضون ~{days} أيام عمل.',
-    deliverySpeedBadge: 'التوصيل المتوقع: {days} أيام عمل',
-    deliverySpeedReassurance: 'شحن سريع لـ 58 ولاية • الدفع نقداً عند استلام ومعاينة الطلب',
+    deliveryDelayNotice: 'مدة التوصيل المتوقعة: ~{days} أيام عمل عبر وكالة DHD Express',
+    deliveryDelayDesc: 'يتم تجهيز طلبك وتغليفه بعناية فائقة، ثم شحنه عبر وكالة DHD Express إلى باب منزلك أو المكتب في غضون ~{days} أيام عمل.',
+    deliverySpeedBadge: 'التوصيل المتوقع: ~{days} أيام عمل عبر DHD Express',
+    deliverySpeedReassurance: 'شحن سريع ومضمون لـ 58 ولاية عبر وكالة DHD Express • الدفع نقداً عند استلام ومعاينة الطلب',
 
     subtitle: 'الدفع نقداً عند الاستلام متوفر في جميع أنحاء الوطن (58 ولاية)',
     customerInfo: 'معلومات المستلم',
@@ -259,7 +259,7 @@ export default {
     copyCode: 'نسخ الرمز',
     codeCopied: 'تم نسخ الرمز!',
     recapTitle: 'تفاصيل الشحن',
-    deliveryEstimateNotice: 'مدة التوصيل المتوقعة: {days} أيام عمل إلى ولايتكم.',
+    deliveryEstimateNotice: 'مدة التوصيل المتوقعة: ~{days} أيام عمل إلى ولايتكم عبر وكالة DHD Express.',
     deliveryTo: 'التوصيل إلى',
     trackCta: 'تتبع حالة طلبي',
     backToShop: 'العودة إلى المتجر',
@@ -516,7 +516,7 @@ export default {
     collection: 'المجموعة',
     support: 'خدمة الزبائن',
     trackOrder: 'تتبع طلبي',
-    allWilayas: 'توصيل متوفر لجميع الـ 58 ولاية',
+    allWilayas: 'توصيل متوفر لجميع الـ 58 ولاية عبر وكالة DHD Express',
     careGuide: 'دليل العناية بأقمشة حرير المدينة',
     directSupport: 'دعم مباشر عبر الهاتف وواتساب',
     allRightsReserved: 'جميع الحقوق محفوظة. أزياء محتشمة الجزائر.',

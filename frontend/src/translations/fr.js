@@ -66,9 +66,9 @@ export default {
     features: {
       qualityTitle: 'Tissus Nobles & Confection Soignée',
       qualityDesc: 'Sélection rigoureuse des matières pour une tombée parfaite et une durabilité remarquable.',
-      deliveryTitle: 'Livraison 58 Wilayas',
-      deliveryDesc: 'Expédition rapide et sécurisée à domicile ou en point relais avec paiement à la livraison (COD).',
-      deliveryDays: 'Délai estimé : {days} jours ouvrables',
+      deliveryTitle: 'Livraison 58 Wilayas — Agence DHD Express',
+      deliveryDesc: 'Expédition rapide et sécurisée à domicile ou en point relais assurée par l\'agence DHD Express avec paiement à la livraison (COD).',
+      deliveryDays: 'Délai estimé : {days} jours ouvrables via DHD Express',
       codTitle: 'Paiement à la Livraison',
       codDesc: 'Commandez en toute confiance et réglez en espèces directement lors de la réception de votre colis.'
     }
@@ -119,7 +119,7 @@ export default {
     backToCollection: 'Retour à la Collection',
     codNotice: 'Paiement à la livraison (COD) dans les 58 Wilayas d\'Algérie.',
     qualityNotice: 'Tissus nobles & confection double piqûre soignée.',
-    deliveryTimeNotice: 'Livraison estimée : {days} jours ouvrables sur 58 wilayas.'
+    deliveryTimeNotice: 'Livraison estimée : ~{days} jours ouvrables sur 58 wilayas via l\'agence DHD Express.'
   },
   cart: {
     title: 'Votre Panier',
@@ -131,16 +131,16 @@ export default {
     removeItem: 'Supprimer l\'article',
     freeDeliveryProgress: 'Plus que {remaining} DA pour profiter de la livraison offerte !',
     freeDeliveryUnlocked: 'Félicitations ! Vous bénéficiez de la livraison offerte.',
-    deliverySpeed: 'Livraison rapide : ~{days} jours ouvrables',
+    deliverySpeed: 'Livraison rapide : ~{days} jours ouvrables via DHD Express',
     color: 'Couleur',
     size: 'Taille'
   },
   checkout: {
     title: 'Finaliser ma Commande',
-    deliveryDelayNotice: 'Délai de livraison estimé : {days} jours ouvrables',
-    deliveryDelayDesc: 'Votre colis est préparé avec le plus grand soin et livré à domicile ou en agence sous ~{days} jours ouvrables.',
-    deliverySpeedBadge: 'Livraison estimée : {days} jours ouvrables',
-    deliverySpeedReassurance: 'Expédition soignée sur les 58 wilayas • Règlement à la livraison après vérification',
+    deliveryDelayNotice: 'Délai de livraison estimé : ~{days} jours ouvrables via l\'agence DHD Express',
+    deliveryDelayDesc: 'Votre colis est préparé avec le plus grand soin et acheminé par l\'agence DHD Express à domicile ou en agence sous ~{days} jours ouvrables.',
+    deliverySpeedBadge: 'Livraison estimée : ~{days} jours ouvrables via DHD Express',
+    deliverySpeedReassurance: 'Expédition soignée sur les 58 wilayas assurée par l\'agence DHD Express • Règlement à la livraison après vérification',
 
     subtitle: 'Paiement à la livraison partout en Algérie (58 Wilayas)',
     customerInfo: 'Coordonnées du Destinataire',
@@ -259,7 +259,7 @@ export default {
     copyCode: 'Copier le code',
     codeCopied: 'Code copié !',
     recapTitle: 'Détails de l\'expédition',
-    deliveryEstimateNotice: 'Délai de livraison estimé : {days} jours ouvrables dans votre wilaya.',
+    deliveryEstimateNotice: 'Délai de livraison estimé : ~{days} jours ouvrables dans votre wilaya via l\'agence DHD Express.',
     deliveryTo: 'Livraison à',
     trackCta: 'Suivre l\'état de mon colis',
     backToShop: 'Retourner à la boutique',
@@ -516,7 +516,7 @@ export default {
     collection: 'Collection',
     support: 'Service Client',
     trackOrder: 'Suivre ma commande',
-    allWilayas: 'Livraison dans les 58 Wilayas',
+    allWilayas: 'Livraison dans les 58 Wilayas via l\'agence DHD Express',
     careGuide: 'Guide d\'entretien des soieries',
     directSupport: 'Assistance téléphonique & WhatsApp',
     allRightsReserved: 'Tous droits réservés. Mode Modeste Algérie.',

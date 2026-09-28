@@ -66,9 +66,9 @@ export default {
     features: {
       qualityTitle: 'Noble Fabrics & Fine Tailoring',
       qualityDesc: 'Rigorous selection of premium fabrics ensuring a graceful drape and long-lasting durability.',
-      deliveryTitle: '58 Wilayas Delivery',
-      deliveryDesc: 'Fast, secure shipping to your home or agency pick-up point with Cash on Delivery (COD).',
-      deliveryDays: 'Estimated delivery: {days} business days',
+      deliveryTitle: '58 Wilayas Delivery — DHD Express Agency',
+      deliveryDesc: 'Fast, secure shipping to your home or agency pick-up point handled by DHD Express Agency with Cash on Delivery (COD).',
+      deliveryDays: 'Estimated delivery: {days} business days via DHD Express',
       codTitle: 'Cash on Delivery (COD)',
       codDesc: 'Order with total confidence and pay cash upon inspecting your package at your doorstep.'
     }
@@ -119,7 +119,7 @@ export default {
     backToCollection: 'Back to Collection',
     codNotice: 'Cash on Delivery (COD) available across all 58 Algerian Wilayas.',
     qualityNotice: 'Premium fabrics & double-stitch craftsmanship.',
-    deliveryTimeNotice: 'Estimated delivery: {days} business days across 58 wilayas.'
+    deliveryTimeNotice: 'Estimated delivery: ~{days} business days across 58 wilayas via DHD Express Agency.'
   },
   cart: {
     title: 'Your Bag',
@@ -131,16 +131,16 @@ export default {
     removeItem: 'Remove item',
     freeDeliveryProgress: 'Add {remaining} DZD more to unlock Free Delivery!',
     freeDeliveryUnlocked: 'Congratulations! You unlocked Free Delivery.',
-    deliverySpeed: 'Fast Delivery: ~{days} business days',
+    deliverySpeed: 'Fast Delivery: ~{days} business days via DHD Express',
     color: 'Color',
     size: 'Size'
   },
   checkout: {
     title: 'Complete Your Order',
-    deliveryDelayNotice: 'Estimated delivery: {days} business days',
-    deliveryDelayDesc: 'Your package is prepared with utmost care and delivered to your doorstep or agency in ~{days} business days.',
-    deliverySpeedBadge: 'Estimated Delivery: {days} Business Days',
-    deliverySpeedReassurance: 'Fast shipping across 58 wilayas • Payment upon package inspection',
+    deliveryDelayNotice: 'Estimated delivery: ~{days} business days via DHD Express Agency',
+    deliveryDelayDesc: 'Your package is prepared with utmost care and delivered via DHD Express Agency to your doorstep or stop-desk in ~{days} business days.',
+    deliverySpeedBadge: 'Estimated Delivery: ~{days} Business Days via DHD Express',
+    deliverySpeedReassurance: 'Fast shipping handled by DHD Express Agency across 58 wilayas • Payment upon package inspection',
 
     subtitle: 'Cash on delivery available across all 58 Algerian Wilayas',
     customerInfo: 'Customer & Delivery Details',
@@ -259,7 +259,7 @@ export default {
     copyCode: 'Copy Code',
     codeCopied: 'Code copied!',
     recapTitle: 'Shipping Details',
-    deliveryEstimateNotice: 'Estimated delivery: {days} business days to your destination.',
+    deliveryEstimateNotice: 'Estimated delivery: ~{days} business days to your wilaya via DHD Express Agency.',
     deliveryTo: 'Delivery to',
     trackCta: 'Track Order Status',
     backToShop: 'Return to Store',
@@ -516,7 +516,7 @@ export default {
     collection: 'Collection',
     support: 'Customer Care',
     trackOrder: 'Track Your Order',
-    allWilayas: 'Delivery across all 58 Wilayas',
+    allWilayas: '58 Wilayas delivery via DHD Express Agency',
     careGuide: 'Medina Silk Care Guide',
     directSupport: 'Direct Phone & WhatsApp Support',
     allRightsReserved: 'All Rights Reserved. Modest Fashion Algeria.',

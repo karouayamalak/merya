@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
 import { Admin } from '../models/Admin.js';
 import { Session } from '../models/Session.js';
 import { wsService } from '../services/websocketService.js';
@@ -227,5 +228,54 @@ export const getSessions = async (req, res, next) => {
     });
   } catch (err) {
     next(err);
+  }
+};
+
+export const changePassword = async (req, res, next) => {
+  try {
+    const { oldPassword, newPassword } = req.body;
+    const adminId = req.admin?._id;
+
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Current password and new password are required' });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({ success: false, message: 'New password must be at least 8 characters long' });
+    }
+
+    if (oldPassword === newPassword) {
+      return res.status(400).json({ success: false, message: 'New password must be different from current password' });
+    }
+
+    const admin = await Admin.findById(adminId);
+    if (!admin || !admin.isActive) {
+      return res.status(401).json({ success: false, message: 'Admin account not found or inactive' });
+    }
+
+    const isMatch = await admin.comparePassword(oldPassword);
+    if (!isMatch) {
+      return res.status(400).json({ success: false, message: 'Current password is incorrect' });
+    }
+
+    const salt = await bcrypt.genSalt(12);
+    admin.passwordHash = await bcrypt.hash(newPassword, salt);
+    await admin.save();
+
+    // Revoke any other sessions across other devices/browsers for security
+    const currentSessionId = req.authSession?._id;
+    if (currentSessionId) {
+      await Session.updateMany(
+        { adminId: admin._id, _id: { $ne: currentSessionId }, revokedAt: null },
+        { $set: { revokedAt: new Date(), revokeReason: 'PASSWORD_CHANGED' } }
+      );
+    }
+
+    res.json({
+      success: true,
+      message: 'Password changed successfully'
+    });
+  } catch (error) {
+    next(error);
   }
 };

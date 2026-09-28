@@ -21,12 +21,16 @@ const TikTokIcon = () => (
 );
 
 import { useStoreSettings } from '../context/StoreSettingsContext';
+import { STATIC_SOCIAL_LINKS } from '../config/socialLinks';
 
 export default function Footer({ setCurrentView }) {
   const { t, isRtl } = useLanguage();
   const { settings: storeSettings } = useStoreSettings();
-  const social = storeSettings?.socialLinks || {};
-
+  const social = {
+    facebook: storeSettings?.socialLinks?.facebook || STATIC_SOCIAL_LINKS.facebook,
+    instagram: storeSettings?.socialLinks?.instagram || STATIC_SOCIAL_LINKS.instagram,
+    tiktok: storeSettings?.socialLinks?.tiktok || STATIC_SOCIAL_LINKS.tiktok,
+  };
 
   const socialItems = [
     { key: 'facebook', label: t('footer.socialFacebook'), href: social.facebook, Icon: FacebookIcon },
@@ -34,7 +38,7 @@ export default function Footer({ setCurrentView }) {
     { key: 'tiktok', label: t('footer.socialTiktok'), href: social.tiktok, Icon: TikTokIcon },
   ];
 
-  const hasSocialLinks = socialItems.some(s => s.href);
+  const hasSocialLinks = true;
 
   return (
     <footer style={{
