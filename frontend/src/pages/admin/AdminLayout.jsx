@@ -11,7 +11,8 @@ import {
   Bell,
   Image as ImageIcon,
   Menu,
-  X
+  X,
+  Store
 } from 'lucide-react';
 import { useAdminAuth } from '../../context/AdminAuthContext';
 import { useWebSocket } from '../../context/WebSocketContext';
@@ -24,6 +25,7 @@ import CategoriesManager from './CategoriesManager';
 import InventoryManager from './InventoryManager';
 import DeliverySettingsManager from './DeliverySettingsManager';
 import BannersManager from './BannersManager';
+import StoreSettingsManager from './StoreSettingsManager';
 import ErrorBoundary from '../../components/ErrorBoundary';
 
 export default function AdminLayout({ onExitAdmin }) {
@@ -85,7 +87,8 @@ export default function AdminLayout({ onExitAdmin }) {
     { id: 'categories', label: t('admin.nav.categories'), icon: Tag },
     { id: 'inventory', label: t('admin.nav.inventory'), icon: Warehouse },
     { id: 'banners', label: t('admin.nav.banners'), icon: ImageIcon },
-    { id: 'settings', label: t('admin.nav.delivery'), icon: Settings }
+    { id: 'settings', label: t('admin.nav.delivery'), icon: Settings },
+    { id: 'store-settings', label: 'Store Settings', icon: Store }
   ];
 
   const currentTabObj = navItems.find((i) => i.id === activeTab);
@@ -469,6 +472,7 @@ export default function AdminLayout({ onExitAdmin }) {
             {activeTab === 'inventory' && <InventoryManager />}
             {activeTab === 'banners' && <BannersManager />}
             {activeTab === 'settings' && <DeliverySettingsManager />}
+            {activeTab === 'store-settings' && <StoreSettingsManager />}
           </ErrorBoundary>
         </main>
       </div>
@@ -509,7 +513,7 @@ export default function AdminLayout({ onExitAdmin }) {
 
         <button
           onClick={() => setMobileMenuOpen(true)}
-          className={`admin-bottom-nav-item ${['categories', 'banners', 'settings'].includes(activeTab) ? 'active' : ''}`}
+          className={`admin-bottom-nav-item ${['categories', 'banners', 'settings', 'store-settings'].includes(activeTab) ? 'active' : ''}`}
         >
           <Menu size={20} />
           <span>{isRtl ? 'المزيد' : 'Menu'}</span>

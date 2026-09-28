@@ -68,6 +68,7 @@ export default {
       qualityDesc: 'اختيار دقيق لأفضل الأقمشة لضمان الجودة العالية والراحة المستمرة.',
       deliveryTitle: 'توصيل لـ 58 ولاية',
       deliveryDesc: 'شحن سريع وموثوق إلى باب المنزل أو المكتب مع خدمة الدفع عند الاستلام.',
+      deliveryDays: 'مدة التوصيل المتوقعة: {days} أيام عمل',
       codTitle: 'الدفع عند الاستلام',
       codDesc: 'اطلبي بكل طمأنينة وادفعي نقداً عند استلام طلبك ومعاينته.'
     }
@@ -117,7 +118,8 @@ export default {
     productAdded: 'تمت إضافة المنتج إلى سلتك بنجاح.',
     backToCollection: 'العودة إلى المجموعة',
     codNotice: 'الدفع عند الاستلام متوفر في جميع الـ 58 ولاية جزائرية.',
-    qualityNotice: 'أقمشة فاخرة وخياطة مزدوجة دقيقة.'
+    qualityNotice: 'أقمشة فاخرة وخياطة مزدوجة دقيقة.',
+    deliveryTimeNotice: 'مدة التوصيل المتوقعة: {days} أيام عمل عبر 58 ولاية.'
   },
   cart: {
     title: 'سلة المشتريات',
@@ -129,11 +131,17 @@ export default {
     removeItem: 'حذف المنتج',
     freeDeliveryProgress: 'أضيفي {remaining} د.ج فقط للاستفادة من التوصيل المجاني!',
     freeDeliveryUnlocked: 'مبروك! استفدتِ من التوصيل المجاني لطلبك.',
+    deliverySpeed: 'شحن سريع: ~{days} أيام عمل',
     color: 'اللون',
     size: 'المقاس'
   },
   checkout: {
     title: 'تأكيد وإتمام الطلب',
+    deliveryDelayNotice: 'مدة التوصيل المتوقعة: {days} أيام عمل',
+    deliveryDelayDesc: 'يتم تجهيز طلبك وتغليفه بعناية فائقة، ثم شحنه إلى باب منزلك أو المكتب في غضون ~{days} أيام عمل.',
+    deliverySpeedBadge: 'التوصيل المتوقع: {days} أيام عمل',
+    deliverySpeedReassurance: 'شحن سريع لـ 58 ولاية • الدفع نقداً عند استلام ومعاينة الطلب',
+
     subtitle: 'الدفع نقداً عند الاستلام متوفر في جميع أنحاء الوطن (58 ولاية)',
     customerInfo: 'معلومات المستلم',
     fullName: 'الاسم واللقب',
@@ -251,6 +259,7 @@ export default {
     copyCode: 'نسخ الرمز',
     codeCopied: 'تم نسخ الرمز!',
     recapTitle: 'تفاصيل الشحن',
+    deliveryEstimateNotice: 'مدة التوصيل المتوقعة: {days} أيام عمل إلى ولايتكم.',
     deliveryTo: 'التوصيل إلى',
     trackCta: 'تتبع حالة طلبي',
     backToShop: 'العودة إلى المتجر',
@@ -513,6 +522,10 @@ export default {
     allRightsReserved: 'جميع الحقوق محفوظة. أزياء محتشمة الجزائر.',
     privacy: 'سياسة الخصوصية',
     terms: 'شروط البيع والاستخدام',
-    codGuarantee: 'ضمان الدفع عند الاستلام'
+    codGuarantee: 'ضمان الدفع عند الاستلام',
+    followUs: 'تابعونا',
+    socialFacebook: 'فيسبوك',
+    socialInstagram: 'إنستاغرام',
+    socialTiktok: 'تيك توك'
   }
 };

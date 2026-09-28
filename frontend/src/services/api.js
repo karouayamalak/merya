@@ -186,6 +186,7 @@ export const fetchProducts = (params = {}) => {
 };
 export const fetchProductBySlug = (slug) => request(`/products/slug/${encodeURIComponent(slug)}`);
 export const fetchDeliverySettings = () => request('/settings/delivery');
+export const fetchStoreSettings = () => request('/settings/store');
 export const quoteOrder = (quoteData) => request('/orders/quote', {
   method: 'POST',
   body: JSON.stringify(quoteData)
@@ -290,6 +291,11 @@ export const adminArchiveCategory = (id) => request(`/categories/${id}`, { metho
 export const adminUnarchiveCategory = (id) => request(`/categories/${id}/unarchive`, { method: 'PATCH' });
 
 export const adminUpdateDeliverySettings = (data) => request('/settings/delivery', {
+  method: 'PUT',
+  body: JSON.stringify(data)
+});
+
+export const adminUpdateStoreSettings = (data) => request('/settings/store', {
   method: 'PUT',
   body: JSON.stringify(data)
 });

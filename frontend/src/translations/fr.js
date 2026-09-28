@@ -68,6 +68,7 @@ export default {
       qualityDesc: 'Sélection rigoureuse des matières pour une tombée parfaite et une durabilité remarquable.',
       deliveryTitle: 'Livraison 58 Wilayas',
       deliveryDesc: 'Expédition rapide et sécurisée à domicile ou en point relais avec paiement à la livraison (COD).',
+      deliveryDays: 'Délai estimé : {days} jours ouvrables',
       codTitle: 'Paiement à la Livraison',
       codDesc: 'Commandez en toute confiance et réglez en espèces directement lors de la réception de votre colis.'
     }
@@ -117,7 +118,8 @@ export default {
     productAdded: 'Article ajouté à votre panier avec succès.',
     backToCollection: 'Retour à la Collection',
     codNotice: 'Paiement à la livraison (COD) dans les 58 Wilayas d\'Algérie.',
-    qualityNotice: 'Tissus nobles & confection double piqûre soignée.'
+    qualityNotice: 'Tissus nobles & confection double piqûre soignée.',
+    deliveryTimeNotice: 'Livraison estimée : {days} jours ouvrables sur 58 wilayas.'
   },
   cart: {
     title: 'Votre Panier',
@@ -129,11 +131,17 @@ export default {
     removeItem: 'Supprimer l\'article',
     freeDeliveryProgress: 'Plus que {remaining} DA pour profiter de la livraison offerte !',
     freeDeliveryUnlocked: 'Félicitations ! Vous bénéficiez de la livraison offerte.',
+    deliverySpeed: 'Livraison rapide : ~{days} jours ouvrables',
     color: 'Couleur',
     size: 'Taille'
   },
   checkout: {
     title: 'Finaliser ma Commande',
+    deliveryDelayNotice: 'Délai de livraison estimé : {days} jours ouvrables',
+    deliveryDelayDesc: 'Votre colis est préparé avec le plus grand soin et livré à domicile ou en agence sous ~{days} jours ouvrables.',
+    deliverySpeedBadge: 'Livraison estimée : {days} jours ouvrables',
+    deliverySpeedReassurance: 'Expédition soignée sur les 58 wilayas • Règlement à la livraison après vérification',
+
     subtitle: 'Paiement à la livraison partout en Algérie (58 Wilayas)',
     customerInfo: 'Coordonnées du Destinataire',
     fullName: 'Nom & Prénom',
@@ -251,6 +259,7 @@ export default {
     copyCode: 'Copier le code',
     codeCopied: 'Code copié !',
     recapTitle: 'Détails de l\'expédition',
+    deliveryEstimateNotice: 'Délai de livraison estimé : {days} jours ouvrables dans votre wilaya.',
     deliveryTo: 'Livraison à',
     trackCta: 'Suivre l\'état de mon colis',
     backToShop: 'Retourner à la boutique',
@@ -513,6 +522,10 @@ export default {
     allRightsReserved: 'Tous droits réservés. Mode Modeste Algérie.',
     privacy: 'Politique de confidentialité',
     terms: 'Conditions générales',
-    codGuarantee: 'Paiement à la livraison garanti'
+    codGuarantee: 'Paiement à la livraison garanti',
+    followUs: 'Suivez-nous',
+    socialFacebook: 'Facebook',
+    socialInstagram: 'Instagram',
+    socialTiktok: 'TikTok'
   }
 };

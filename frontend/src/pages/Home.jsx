@@ -4,10 +4,15 @@ import CategoryTile from '../components/CategoryTile';
 import ProductCard from '../components/ProductCard';
 import { fetchCategories, fetchProducts, fetchBanners } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
+import { useStoreSettings } from '../context/StoreSettingsContext';
 import { handleSafeBannerClick } from '../utils/safeUrl';
 
 export default function Home({ setCurrentView, setSelectedProduct, setSelectedCategory }) {
+  const { settings: storeSettings } = useStoreSettings();
+  const logoVariant = storeSettings?.logoVariant || 'white';
+  const heroLogoSrc = logoVariant === 'original' ? '/logo.png' : '/logo_white.png';
   const { t, isRtl, localized } = useLanguage();
+
   const [categories, setCategories] = useState([]);
   const [bestSellers, setBestSellers] = useState([]);
 
@@ -155,13 +160,14 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
           justifyContent: 'center'
         }}>
           <img
-            src="/logo.png"
+            src={heroLogoSrc}
             alt="MERYA DZ"
             style={{
               width: 'clamp(160px, 22vw, 300px)',
               height: 'auto',
               objectFit: 'contain',
-              display: 'block'
+              display: 'block',
+              filter: 'drop-shadow(0 2px 12px rgba(0,0,0,0.18))'
             }}
           />
         </div>
@@ -638,7 +644,24 @@ export default function Home({ setCurrentView, setSelectedProduct, setSelectedCa
             </p>
           </div>
 
-          <div style={{ padding: '1.5rem', backgroundColor: 'var(--color-surface)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-sm)' }}>
+          <div style={{ padding: '1.5rem', backgroundColor: 'var(--color-surface)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-sm)', position: 'relative', overflow: 'hidden' }}>
+            {/* 3-day delivery badge */}
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              backgroundColor: 'var(--color-espresso)',
+              color: '#fff',
+              borderRadius: 'var(--radius-full)',
+              padding: '0.22rem 0.75rem',
+              fontSize: '0.72rem',
+              fontWeight: '700',
+              letterSpacing: '0.05em',
+              textTransform: 'uppercase',
+              marginBottom: '0.65rem'
+            }}>
+              {t('home.features.deliveryDays', { days: storeSettings?.deliveryNoticeDays ?? 3 })}
+            </div>
+
             <h3 style={{ fontSize: '1.1rem', fontWeight: '700', marginBottom: '0.5rem', color: 'var(--color-espresso)' }}>
               {t('home.features.deliveryTitle')}
             </h3>

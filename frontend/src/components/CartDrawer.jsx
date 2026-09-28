@@ -1,12 +1,16 @@
 import React from 'react';
-import { X, Trash2, Plus, Minus, ArrowRight, ShoppingBag } from 'lucide-react';
+import { X, Trash2, Plus, Minus, ArrowRight, ShoppingBag, Truck } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useLanguage } from '../context/LanguageContext';
+import { useStoreSettings } from '../context/StoreSettingsContext';
 import { getImageUrl } from '../services/api';
 
 export default function CartDrawer({ onProceedToCheckout, onContinueShopping }) {
   const { items, isDrawerOpen, setIsDrawerOpen, updateQuantity, removeFromCart, subtotal, totalQuantity } = useCart();
   const { t, formatCurrency, isRtl, localized } = useLanguage();
+  const { settings: storeSettings } = useStoreSettings();
+  const deliveryNoticeDays = storeSettings?.deliveryNoticeDays ?? 3;
+
 
   if (!isDrawerOpen) return null;
 
@@ -228,6 +232,22 @@ export default function CartDrawer({ onProceedToCheckout, onContinueShopping }) 
               </span>
             </div>
 
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              fontSize: '0.78rem',
+              color: 'var(--color-primary-dark)',
+              backgroundColor: 'var(--color-bg-card)',
+              padding: '0.55rem 0.85rem',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--color-border)',
+              fontWeight: '600'
+            }}>
+              <Truck size={15} style={{ flexShrink: 0 }} />
+              <span>{t('cart.deliverySpeed', { days: deliveryNoticeDays })}</span>
+            </div>
+
             <button
               onClick={() => {
                 setIsDrawerOpen(false);
@@ -239,6 +259,7 @@ export default function CartDrawer({ onProceedToCheckout, onContinueShopping }) 
               <span>{t('cart.proceedToCheckout')}</span>
               <ArrowRight size={18} className="rtl-flip" />
             </button>
+
           </div>
         )}
       </div>

@@ -21,10 +21,14 @@ import {
   revalidateCartWithServer
 } from '../services/checkoutValidation';
 import { useLanguage } from '../context/LanguageContext';
+import { useStoreSettings } from '../context/StoreSettingsContext';
 
 export default function Checkout({ onBack, onOrderSuccess }) {
   const { items, subtotal, clearCart, updateCartItems } = useCart();
   const { t, formatCurrency, isRtl, getWilayaDisplayName, localized } = useLanguage();
+  const { settings: storeSettings } = useStoreSettings();
+  const deliveryNoticeDays = storeSettings?.deliveryNoticeDays ?? 3;
+
 
   // Explicit delivery settings state
   const [loadingSettings, setLoadingSettings] = useState(true);
@@ -986,6 +990,51 @@ export default function Checkout({ onBack, onOrderSuccess }) {
                     </div>
                   </div>
 
+                  {/* Delivery Delay Reassurance Notice (After filling information) */}
+                  <div style={{
+                    backgroundColor: '#FAF7F2',
+                    border: '1.5px solid #E8E0D5',
+                    borderRadius: '16px',
+                    padding: '0.95rem 1.15rem',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '0.85rem',
+                    boxShadow: '0 2px 8px rgba(42, 36, 31, 0.03)'
+                  }}>
+                    <div style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '50%',
+                      backgroundColor: '#F5EFEB',
+                      border: '1px solid #DFD5C6',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#9F8268',
+                      flexShrink: 0,
+                      marginTop: '0.1rem'
+                    }}>
+                      <Truck size={18} />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{
+                        fontSize: '0.86rem',
+                        fontWeight: '700',
+                        color: '#2A241F',
+                        marginBottom: '0.2rem'
+                      }}>
+                        {t('checkout.deliveryDelayNotice', { days: deliveryNoticeDays })}
+                      </div>
+                      <div style={{
+                        fontSize: '0.78rem',
+                        color: '#766657',
+                        lineHeight: 1.45
+                      }}>
+                        {t('checkout.deliveryDelayDesc', { days: deliveryNoticeDays })}
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Confirm Order Button */}
                   <div style={{ marginTop: '0.75rem' }}>
                     <button
@@ -1329,9 +1378,32 @@ export default function Checkout({ onBack, onOrderSuccess }) {
               </div>
             </div>
 
+            {/* Delivery Speed Note */}
+            <div style={{
+              marginTop: '1.25rem',
+              padding: '0.85rem 1rem',
+              backgroundColor: '#FFFFFF',
+              borderRadius: '14px',
+              border: '1px solid #EDE7DF',
+              fontSize: '0.78rem',
+              color: '#666',
+              lineHeight: 1.5,
+              display: 'flex',
+              gap: '0.65rem',
+              alignItems: 'flex-start'
+            }}>
+              <Truck size={19} color="#9F8268" style={{ marginTop: '2px', flexShrink: 0 }} />
+              <div>
+                <strong style={{ color: '#2A241F', display: 'block', marginBottom: '0.15rem' }}>
+                  {t('checkout.deliverySpeedBadge', { days: deliveryNoticeDays })}
+                </strong>
+                <span>{t('checkout.deliverySpeedReassurance')}</span>
+              </div>
+            </div>
+
             {/* COD Trust Note */}
             <div style={{
-              marginTop: '1.5rem',
+              marginTop: '0.75rem',
               padding: '0.9rem 1rem',
               backgroundColor: '#FFFFFF',
               borderRadius: '14px',

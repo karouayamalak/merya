@@ -19,7 +19,7 @@ async function checkChatId() {
 
     if (!data.result || data.result.length === 0) {
       console.log('\n❌ No messages received yet!');
-      console.log('👉 Please open Telegram, search for @Meryadz_bot (or visit https://t.me/Meryadz_bot) and click "START" or send any message.');
+      console.log('👉 Please open Telegram, search for @Meryaorderbot (or visit https://t.me/Meryaorderbot) and click "START" or send any message.');
       console.log('Then re-run this script to get your Chat ID.');
       return;
     }

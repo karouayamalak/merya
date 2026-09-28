@@ -1,11 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { CheckCircle, Copy, Compass } from 'lucide-react';
+import { CheckCircle, Copy, Compass, Truck } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useLanguage } from '../context/LanguageContext';
+import { useStoreSettings } from '../context/StoreSettingsContext';
 
 export default function OrderConfirmation({ orderData, onTrackOrder, onContinueShopping }) {
   const { t, isRtl, formatCurrency } = useLanguage();
+  const { settings: storeSettings } = useStoreSettings();
+  const deliveryNoticeDays = storeSettings?.deliveryNoticeDays ?? 3;
   const [copied, setCopied] = useState(false);
+
 
   useEffect(() => {
     // Fire celebratory confetti on arrival
@@ -142,6 +146,17 @@ export default function OrderConfirmation({ orderData, onTrackOrder, onContinueS
               {customer.wilaya?.code ? `${t('confirmation.wilaya')} ${customer.wilaya?.code} - ${customer.wilaya?.name}` : ''} ({customer.deliveryMethod === 'agency' ? t('checkout.agency') : t('checkout.home')})
             </span>
           </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.9rem', color: '#666', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <Truck size={15} color="var(--color-primary-dark)" />
+              {t('checkout.deliveryLabel')}
+            </span>
+            <span style={{ fontSize: '0.88rem', fontWeight: '700', color: 'var(--color-primary-dark)' }}>
+              {t('confirmation.deliveryEstimateNotice', { days: deliveryNoticeDays })}
+            </span>
+          </div>
+
 
           <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--color-border)', paddingTop: '0.75rem' }}>
             <span style={{ fontSize: '1.05rem', fontWeight: '700' }}>{t('checkout.totalToPayCod')}</span>

@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, ShoppingBag, ShieldCheck, Truck, Check, AlertCircle } from 'lucide-react';
+import { ArrowLeft, ShoppingBag, ShieldCheck, Truck, Check, AlertCircle, Clock } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { getImageUrl } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
+import { useStoreSettings } from '../context/StoreSettingsContext';
 
 export default function ProductDetail({ product, onBack, _onSelectRelated }) {
   const { addToCart } = useCart();
   const { t, formatCurrency, isRtl, localized } = useLanguage();
+  const { settings: storeSettings } = useStoreSettings();
+  const deliveryNoticeDays = storeSettings?.deliveryNoticeDays ?? 3;
+
 
   const [selectedColorIndex, setSelectedColorIndex] = useState(0);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
@@ -395,6 +399,10 @@ export default function ProductDetail({ product, onBack, _onSelectRelated }) {
               border: '1px solid var(--color-border)'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.85rem' }}>
+                <Clock size={18} color="var(--color-primary-dark)" />
+                <span>{t('product.deliveryTimeNotice', { days: deliveryNoticeDays })}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.85rem' }}>
                 <Truck size={18} color="var(--color-primary-dark)" />
                 <span>{t('product.codNotice')}</span>
               </div>
@@ -403,6 +411,7 @@ export default function ProductDetail({ product, onBack, _onSelectRelated }) {
                 <span>{t('product.qualityNotice')}</span>
               </div>
             </div>
+
 
             {/* Description (Optional) */}
             {localized(product.description) && (
