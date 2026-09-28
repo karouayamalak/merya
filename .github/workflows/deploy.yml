@@ -38,8 +38,8 @@ jobs:
               exit 1
             fi
 
-            echo "📥 Pulling latest code from GitHub..."
-            git pull origin main
+            echo "📥 Fetching and syncing latest code from GitHub..."
+            git fetch origin main && git reset --hard origin/main
 
             echo "🐳 Rebuilding and updating Docker container..."
             docker compose up -d --build backend
