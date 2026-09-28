@@ -18,7 +18,7 @@ sed -i '/TELEGRAM_CHAT_ID=/d' "$ENV_FILE"
 
 # Append exact new token and chat ID
 echo "TELEGRAM_BOT_TOKEN=8919995952:AAHj83TjuHvvqNulZPWdm-y7B0QDEN5yQms" >> "$ENV_FILE"
-echo "TELEGRAM_CHAT_ID=7808123146" >> "$ENV_FILE"
+echo "TELEGRAM_CHAT_ID=6363932801" >> "$ENV_FILE"
 
 echo "Variables updated successfully in $ENV_FILE:"
 grep "TELEGRAM_" "$ENV_FILE"
