@@ -106,7 +106,7 @@ export async function sendTelegramOrderNotification(order) {
 
   try {
     const message = buildOrderTelegramMessage(order);
-    const controller = new AbortController();
+    const controller = new globalThis.AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 8000);
 
     const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
@@ -137,3 +137,116 @@ export async function sendTelegramOrderNotification(order) {
     return false;
   }
 }
+
+/**
+ * Send an OTP code via Telegram for password reset.
+ */
+export async function sendTelegramPasswordResetOtp({ adminEmail, username, otp, ipAddress }) {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_CHAT_ID;
+
+  if (!botToken || !chatId) {
+    console.warn('[Telegram] Password reset notification skipped: bot token or chat ID missing.');
+    return false;
+  }
+
+  const message = [
+    '🔐 <b>RÉINITIALISATION DE MOT DE PASSE</b>',
+    '━━━━━━━━━━━━━━━━━━━━',
+    `Bonjour <b>${escapeHtml(username || 'Administrateur')}</b>,`,
+    '',
+    'Une demande de réinitialisation a été envoyée pour le compte :',
+    `📧 <code>${escapeHtml(adminEmail)}</code>`,
+    '',
+    '🔢 Votre code de sécurité à 6 chiffres :',
+    `👉 <b><code>${escapeHtml(otp)}</code></b> 👈`,
+    '',
+    '⏳ <i>Ce code expire dans 10 minutes.</i>',
+    ipAddress ? `📍 <i>IP : ${escapeHtml(ipAddress)}</i>` : '',
+    '',
+    '⚠️ <i>Si vous n\'êtes pas à l\'origine de cette demande, ignorez ce message.</i>'
+  ].filter(Boolean).join('\n');
+
+  try {
+    const controller = new globalThis.AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+    const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: message,
+        parse_mode: 'HTML',
+        disable_web_page_preview: true
+      }),
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.ok) {
+      console.warn('[Telegram] Reset OTP API responded with error:', data.description || response.statusText);
+      return false;
+    }
+
+    console.log(`[Telegram] Password reset OTP sent successfully for ${adminEmail}`);
+    return true;
+  } catch (err) {
+    console.warn(`[Telegram] Failed to send reset OTP: ${err.message}`);
+    return false;
+  }
+}
+
+/**
+ * Send an alert via Telegram when an admin password is reset successfully.
+ */
+export async function sendTelegramPasswordResetSuccessAlert({ adminEmail, username, ipAddress }) {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_CHAT_ID;
+
+  if (!botToken || !chatId) return false;
+
+  const dateStr = new Date().toLocaleString('fr-DZ', {
+    timeZone: 'Africa/Algiers',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+
+  const message = [
+    '🛡️ <b>MOT DE PASSE MIS À JOUR AVEC SUCCÈS</b>',
+    '━━━━━━━━━━━━━━━━━━━━',
+    `Le mot de passe pour le compte <code>${escapeHtml(adminEmail)}</code> (${escapeHtml(username || 'Admin')}) a été réinitialisé avec succès.`,
+    `⏰ <b>Date :</b> ${escapeHtml(dateStr)}`,
+    ipAddress ? `📍 <b>IP :</b> <code>${escapeHtml(ipAddress)}</code>` : '',
+    '',
+    '🔒 Toutes les anciennes sessions connectées ont été révoquées par précaution.',
+    'Vous pouvez désormais vous connecter avec votre nouveau mot de passe.'
+  ].filter(Boolean).join('\n');
+
+  try {
+    const controller = new globalThis.AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: message,
+        parse_mode: 'HTML',
+        disable_web_page_preview: true
+      }),
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    return true;
+  } catch {
+    return false;
+  }
+}
+

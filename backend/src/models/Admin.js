@@ -33,6 +33,18 @@ const adminSchema = new mongoose.Schema({
   },
   lastLoginAt: {
     type: Date
+  },
+  resetPasswordOtpHash: {
+    type: String,
+    default: null
+  },
+  resetPasswordExpires: {
+    type: Date,
+    default: null
+  },
+  resetPasswordAttempts: {
+    type: Number,
+    default: 0
   }
 }, {
   timestamps: true
@@ -43,10 +55,11 @@ adminSchema.methods.comparePassword = async function (candidatePassword) {
   return bcrypt.compare(candidatePassword, this.passwordHash);
 };
 
-// Remove passwordHash from JSON responses
+// Remove passwordHash and reset OTP hash from JSON responses
 adminSchema.methods.toJSON = function () {
   const obj = this.toObject();
   delete obj.passwordHash;
+  delete obj.resetPasswordOtpHash;
   return obj;
 };
 

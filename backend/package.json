@@ -15,6 +15,7 @@
     "test": "node --env-file=.env --test --test-concurrency=1 tests/**/*.test.js",
     "test:all": "node --env-file=.env scripts/runAllTests.js",
     "reset:blank": "node scripts/resetToBlankStore.js",
+    "reset:admin": "node scripts/resetAdminPassword.js",
     "lint": "oxlint"
   },
   "dependencies": {
@@ -30,6 +31,7 @@
     "mongoose": "^8.5.1",
     "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.1",
+    "nodemailer": "^10.1.7",
     "sharp": "^0.35.4",
     "ws": "^8.18.0",
     "zod": "^3.23.8"

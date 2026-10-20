@@ -242,6 +242,15 @@ export const adminChangePassword = (oldPassword, newPassword) => request('/auth/
   method: 'PUT',
   body: JSON.stringify({ oldPassword, newPassword })
 });
+export const adminForgotPassword = (email) => request('/auth/forgot-password', {
+  method: 'POST',
+  body: JSON.stringify({ email })
+});
+export const adminResetPasswordWithOtp = (email, otp, newPassword) => request('/auth/reset-password', {
+  method: 'POST',
+  body: JSON.stringify({ email, otp, newPassword })
+});
+
 
 // Admin Management APIs
 export const adminGetDashboard = () => request('/analytics/dashboard');

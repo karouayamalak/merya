@@ -6,16 +6,32 @@ import {
   logoutAll,
   getMe,
   getSessions,
-  changePassword
+  changePassword,
+  forgotPassword,
+  resetPasswordWithOtp
 } from '../controllers/authController.js';
 import { authenticateAdmin } from '../middleware/auth.js';
 import { issueCsrfToken, verifyCsrf } from '../middleware/csrf.js';
-import { loginLimiter, refreshLimiter, changePasswordLimiter } from '../middleware/rateLimiter.js';
-import { validate, adminLoginSchema, changePasswordSchema } from '../middleware/validation.js';
+import {
+  loginLimiter,
+  refreshLimiter,
+  changePasswordLimiter,
+  forgotPasswordLimiter,
+  resetPasswordLimiter
+} from '../middleware/rateLimiter.js';
+import {
+  validate,
+  adminLoginSchema,
+  changePasswordSchema,
+  forgotPasswordSchema,
+  resetPasswordWithOtpSchema
+} from '../middleware/validation.js';
 
 const router = express.Router();
 
 router.post('/login', loginLimiter, validate(adminLoginSchema), login);
+router.post('/forgot-password', forgotPasswordLimiter, validate(forgotPasswordSchema), forgotPassword);
+router.post('/reset-password', resetPasswordLimiter, validate(resetPasswordWithOtpSchema), resetPasswordWithOtp);
 router.post('/refresh', refreshLimiter, verifyCsrf, refresh);
 router.post('/logout', verifyCsrf, logout);
 router.post('/logout-all', verifyCsrf, authenticateAdmin, logoutAll);

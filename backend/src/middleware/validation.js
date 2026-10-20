@@ -18,6 +18,8 @@ export {
   validateVariantUniqueness,
   adminLoginSchema,
   changePasswordSchema,
+  forgotPasswordSchema,
+  resetPasswordWithOtpSchema,
   checkoutOrderSchema,
   cartQuoteSchema,
   trackingSchema,

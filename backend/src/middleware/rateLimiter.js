@@ -246,3 +246,20 @@ export const changePasswordLimiter = createLimiter({
   message: 'Too many password change attempts. Please try again in 15 minutes.',
   prefix: 'change_password'
 });
+
+// Dedicated rate limiter for forgot password requests (prevents OTP SMS/Telegram flooding)
+export const forgotPasswordLimiter = createLimiter({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: process.env.NODE_ENV === 'production' ? 5 : 10000,
+  message: 'Too many password reset requests. Please wait 15 minutes before trying again.',
+  prefix: 'forgot_password'
+});
+
+// Dedicated rate limiter for password reset verification attempts
+export const resetPasswordLimiter = createLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: process.env.NODE_ENV === 'production' ? 10 : 10000,
+  message: 'Too many reset attempts. Please wait 15 minutes before trying again.',
+  prefix: 'reset_password'
+});
+
