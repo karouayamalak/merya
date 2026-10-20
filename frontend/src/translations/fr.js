@@ -327,7 +327,7 @@ export default {
     invalidCredentials: 'Identifiants administrateur invalides',
     forgotPassword: 'Mot de passe oublié ?',
     resetTitle: 'Réinitialiser le mot de passe',
-    resetSubtitle: 'Un code de sécurité à 6 chiffres sera envoyé sur votre Telegram & Email.',
+    resetSubtitle: 'Un code de sécurité à 6 chiffres sera envoyé instantanément sur votre Telegram.',
     sendResetCode: 'Envoyer le code de sécurité',
     otpCode: 'Code de vérification (6 chiffres)',
     otpPlaceholder: 'Ex: 123456',
@@ -338,7 +338,7 @@ export default {
     resetSuccessMessage: 'Votre mot de passe a été mis à jour avec succès. Vous pouvez maintenant vous connecter.',
     backToLogin: 'Retour à la connexion',
     resendCode: 'Renvoyer le code',
-    codeSentNotice: 'Un code de sécurité a été envoyé sur Telegram / Email pour :',
+    codeSentNotice: 'Un code de sécurité à 6 chiffres a été envoyé sur votre Telegram pour :',
     nav: {
       dashboard: 'Tableau de bord',
       orders: 'Commandes',

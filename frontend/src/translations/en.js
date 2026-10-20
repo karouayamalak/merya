@@ -327,7 +327,7 @@ export default {
     invalidCredentials: 'Invalid administrator credentials',
     forgotPassword: 'Forgot password?',
     resetTitle: 'Reset Password',
-    resetSubtitle: 'A 6-digit verification code will be sent to your Telegram & Email.',
+    resetSubtitle: 'A 6-digit verification code will be sent directly to your Telegram.',
     sendResetCode: 'Send Verification Code',
     otpCode: 'Verification Code (6 digits)',
     otpPlaceholder: 'e.g. 123456',
@@ -338,7 +338,7 @@ export default {
     resetSuccessMessage: 'Your password has been updated. You can now sign in with your new credentials.',
     backToLogin: 'Back to Sign In',
     resendCode: 'Resend Code',
-    codeSentNotice: 'A verification code has been dispatched via Telegram / Email to:',
+    codeSentNotice: 'A 6-digit verification code has been dispatched to your Telegram for:',
     nav: {
       dashboard: 'Dashboard',
       orders: 'Orders',
