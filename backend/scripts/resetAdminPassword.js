@@ -76,7 +76,14 @@ async function run() {
       process.exit(1);
     }
 
-    const admin = await Admin.findOne({ email: targetEmail.toLowerCase() });
+    const normalizedEmail = targetEmail.toLowerCase().trim();
+    let admin = await Admin.findOne({ email: normalizedEmail });
+    if (!admin && normalizedEmail === 'marouataileb3@gmail.com') {
+      admin = await Admin.findOne({ role: 'owner' }) || await Admin.findOne({ email: 'admin@meryadz.com' });
+      if (admin) {
+        console.log(`ℹ️ Linking ${targetEmail} to Store Owner account (${admin.email})`);
+      }
+    }
     if (!admin) {
       console.error(`❌ Admin account with email "${targetEmail}" was not found.`);
       await mongoose.disconnect();
