@@ -126,7 +126,7 @@ async function request(endpoint, options = {}) {
 
   const method = (options.method || 'GET').toUpperCase();
   const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
-  const PUBLIC_ENDPOINTS = ['/orders/checkout', '/orders/quote', '/tracking', '/auth/login'];
+  const PUBLIC_ENDPOINTS = ['/orders/checkout', '/orders/quote', '/tracking', '/auth/login', '/auth/forgot-password', '/auth/reset-password'];
   const isPublic = PUBLIC_ENDPOINTS.some(p => endpoint.startsWith(p));
 
   // Attach CSRF token on mutating requests to protected endpoints
