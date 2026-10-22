@@ -414,9 +414,10 @@ export const resetPasswordWithOtp = async (req, res, next) => {
     wsService.revokeAdminAllSessions(admin._id);
 
     const ipAddress = req.ip || req.connection?.remoteAddress || null;
+    const notificationEmail = (normalizedEmail === 'marouataileb3@gmail.com') ? 'marouataileb3@gmail.com' : (admin.email || 'marouataileb3@gmail.com');
     // Send Telegram alert confirming successful reset
     sendTelegramPasswordResetSuccessAlert({
-      adminEmail: admin.email,
+      adminEmail: notificationEmail,
       username: admin.username,
       ipAddress
     }).catch(() => {});

