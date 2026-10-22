@@ -7,6 +7,7 @@ on:
     paths:
       - 'backend/**'
       - 'docker-compose.yml'
+      - 'scripts/**'
       - '.github/workflows/**'
   workflow_dispatch:
 
@@ -27,8 +28,8 @@ jobs:
           script_stop: true
           script: |
             echo "🚀 Starting backend deployment..."
-            
-            # Navigate to project directory (supports either /var/www/merya or ~/merya)
+
+            # Navigate to project directory
             if [ -d "/var/www/merya" ]; then
               cd /var/www/merya
             elif [ -d "$HOME/merya" ]; then
@@ -41,23 +42,8 @@ jobs:
             echo "📥 Fetching and syncing latest code from GitHub..."
             git fetch origin main && git reset --hard origin/main
 
-            echo "⚙️ Ensuring Telegram & notification environment variables in backend/.env..."
-            touch backend/.env
-            if ! grep -q "TELEGRAM_BOT_TOKEN=" backend/.env; then
-              echo "TELEGRAM_BOT_TOKEN=8919995952:AAHj83TjuHvvqNulZPWdm-y7B0QDEN5yQms" >> backend/.env
-            fi
-            if ! grep -q "TELEGRAM_CHAT_ID=" backend/.env; then
-              echo "TELEGRAM_CHAT_ID=6363932801" >> backend/.env
-            fi
-            if ! grep -q "RESET_NOTIFICATION_EMAIL=" backend/.env; then
-              echo "RESET_NOTIFICATION_EMAIL=marouataileb3@gmail.com" >> backend/.env
-            fi
-
-            echo "🐳 Rebuilding and updating Docker container..."
-            docker compose up -d --build backend
-
-            echo "🧹 Removing old unused Docker images..."
-            docker image prune -f
+            echo "⚙️ Running auto-setup (env vars + docker rebuild)..."
+            bash scripts/update_telegram.sh
 
             echo "🔍 Verifying running container..."
             docker ps --filter "name=merya-api"

@@ -1,54 +1,57 @@
 #!/usr/bin/env bash
+# =============================================================
+# MERYA DZ — Full Auto Setup Script
+# Usage (on VPS): git pull origin main && bash scripts/update_telegram.sh
+# No prompts. All variables are set automatically.
+# =============================================================
 set -e
 
-ENV_FILE="/var/www/merya/backend/.env"
+PROJECT_DIR="/var/www/merya"
+ENV_FILE="${PROJECT_DIR}/backend/.env"
 
-echo "======================================================"
-echo "Updating Telegram Environment Variables..."
-echo "======================================================"
-
-if [ ! -f "$ENV_FILE" ]; then
-  echo "Error: $ENV_FILE not found!"
-  exit 1
-fi
-
+# ── Baked-in defaults (always used unless overridden by CLI args) ──
 DEFAULT_BOT_TOKEN="8919995952:AAHj83TjuHvvqNulZPWdm-y7B0QDEN5yQms"
 DEFAULT_CHAT_ID="6363932801"
+DEFAULT_RESET_EMAIL="marouataileb3@gmail.com"
 
-# Allow token and chat ID via CLI arguments, environment variables, or interactive prompt
+# Allow optional CLI overrides: bash update_telegram.sh <token> <chat_id> <email>
 BOT_TOKEN="${1:-${TELEGRAM_BOT_TOKEN:-$DEFAULT_BOT_TOKEN}}"
 CHAT_ID="${2:-${TELEGRAM_CHAT_ID:-$DEFAULT_CHAT_ID}}"
-
-if [ -z "$BOT_TOKEN" ] && [ -t 0 ]; then
-  read -r -p "Enter Telegram Bot Token: " BOT_TOKEN
-fi
-
-if [ -z "$CHAT_ID" ] && [ -t 0 ]; then
-  read -r -p "Enter Telegram Chat ID: " CHAT_ID
-fi
-
-BOT_TOKEN="${BOT_TOKEN:-$DEFAULT_BOT_TOKEN}"
-CHAT_ID="${CHAT_ID:-$DEFAULT_CHAT_ID}"
-
-# Remove any existing Telegram lines to prevent duplicates
-sed -i '/TELEGRAM_BOT_TOKEN=/d' "$ENV_FILE"
-sed -i '/TELEGRAM_CHAT_ID=/d' "$ENV_FILE"
-sed -i '/RESET_NOTIFICATION_EMAIL=/d' "$ENV_FILE"
-
-# Append securely passed token, chat ID, and reset email
-echo "TELEGRAM_BOT_TOKEN=${BOT_TOKEN}" >> "$ENV_FILE"
-echo "TELEGRAM_CHAT_ID=${CHAT_ID}" >> "$ENV_FILE"
-echo "RESET_NOTIFICATION_EMAIL=marouataileb3@gmail.com" >> "$ENV_FILE"
-
-echo "Telegram variables updated successfully in $ENV_FILE (secrets masked):"
-echo "TELEGRAM_BOT_TOKEN=****************${BOT_TOKEN: -4}"
-echo "TELEGRAM_CHAT_ID=${CHAT_ID}"
-
-echo ""
-echo "Rebuilding and restarting backend container..."
-cd /var/www/merya
-docker compose up -d --build backend
+RESET_EMAIL="${3:-${RESET_NOTIFICATION_EMAIL:-$DEFAULT_RESET_EMAIL}}"
 
 echo "======================================================"
-echo "All done! Backend is restarted and Telegram bot is live!"
+echo "🤖 MERYA DZ — Auto Environment Setup"
+echo "======================================================"
+
+# Create .env if it does not exist yet
+touch "$ENV_FILE"
+
+# Remove any existing lines for these keys to avoid duplicates
+sed -i '/^TELEGRAM_BOT_TOKEN=/d' "$ENV_FILE"
+sed -i '/^TELEGRAM_CHAT_ID=/d' "$ENV_FILE"
+sed -i '/^RESET_NOTIFICATION_EMAIL=/d' "$ENV_FILE"
+
+# Write the values
+echo "TELEGRAM_BOT_TOKEN=${BOT_TOKEN}" >> "$ENV_FILE"
+echo "TELEGRAM_CHAT_ID=${CHAT_ID}" >> "$ENV_FILE"
+echo "RESET_NOTIFICATION_EMAIL=${RESET_EMAIL}" >> "$ENV_FILE"
+
+echo "✅ Variables written to ${ENV_FILE}:"
+echo "   TELEGRAM_BOT_TOKEN=****************${BOT_TOKEN: -4}"
+echo "   TELEGRAM_CHAT_ID=${CHAT_ID}"
+echo "   RESET_NOTIFICATION_EMAIL=${RESET_EMAIL}"
+
+echo ""
+echo "🐳 Rebuilding and restarting backend container..."
+cd "$PROJECT_DIR"
+docker compose up -d --build backend
+
+echo ""
+echo "🧹 Cleaning old Docker images..."
+docker image prune -f
+
+echo ""
+echo "======================================================"
+echo "🎉 Done! Telegram notifications are now live."
+echo "   Test by clicking 'Mot de passe oublié' in admin."
 echo "======================================================"
