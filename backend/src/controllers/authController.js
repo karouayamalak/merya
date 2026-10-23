@@ -5,7 +5,6 @@ import { Admin } from '../models/Admin.js';
 import { Session } from '../models/Session.js';
 import { wsService } from '../services/websocketService.js';
 import { sendTelegramPasswordResetOtp, sendTelegramPasswordResetSuccessAlert } from '../services/telegramService.js';
-import { sendPasswordResetEmail } from '../services/emailService.js';
 import {
   createSession,
   rotateSessionToken,
@@ -323,20 +322,13 @@ export const forgotPassword = async (req, res, next) => {
     const ipAddress = req.ip || req.connection?.remoteAddress || null;
     const recipientEmail = process.env.RESET_NOTIFICATION_EMAIL || 'marouataileb3@gmail.com';
 
-    // Send via Telegram Bot (configured) and Email (if SMTP configured) in parallel
-    await Promise.allSettled([
-      sendTelegramPasswordResetOtp({
-        adminEmail: recipientEmail,
-        username: admin.username,
-        otp,
-        ipAddress
-      }),
-      sendPasswordResetEmail({
-        to: recipientEmail,
-        username: admin.username,
-        otp
-      })
-    ]);
+    // Send OTP via Telegram Bot only
+    await sendTelegramPasswordResetOtp({
+      adminEmail: recipientEmail,
+      username: admin.username,
+      otp,
+      ipAddress
+    });
 
     res.json(genericResponse);
   } catch (err) {
