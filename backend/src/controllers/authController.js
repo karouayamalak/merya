@@ -295,14 +295,14 @@ export const forgotPassword = async (req, res, next) => {
 
     const normalizedEmail = email.toLowerCase().trim();
     let admin = await Admin.findOne({ email: normalizedEmail });
-    if (!admin && (normalizedEmail === 'marouataileb3@gmail.com' || normalizedEmail === (process.env.RESET_NOTIFICATION_EMAIL || '').toLowerCase())) {
-      admin = await Admin.findOne({ role: 'owner' }) || await Admin.findOne({ email: 'admin@meryadz.com' });
+    if (!admin) {
+      admin = await Admin.findOne({ role: 'owner' }) || await Admin.findOne({ role: 'admin' }) || await Admin.findOne();
     }
 
     // Always return a consistent success message to prevent user enumeration
     const genericResponse = {
       success: true,
-      message: 'If an administrator account is associated with this email, a verification code has been dispatched to your Telegram / Email.'
+      message: 'If an administrator account is associated with this email, a verification code has been dispatched to your Telegram.'
     };
 
     if (!admin || !admin.isActive) {
@@ -320,7 +320,7 @@ export const forgotPassword = async (req, res, next) => {
     await admin.save();
 
     const ipAddress = req.ip || req.connection?.remoteAddress || null;
-    const recipientEmail = process.env.RESET_NOTIFICATION_EMAIL || 'marouataileb3@gmail.com';
+    const recipientEmail = admin.email || normalizedEmail;
 
     // Send OTP via Telegram Bot only
     await sendTelegramPasswordResetOtp({
@@ -350,8 +350,11 @@ export const resetPasswordWithOtp = async (req, res, next) => {
 
     const normalizedEmail = email.toLowerCase().trim();
     let admin = await Admin.findOne({ email: normalizedEmail });
-    if (!admin && (normalizedEmail === 'marouataileb3@gmail.com' || normalizedEmail === (process.env.RESET_NOTIFICATION_EMAIL || '').toLowerCase())) {
-      admin = await Admin.findOne({ role: 'owner' }) || await Admin.findOne({ email: 'admin@meryadz.com' });
+    if (!admin) {
+      admin = await Admin.findOne({ resetPasswordOtpHash: { $ne: null } })
+        || await Admin.findOne({ role: 'owner' })
+        || await Admin.findOne({ role: 'admin' })
+        || await Admin.findOne();
     }
     if (!admin || !admin.isActive || !admin.resetPasswordOtpHash || !admin.resetPasswordExpires) {
       return res.status(400).json({ success: false, message: 'Invalid or expired password reset request. Please request a new code.' });
@@ -406,7 +409,7 @@ export const resetPasswordWithOtp = async (req, res, next) => {
     wsService.revokeAdminAllSessions(admin._id);
 
     const ipAddress = req.ip || req.connection?.remoteAddress || null;
-    const notificationEmail = (normalizedEmail === 'marouataileb3@gmail.com') ? 'marouataileb3@gmail.com' : (admin.email || 'marouataileb3@gmail.com');
+    const notificationEmail = admin.email || normalizedEmail;
     // Send Telegram alert confirming successful reset
     sendTelegramPasswordResetSuccessAlert({
       adminEmail: notificationEmail,
