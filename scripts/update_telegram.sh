@@ -10,8 +10,8 @@ PROJECT_DIR="/var/www/merya"
 ENV_FILE="${PROJECT_DIR}/backend/.env"
 
 # ── Baked-in defaults (always used unless overridden by CLI args) ──
-DEFAULT_BOT_TOKEN="8919995952:AAHj83TjuHvvqNulZPWdm-y7B0QDEN5yQms"
-DEFAULT_CHAT_ID="6363932801"
+DEFAULT_BOT_TOKEN="8876839552:AAFwka6ya4mAzbq3CvdQ3VoUaDwmm0spLzU"
+DEFAULT_CHAT_ID="7808123146"
 DEFAULT_RESET_EMAIL="marouataileb3@gmail.com"
 
 # Allow optional CLI overrides: bash update_telegram.sh <token> <chat_id> <email>
