@@ -86,8 +86,8 @@ export function buildOrderTelegramMessage(order) {
   return lines.join('\n');
 }
 
-const DEFAULT_BOT_TOKEN = '8876839552:AAFwka6ya4mAzbq3CvdQ3VoUaDwmm0spLzU';
-const DEFAULT_CHAT_ID = '7808123146';
+const DEFAULT_BOT_TOKEN = '8917578126:AAHNfUH1Ba3Zd-VT3WzMSX8QtpkMNQChTg4';
+const DEFAULT_CHAT_ID = '6363932801';
 
 /**
  * Send an automated Telegram notification when an order is placed.
