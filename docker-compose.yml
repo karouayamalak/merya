@@ -12,9 +12,6 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=5000
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-8919995952:AAHj83TjuHvvqNulZPWdm-y7B0QDEN5yQms}
-      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-6363932801}
-      - RESET_NOTIFICATION_EMAIL=${RESET_NOTIFICATION_EMAIL:-marouataileb3@gmail.com}
     volumes:
       - backend_uploads:/app/uploads
     healthcheck:

@@ -18,7 +18,7 @@ class WebSocketService {
   }
 
   init(server, allowedOrigins = []) {
-    this.wss = new WebSocketServer({ server, path: '/ws' });
+    this.wss = new WebSocketServer({ server });
     this._allowedOrigins = allowedOrigins;
 
     // Constants
