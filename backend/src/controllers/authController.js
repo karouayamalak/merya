@@ -350,8 +350,9 @@ export const resetPasswordWithOtp = async (req, res, next) => {
 
     const normalizedEmail = email.toLowerCase().trim();
     let admin = await Admin.findOne({ email: normalizedEmail });
-    if (!admin) {
+    if (!admin || !admin.resetPasswordOtpHash) {
       admin = await Admin.findOne({ resetPasswordOtpHash: { $ne: null } })
+        || admin
         || await Admin.findOne({ role: 'owner' })
         || await Admin.findOne({ role: 'admin' })
         || await Admin.findOne();
